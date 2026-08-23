@@ -1,0 +1,5 @@
+export { initialMigration } from './migration.js'
+export { PostgresEventStore } from './postgres-event-store.js'
+export { PostgresStorage } from './postgres-storage.js'
+export { PostgresStoragePlugin } from './plugin.js'
+export type { PostgresPluginConfig } from './plugin.js'

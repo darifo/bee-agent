@@ -22,6 +22,7 @@
     "@bee-agent/contracts": "workspace:*",
     "@bee-agent/event-store": "workspace:*",
     "@bee-agent/kernel": "workspace:*",
+    "@bee-agent/plugin-storage-postgres": "workspace:*",
     "@bee-agent/plugin-storage-sqlite": "workspace:*",
     "@bee-agent/plugin-tool-calculator": "workspace:*",
     "@bee-agent/runtime": "workspace:*",

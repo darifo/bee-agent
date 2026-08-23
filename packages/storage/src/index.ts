@@ -5,6 +5,11 @@ export interface TransactionContext {
 }
 
 export interface TransactionManager {
+  /**
+   * Runs the callback inside a transaction. Re-entrant calls made while a
+   * transaction is already active on the same provider join it — only the
+   * outermost call controls commit and rollback.
+   */
   transaction<T>(
     callback: (transaction: TransactionContext) => Promise<T>,
   ): Promise<T>

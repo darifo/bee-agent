@@ -90,11 +90,11 @@ abstractions, and SQLite Event Store.
 | Shared contracts   | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                             |
 | Cordis kernel      | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                  |
 | Core runtimes      | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation |
-| SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay                                                                                                                        |
+| SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                         |
 | Server             | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses         |
 | Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                   |
 | Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                          |
-| PostgreSQL storage | Planned   | Plugin boundary and ADR are defined; implementation is deferred                                                                                                                                                 |
+| PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                            |
 | pgvector memory    | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                                                       |
 
 ## Requirements
@@ -134,6 +134,27 @@ bee task run <taskId>                          # streams events until the task f
 pnpm --filter @bee-agent/web dev               # http://localhost:5173
 ```
 
+### Running on PostgreSQL
+
+One storage dialect per instance (ADR 0004); pick it with environment
+variables — SQLite is the default:
+
+```bash
+docker run -d --name bee-agent-pg \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=bee_agent \
+  -p 127.0.0.1:5432:5432 pgvector/pgvector:pg17
+
+BEE_AGENT_STORAGE_DIALECT=postgres \
+BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent \
+pnpm --filter @bee-agent/server start
+```
+
+The PostgreSQL integration tests need the same URL and skip without it:
+
+```bash
+BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent pnpm test
+```
+
 ## Repository structure
 
 ```text
@@ -153,7 +174,7 @@ bee-agent/
 │   └── vector-store/        # Vector Store and embedding-space boundary
 ├── plugins/
 │   ├── storage/sqlite/      # Working SQLite storage and Event Store
-│   ├── storage/postgres/    # Reserved PostgreSQL adapter boundary
+│   ├── storage/postgres/    # Working PostgreSQL storage and Event Store
 │   ├── tools/calculator/    # Working calculator tool plugin
 │   └── vector/pgvector/     # Reserved pgvector adapter boundary
 ├── adapters/                # Future external protocol and agent adapters
@@ -204,7 +225,7 @@ dedicated Vector Store contract.
 - [x] Add the task state machine, policy engine, calculator tool, and mock agent
 - [x] Add the HTTP/SSE server, Client SDK, and CLI
 - [x] Add the React Web UI
-- [ ] Implement PostgreSQL using the shared storage contract suite
+- [x] Implement PostgreSQL using the shared storage contract suite
 - [ ] Implement pgvector and embedding-space validation
 - [ ] Add memory, real model providers, MCP, Python workers, and external agents
 

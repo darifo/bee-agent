@@ -9,6 +9,7 @@ import {
   storageService,
 } from '@bee-agent/kernel'
 import { SQLiteStoragePlugin } from '@bee-agent/plugin-storage-sqlite'
+import { PostgresStoragePlugin } from '@bee-agent/plugin-storage-postgres'
 import { CalculatorTool } from '@bee-agent/plugin-tool-calculator'
 import { MockAgent, TaskRuntime } from '@bee-agent/runtime'
 import type { Agent, Tool, ToolPolicy } from '@bee-agent/runtime'
@@ -20,6 +21,12 @@ import { sendErrorResponse } from './errors.js'
 export interface ServerOptions {
   /** SQLite database file; `:memory:` keeps everything in RAM. */
   readonly sqliteFilename?: string | undefined
+  /**
+   * PostgreSQL connection string. When set, PostgreSQL is the active
+   * storage dialect and SQLite stays unmounted — one dialect per
+   * instance, never dual writes (ADR 0004).
+   */
+  readonly postgresUrl?: string | undefined
   /** Agent used when a task spec references an unregistered `agentId`. */
   readonly defaultAgent?: Agent | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
@@ -44,18 +51,38 @@ export interface BeeServer {
 }
 
 /**
- * Composition root: starts the kernel, mounts storage (SQLite by default,
- * registered under the standard `event-store` and `storage` service keys),
- * wires the task runtime with the mock agent and calculator tool, and serves
- * the REST + SSE API.
+ * Composition root: starts the kernel, mounts storage (SQLite by default or
+ * PostgreSQL via `postgresUrl`, registered under the standard `event-store`
+ * and `storage` service keys), wires the task runtime with the mock agent
+ * and calculator tool, and serves the REST + SSE API.
  */
 export async function buildServer(
   options: ServerOptions = {},
 ): Promise<BeeServer> {
+  if (
+    options.postgresUrl !== undefined &&
+    options.sqliteFilename !== undefined
+  ) {
+    throw new Error(
+      'Configure either sqliteFilename or postgresUrl, never both: one storage dialect per instance (ADR 0004)',
+    )
+  }
+
   const kernel = createKernel()
   await kernel.start()
   if (options.eventStore) {
     kernel.registerService(eventStoreService, options.eventStore)
+  } else if (options.postgresUrl !== undefined) {
+    const storage = new PostgresStoragePlugin({
+      connectionString: options.postgresUrl,
+    })
+    const handle = kernel.useBeeAgentPlugin(storage, {
+      services: () => ({
+        [eventStoreService.name]: storage.eventStore,
+        [storageService.name]: storage.storage,
+      }),
+    })
+    await handle.ready
   } else {
     const storage = new SQLiteStoragePlugin({
       filename: options.sqliteFilename ?? 'bee-agent.sqlite',

@@ -86,11 +86,11 @@ flowchart TB
 | 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                     |
 | Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
 | 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
-| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                                    |
+| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放，由共享存储契约套件验证                                                            |
 | 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封    |
 | 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）  |
 | Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                  |
-| PostgreSQL 存储   | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                                     |
+| PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                    |
 | pgvector 记忆     | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
 
 ## 环境要求
@@ -130,6 +130,26 @@ bee task run <taskId>                          # 流式输出事件直到任务�
 pnpm --filter @bee-agent/web dev               # http://localhost:5173
 ```
 
+### 运行在 PostgreSQL 上
+
+每个实例只启用一种存储方言（ADR 0004），通过环境变量选择，默认 SQLite：
+
+```bash
+docker run -d --name bee-agent-pg \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=bee_agent \
+  -p 127.0.0.1:5432:5432 pgvector/pgvector:pg17
+
+BEE_AGENT_STORAGE_DIALECT=postgres \
+BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent \
+pnpm --filter @bee-agent/server start
+```
+
+PostgreSQL 集成测试需要同样的 URL，未设置时自动跳过：
+
+```bash
+BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent pnpm test
+```
+
 ## 仓库结构
 
 ```text
@@ -149,7 +169,7 @@ bee-agent/
 │   └── vector-store/        # 向量存储与嵌入空间边界
 ├── plugins/
 │   ├── storage/sqlite/      # 可用的 SQLite 存储与事件存储
-│   ├── storage/postgres/    # 预留的 PostgreSQL 适配器边界
+│   ├── storage/postgres/    # 可用的 PostgreSQL 存储与事件存储
 │   ├── tools/calculator/    # 可用的计算器工具插件
 │   └── vector/pgvector/     # 预留的 pgvector 适配器边界
 ├── adapters/                # 未来的外部协议与智能体适配器
@@ -198,7 +218,7 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 增加任务状态机、策略引擎、计算器工具与模拟智能体
 - [x] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
 - [x] 增加 React Web 界面
-- [ ] 基于共享存储契约套件实现 PostgreSQL
+- [x] 基于共享存储契约套件实现 PostgreSQL
 - [ ] 实现 pgvector 与嵌入空间校验
 - [ ] 增加记忆、真实模型提供商、MCP、Python worker 与外部智能体
 

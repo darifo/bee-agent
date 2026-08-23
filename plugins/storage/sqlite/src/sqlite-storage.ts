@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import Database from 'better-sqlite3'
 import type {
   StorageProvider,
@@ -8,6 +9,7 @@ import { initialMigration } from './migration.js'
 
 class SQLiteTransactionManager implements TransactionManager {
   readonly #database: Database.Database
+  readonly #ambient = new AsyncLocalStorage<true>()
   #tail: Promise<void> = Promise.resolve()
 
   constructor(database: Database.Database) {
@@ -17,6 +19,13 @@ class SQLiteTransactionManager implements TransactionManager {
   async transaction<T>(
     callback: (transaction: TransactionContext) => Promise<T>,
   ): Promise<T> {
+    // Re-entrant calls join the ambient transaction: a nested BEGIN would
+    // fail on this single connection, and chaining onto the tail here
+    // would deadlock (the tail is only released when the outer call ends).
+    if (this.#ambient.getStore() !== undefined) {
+      return callback({ dialect: 'sqlite' })
+    }
+
     let release!: () => void
     const previous = this.#tail
     this.#tail = new Promise<void>((resolve) => {
@@ -26,7 +35,9 @@ class SQLiteTransactionManager implements TransactionManager {
 
     this.#database.exec('BEGIN IMMEDIATE')
     try {
-      const result = await callback({ dialect: 'sqlite' })
+      const result = await this.#ambient.run(true, () =>
+        callback({ dialect: 'sqlite' }),
+      )
       this.#database.exec('COMMIT')
       return result
     } catch (error) {

@@ -12,10 +12,34 @@ function envNumber(name: string, fallback: number): number {
 
 const host = process.env.BEE_AGENT_HOST ?? DEFAULT_HOST
 const port = envNumber('BEE_AGENT_PORT', DEFAULT_PORT)
-const sqliteFilename =
-  process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
 
-const server = await buildServer({ sqliteFilename, logger: true })
+// One storage dialect per instance (ADR 0004): exactly one of the two
+// dialect-specific options is ever handed to the composition root.
+const dialect = process.env.BEE_AGENT_STORAGE_DIALECT ?? 'sqlite'
+if (dialect !== 'sqlite' && dialect !== 'postgres') {
+  console.error(
+    `BEE_AGENT_STORAGE_DIALECT must be "sqlite" or "postgres", got "${dialect}"`,
+  )
+  process.exit(1)
+}
+
+const postgresUrl = process.env.BEE_AGENT_STORAGE_POSTGRES_URL
+if (dialect === 'postgres' && (postgresUrl ?? '') === '') {
+  console.error(
+    'BEE_AGENT_STORAGE_POSTGRES_URL is required when BEE_AGENT_STORAGE_DIALECT=postgres',
+  )
+  process.exit(1)
+}
+
+const server = await buildServer(
+  dialect === 'postgres'
+    ? { postgresUrl, logger: true }
+    : {
+        sqliteFilename:
+          process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
+        logger: true,
+      },
+)
 try {
   await server.app.listen({ host, port })
 } catch (error) {

@@ -2,82 +2,28 @@ import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { defineEventStoreContractSuite } from '@bee-agent/storage/testing'
 import { SQLiteEventStore, SQLiteStorage } from '../src/index.js'
 
-describe('SQLiteEventStore', () => {
-  let storage: SQLiteStorage
-  let store: SQLiteEventStore
+defineEventStoreContractSuite(
+  { describe, it, expect },
+  {
+    name: 'SQLiteEventStore (contract)',
+    create: async () => {
+      const storage = new SQLiteStorage(':memory:')
+      await storage.migrate()
+      return {
+        store: new SQLiteEventStore(storage),
+        transactions: storage.transactions,
+        storage,
+      }
+    },
+    destroy: async (subject) => subject.storage.close(),
+  },
+)
 
-  beforeEach(async () => {
-    storage = new SQLiteStorage(':memory:')
-    await storage.migrate()
-    store = new SQLiteEventStore(storage)
-  })
-
-  afterEach(async () => storage.close())
-
-  it('persists and replays events in sequence', async () => {
-    const taskId = randomUUID()
-    await store.appendBatch([
-      { taskId, type: 'task.created', payload: { input: '1 + 1' } },
-      { taskId, type: 'task.completed', payload: { result: 2 } },
-    ])
-
-    const replayed = []
-    for await (const event of store.readTask(taskId)) replayed.push(event)
-
-    expect(replayed.map(({ sequence, type }) => ({ sequence, type }))).toEqual([
-      { sequence: 1, type: 'task.created' },
-      { sequence: 2, type: 'task.completed' },
-    ])
-    expect(await store.getLatestSequence(taskId)).toBe(2)
-  })
-
-  it('atomically allocates unique sequences for concurrent appends', async () => {
-    const taskId = randomUUID()
-    const events = await Promise.all(
-      Array.from({ length: 20 }, (_, index) =>
-        store.append({ taskId, type: 'test.event', payload: { index } }),
-      ),
-    )
-    expect(events.map((event) => event.sequence).sort((a, b) => a - b)).toEqual(
-      Array.from({ length: 20 }, (_, index) => index + 1),
-    )
-  })
-
-  it('rolls back failed storage transactions', async () => {
-    await expect(
-      storage.transactions.transaction(async () => {
-        storage.database
-          .prepare(
-            'INSERT INTO task_sequences (task_id, sequence) VALUES (?, ?)',
-          )
-          .run(randomUUID(), 1)
-        throw new Error('abort')
-      }),
-    ).rejects.toThrow('abort')
-
-    const row = storage.database
-      .prepare<[], { count: number }>(
-        'SELECT COUNT(*) AS count FROM task_sequences',
-      )
-      .get()
-    expect(row?.count).toBe(0)
-  })
-
-  it('supports replaying after a checkpoint sequence', async () => {
-    const taskId = randomUUID()
-    await store.appendBatch([
-      { taskId, type: 'event.1', payload: {} },
-      { taskId, type: 'event.2', payload: {} },
-      { taskId, type: 'event.3', payload: {} },
-    ])
-    const replayed = []
-    for await (const event of store.readTask(taskId, 2)) replayed.push(event)
-    expect(replayed.map((event) => event.sequence)).toEqual([3])
-  })
-
+describe('SQLiteEventStore (dialect)', () => {
   it('replays persisted events after reopening the database', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'bee-agent-sqlite-'))
     const filename = join(directory, 'events.db')
