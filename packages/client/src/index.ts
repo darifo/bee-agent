@@ -1,0 +1,5 @@
+export { BeeAgentClient } from './client.js'
+export type { BeeAgentClientOptions, StreamEventsOptions } from './client.js'
+export { BeeAgentClientError, BeeAgentProtocolError } from './errors.js'
+export { parseSseStream } from './sse.js'
+export type { SseFrame } from './sse.js'

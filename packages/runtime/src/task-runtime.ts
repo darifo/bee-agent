@@ -184,6 +184,10 @@ export class TaskRuntime {
     }
     for (const tool of options.tools ?? []) this.#tools.register(tool)
     for (const policy of options.policies ?? []) this.#policies.register(policy)
+    // Registered once on the kernel bus and lives with it: per-scope
+    // registration would stack one middleware per concurrent run and
+    // evaluate policies multiple times.
+    kernel.events.use(toolExecuteEvent, toolPolicyMiddleware(this.#policies))
   }
 
   get kernel(): Kernel {
@@ -270,10 +274,6 @@ export class TaskRuntime {
       pending: undefined,
     }
     this.#active.set(taskId, run)
-    const offPolicy = scope.events.use(
-      toolExecuteEvent,
-      toolPolicyMiddleware(this.#policies),
-    )
     try {
       const context: AgentRunContext = {
         taskId,
@@ -309,7 +309,6 @@ export class TaskRuntime {
       }
       return run.current
     } finally {
-      offPolicy()
       this.#rejectLeftoverApproval(run)
       this.#active.delete(taskId)
       this.#kernel.disposeTaskScope(taskId)
@@ -387,6 +386,22 @@ export class TaskRuntime {
       pending.resolve(effectiveApproved)
     })
     return decision
+  }
+
+  /**
+   * Pending approval requests across active runs, oldest first. Optionally
+   * scoped to one task.
+   */
+  listPendingApprovals(taskId?: string): ApprovalRequest[] {
+    const requests: ApprovalRequest[] = []
+    for (const run of this.#pendingByRequest.values()) {
+      if (run.pending && (taskId === undefined || run.taskId === taskId)) {
+        requests.push(run.pending.request)
+      }
+    }
+    return requests.sort(
+      (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt),
+    )
   }
 
   #resolveAgent(agentId: string): Agent {

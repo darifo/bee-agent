@@ -51,7 +51,9 @@ export type ToolCall = z.infer<typeof ToolCallSchema>
 
 export const ToolResultSchema = z.object({
   callId: z.uuid(),
-  output: z.unknown(),
+  // Optional-tolerant because JSON round trips (storage, HTTP) drop keys
+  // whose value is `undefined`; error results carry no output.
+  output: z.unknown().optional(),
   error: z.string().optional(),
 })
 export type ToolResult = z.infer<typeof ToolResultSchema>

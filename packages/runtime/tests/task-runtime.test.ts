@@ -455,6 +455,47 @@ describe('task runtime', () => {
     expect(final.toolResults[0]!.error).toContain('not approved')
   })
 
+  it('lists pending approvals scoped by task and clears them on decision', async () => {
+    const { runtime } = await setup({
+      tools: [echoTool],
+      policies: [
+        {
+          id: 'policy.approve-echo',
+          checkToolCall: () => ({
+            effect: 'approval',
+            reason: 'echo is risky',
+            risk: 'medium',
+          }),
+        },
+      ],
+      defaultAgent: new MockAgent({
+        script: [{ kind: 'tool', toolId: 'tools.echo', input: {} }],
+      }),
+    })
+    const firstTask = await createSimpleTask(runtime, 'one')
+    const secondTask = await createSimpleTask(runtime, 'two')
+    expect(runtime.listPendingApprovals()).toEqual([])
+    const firstRun = runtime.run(firstTask)
+    const secondRun = runtime.run(secondTask)
+    await vi.waitFor(async () => {
+      expect(runtime.listPendingApprovals()).toHaveLength(2)
+    })
+    const scoped = runtime.listPendingApprovals(firstTask)
+    expect(scoped).toHaveLength(1)
+    expect(scoped[0]!.taskId).toBe(firstTask)
+    expect(scoped[0]!.toolCall.toolId).toBe('tools.echo')
+
+    await runtime.resolveApproval(scoped[0]!.id, true)
+    await firstRun
+    expect(runtime.listPendingApprovals()).toHaveLength(1)
+    expect(runtime.listPendingApprovals(firstTask)).toEqual([])
+
+    const remaining = runtime.listPendingApprovals(secondTask)
+    await runtime.resolveApproval(remaining[0]!.id, false)
+    await secondRun
+    expect(runtime.listPendingApprovals()).toEqual([])
+  })
+
   it('cancels a task waiting for approval', async () => {
     const { runtime } = await setup({
       tools: [echoTool],

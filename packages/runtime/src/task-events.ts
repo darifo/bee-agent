@@ -60,7 +60,9 @@ export const TaskResumedPayloadSchema = z.object({
 })
 export const TaskCompletedPayloadSchema = z.object({
   state: z.literal('completed'),
-  result: z.unknown(),
+  // Optional-tolerant: JSON round trips drop `result` when the agent
+  // returned no output.
+  result: z.unknown().optional(),
 })
 export const TaskFailedPayloadSchema = z.object({
   state: z.literal('failed'),

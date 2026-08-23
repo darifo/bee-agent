@@ -1,0 +1,21 @@
+{
+  "name": "@bee-agent/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "bee": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsup src/main.ts --format esm --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "bee": "node dist/main.js"
+  },
+  "dependencies": {
+    "@bee-agent/client": "workspace:*",
+    "@bee-agent/contracts": "workspace:*",
+    "@bee-agent/runtime": "workspace:*",
+    "commander": "^14.0.2"
+  }
+}

@@ -75,21 +75,23 @@ flowchart TB
   plugins --> adapters
 ```
 
-上图中客户端和服务器属于规划中的层次。内核、核心运行时、契约、存储抽象
-和 SQLite 事件存储目前已经实现。
+上图中 Web 客户端属于规划中的层次。服务器、客户端 SDK 与 CLI 目前已经实现，
+与内核、核心运行时、契约、存储抽象和 SQLite 事件存储一起构成可用的基座。
 
 ## 当前能力
 
-| 领域               | 状态   | 说明                                                                                                                                |
-| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo 工具链    | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                          |
-| 共享契约           | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                     |
-| Cordis 内核        | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
-| 核心运行时         | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
-| SQLite 存储        | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                                    |
-| PostgreSQL 存储    | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                                     |
-| pgvector 记忆      | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
-| 服务器、CLI 与 Web | 规划中 | 应用目录已为后续阶段预留                                                                                                            |
+| 领域              | 状态   | 说明                                                                                                                                |
+| ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo 工具链   | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                          |
+| 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                     |
+| Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
+| 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
+| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                                    |
+| 服务器            | 已可用 | Fastify 组合根：REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、状态码映射的错误信封                                   |
+| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流）与 `bee` CLI（任务 create/run/watch/cancel 与审批 decide）                           |
+| PostgreSQL 存储   | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                                     |
+| pgvector 记忆     | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
+| Web 界面          | 规划中 | React 客户端为下一阶段预留                                                                                                          |
 
 ## 环境要求
 
@@ -115,18 +117,31 @@ pnpm lint
 pnpm test
 ```
 
-目前还没有可运行的服务器命令。当前代码库作为下一实现阶段的已测试基座。
+启动服务器并用 CLI 驱动：
+
+```bash
+pnpm --filter @bee-agent/server start          # http://127.0.0.1:3000
+
+export BEE_AGENT_URL=http://127.0.0.1:3000
+bee() { pnpm --filter @bee-agent/cli bee -- "$@"; }
+bee task create -i "hello"                     # 输出任务 id
+bee task run <taskId>                          # 流式输出事件直到任务结束
+```
 
 ## 仓库结构
 
 ```text
 bee-agent/
-├── apps/                    # 服务器、CLI 与 Web 的组合根
+├── apps/
+│   ├── server/              # Fastify HTTP + SSE 组合根
+│   ├── cli/                 # 基于 Commander 的 `bee` 客户端
+│   └── web/                 # 预留的 React 客户端（下一阶段）
 ├── packages/
 │   ├── contracts/           # Zod schema 与共享领域/传输类型
 │   ├── plugin-sdk/          # 公开的插件清单与生命周期契约
 │   ├── kernel/              # Cordis 基座：生命周期、服务、作用域、插件
 │   ├── runtime/             # 核心运行时：任务循环、状态机、智能体、策略、工具
+│   ├── client/              # 客户端 SDK：REST 命令 + SSE 事件流
 │   ├── storage/             # 存储与事务边界
 │   ├── event-store/         # 只追加事件存储契约
 │   └── vector-store/        # 向量存储与嵌入空间边界
@@ -179,7 +194,7 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 实现 Cordis 内核与任务作用域清理
 - [x] 实现并测试 SQLite 事件存储
 - [x] 增加任务状态机、策略引擎、计算器工具与模拟智能体
-- [ ] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
+- [x] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
 - [ ] 增加 React Web 界面
 - [ ] 基于共享存储契约套件实现 PostgreSQL
 - [ ] 实现 pgvector 与嵌入空间校验
