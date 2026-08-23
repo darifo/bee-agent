@@ -14,7 +14,7 @@ export const PluginManifestSchema = z.object({
 })
 export type PluginManifest = z.infer<typeof PluginManifestSchema>
 
-export interface PlatformPlugin {
+export interface BeeAgentPlugin {
   readonly manifest: PluginManifest
   start(): void | Promise<void>
   stop(): void | Promise<void>

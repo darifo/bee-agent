@@ -1,5 +1,5 @@
 import type { EventStore } from '@bee-agent/event-store'
-import type { PlatformPlugin } from '@bee-agent/plugin-sdk'
+import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
 import { SQLiteEventStore } from './sqlite-event-store.js'
@@ -9,7 +9,7 @@ export interface SQLitePluginConfig {
   filename: string
 }
 
-export class SQLiteStoragePlugin implements PlatformPlugin {
+export class SQLiteStoragePlugin implements BeeAgentPlugin {
   readonly manifest = PluginManifestSchema.parse(manifestJson)
   readonly storage: SQLiteStorage
   readonly eventStore: EventStore

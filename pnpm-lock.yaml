@@ -50,13 +50,21 @@ importers:
 
   packages/kernel:
     dependencies:
-      cordis:
-        specifier: ^3.18.1
-        version: 3.18.1
-    devDependencies:
+      '@bee-agent/event-store':
+        specifier: workspace:*
+        version: link:../event-store
       '@bee-agent/plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
+      '@bee-agent/storage':
+        specifier: workspace:*
+        version: link:../storage
+      '@bee-agent/vector-store':
+        specifier: workspace:*
+        version: link:../vector-store
+      cordis:
+        specifier: ^3.18.1
+        version: 3.18.1
 
   packages/plugin-sdk:
     dependencies:
