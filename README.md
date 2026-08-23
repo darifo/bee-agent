@@ -5,7 +5,7 @@
 <h1 align="center">Bee Agent</h1>
 
 <p align="center">
-  <strong>Modular, Traceable, Extensible Agent Platform — Engineering Preview</strong>
+  <strong>Cordis-based, Plugin-composed, Modular, Traceable, Extensible, Self-evolving Agent</strong>
 </p>
 
 <p align="center">
@@ -24,15 +24,19 @@
   <img src="https://img.shields.io/badge/readiness-engineering%20preview-orange.svg" alt="Engineering preview" />
 </p>
 
+<p align="center">
+  English | <a href="./README-ZH.md">简体中文</a>
+</p>
+
 ---
 
 ## Overview
 
-Bee Agent is an open-source TypeScript platform for composing agent runtimes,
-tools, policies, storage adapters, and external workers without coupling them to
-one monolithic core. It is designed around explicit lifecycle management,
-append-only execution history, stable plugin contracts, and interchangeable
-infrastructure.
+Bee Agent is an open-source, Cordis-based agent composed from plugins. It
+assembles agent runtimes, tools, policies, storage adapters, and external
+workers without coupling them to one monolithic core. It is designed around
+explicit lifecycle management, append-only execution history, stable plugin
+contracts, and interchangeable infrastructure.
 
 The project aims to support coding, research, office automation, data analysis,
 and content workflows through a shared runtime that can be inspected, tested,
@@ -51,6 +55,8 @@ paused, resumed, and extended.
   TypeScript types across packages.
 - **Extensible capabilities** — the architecture reserves clean boundaries for
   tools, policies, models, MCP integrations, Python workers, and external agents.
+- **Self-evolving composition** — the agent grows by mounting, replacing, and
+  upgrading plugins behind stable contracts instead of rewriting a core.
 
 ## Architecture
 
@@ -78,15 +84,15 @@ today.
 
 ## Current capabilities
 
-| Area                 | Status    | Details                                                                                  |
-| -------------------- | --------- | ---------------------------------------------------------------------------------------- |
-| Monorepo toolchain   | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI         |
-| Shared contracts     | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas      |
-| Cordis kernel        | Available | Root context, service registration, task scopes, effects, and resource cleanup           |
-| SQLite storage       | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay |
-| PostgreSQL storage   | Planned   | Plugin boundary and ADR are defined; implementation is deferred                          |
-| pgvector memory      | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                |
-| Server, CLI, and Web | Planned   | Application directories are reserved for later stages                                    |
+| Area                 | Status    | Details                                                                                                                                                                        |
+| -------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Monorepo toolchain   | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                               |
+| Shared contracts     | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                            |
+| Cordis kernel        | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting |
+| SQLite storage       | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay                                                                                       |
+| PostgreSQL storage   | Planned   | Plugin boundary and ADR are defined; implementation is deferred                                                                                                                |
+| pgvector memory      | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                      |
+| Server, CLI, and Web | Planned   | Application directories are reserved for later stages                                                                                                                          |
 
 ## Requirements
 
@@ -123,7 +129,7 @@ bee-agent/
 ├── packages/
 │   ├── contracts/           # Zod schemas and shared domain/transport types
 │   ├── plugin-sdk/          # Public plugin manifest and lifecycle contract
-│   ├── kernel/              # Cordis root context and task-scope wrapper
+│   ├── kernel/              # Cordis foundation: lifecycle, services, scopes, plugins
 │   ├── storage/             # Storage and transaction boundaries
 │   ├── event-store/         # Append-only Event Store contract
 │   └── vector-store/        # Vector Store and embedding-space boundary
