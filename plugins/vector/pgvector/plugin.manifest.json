@@ -1,0 +1,10 @@
+{
+  "id": "vector.pgvector",
+  "name": "PostgreSQL pgvector Store",
+  "version": "0.1.0",
+  "engine": { "pluginApi": ">=0.1.0 <0.2.0" },
+  "requires": ["storage:postgres"],
+  "capabilities": [{ "type": "vector-store", "name": "pgvector" }],
+  "permissions": ["database:read", "database:write"],
+  "entry": "./dist/index.js"
+}

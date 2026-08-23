@@ -1,0 +1,13 @@
+{
+  "id": "storage.sqlite",
+  "name": "SQLite Storage",
+  "version": "0.1.0",
+  "engine": { "pluginApi": ">=0.1.0 <0.2.0" },
+  "requires": [],
+  "capabilities": [
+    { "type": "storage", "name": "sqlite" },
+    { "type": "event-store", "name": "sqlite" }
+  ],
+  "permissions": ["database:read", "database:write"],
+  "entry": "./dist/index.js"
+}

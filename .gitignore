@@ -1,0 +1,42 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment files (keep templates committed)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Tool caches
+.vite/
+.cache/
+
+# Python workers
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store

@@ -1,0 +1,10 @@
+{
+  "id": "storage.postgres",
+  "name": "PostgreSQL Storage",
+  "version": "0.1.0",
+  "engine": { "pluginApi": ">=0.1.0 <0.2.0" },
+  "requires": [],
+  "capabilities": [{ "type": "storage", "name": "postgres" }],
+  "permissions": ["database:read", "database:write"],
+  "entry": "./dist/index.js"
+}
