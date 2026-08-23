@@ -7,7 +7,9 @@ import {
   createKernel,
   eventStoreService,
   storageService,
+  vectorStoreService,
 } from '@bee-agent/kernel'
+import { PgvectorPlugin } from '@bee-agent/plugin-vector-pgvector'
 import { SQLiteStoragePlugin } from '@bee-agent/plugin-storage-sqlite'
 import { PostgresStoragePlugin } from '@bee-agent/plugin-storage-postgres'
 import { CalculatorTool } from '@bee-agent/plugin-tool-calculator'
@@ -27,6 +29,13 @@ export interface ServerOptions {
    * instance, never dual writes (ADR 0004).
    */
   readonly postgresUrl?: string | undefined
+  /**
+   * Mounts a Vector Store plugin under the `vector-store` service key.
+   * Currently `'pgvector'`, which requires `postgresUrl`: its manifest
+   * depends on PostgreSQL storage, and vectors never enter event tables
+   * (ADR 0005/0006).
+   */
+  readonly vectorStore?: 'pgvector' | undefined
   /** Agent used when a task spec references an unregistered `agentId`. */
   readonly defaultAgent?: Agent | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
@@ -53,18 +62,23 @@ export interface BeeServer {
 /**
  * Composition root: starts the kernel, mounts storage (SQLite by default or
  * PostgreSQL via `postgresUrl`, registered under the standard `event-store`
- * and `storage` service keys), wires the task runtime with the mock agent
- * and calculator tool, and serves the REST + SSE API.
+ * and `storage` service keys), optionally mounts a Vector Store plugin
+ * (`vectorStore: 'pgvector'` under the `vector-store` service key), wires
+ * the task runtime with the mock agent and calculator tool, and serves the
+ * REST + SSE API.
  */
 export async function buildServer(
   options: ServerOptions = {},
 ): Promise<BeeServer> {
-  if (
-    options.postgresUrl !== undefined &&
-    options.sqliteFilename !== undefined
-  ) {
+  const postgresUrl = options.postgresUrl
+  if (postgresUrl !== undefined && options.sqliteFilename !== undefined) {
     throw new Error(
       'Configure either sqliteFilename or postgresUrl, never both: one storage dialect per instance (ADR 0004)',
+    )
+  }
+  if (options.vectorStore === 'pgvector' && postgresUrl === undefined) {
+    throw new Error(
+      'vectorStore "pgvector" requires postgresUrl: it mounts on PostgreSQL storage (ADR 0005)',
     )
   }
 
@@ -72,9 +86,9 @@ export async function buildServer(
   await kernel.start()
   if (options.eventStore) {
     kernel.registerService(eventStoreService, options.eventStore)
-  } else if (options.postgresUrl !== undefined) {
+  } else if (postgresUrl !== undefined) {
     const storage = new PostgresStoragePlugin({
-      connectionString: options.postgresUrl,
+      connectionString: postgresUrl,
     })
     const handle = kernel.useBeeAgentPlugin(storage, {
       services: () => ({
@@ -92,6 +106,20 @@ export async function buildServer(
         [eventStoreService.name]: storage.eventStore,
         [storageService.name]: storage.storage,
       }),
+    })
+    await handle.ready
+  }
+  if (options.vectorStore === 'pgvector') {
+    if (postgresUrl === undefined) {
+      throw new Error(
+        'vectorStore "pgvector" requires postgresUrl: it mounts on PostgreSQL storage (ADR 0005)',
+      )
+    }
+    const vectorPlugin = new PgvectorPlugin({
+      connectionString: postgresUrl,
+    })
+    const handle = kernel.useBeeAgentPlugin(vectorPlugin, {
+      services: () => ({ [vectorStoreService.name]: vectorPlugin.store }),
     })
     await handle.ready
   }

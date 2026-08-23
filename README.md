@@ -84,18 +84,18 @@ abstractions, and SQLite Event Store.
 
 ## Current capabilities
 
-| Area               | Status    | Details                                                                                                                                                                                                         |
-| ------------------ | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo toolchain | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                |
-| Shared contracts   | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                             |
-| Cordis kernel      | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                  |
-| Core runtimes      | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation |
-| SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                         |
-| Server             | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses         |
-| Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                   |
-| Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                          |
-| PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                            |
-| pgvector memory    | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                                                       |
+| Area               | Status    | Details                                                                                                                                                                                                                                                              |
+| ------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo toolchain | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                                                                     |
+| Shared contracts   | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                                                                                  |
+| Cordis kernel      | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                                                                       |
+| Core runtimes      | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation                                                      |
+| SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                                                                              |
+| Server             | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses                                                              |
+| Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                                                                        |
+| Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                                                                               |
+| PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                 |
+| pgvector store     | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage |
 
 ## Requirements
 
@@ -146,8 +146,13 @@ docker run -d --name bee-agent-pg \
 
 BEE_AGENT_STORAGE_DIALECT=postgres \
 BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent \
+BEE_AGENT_VECTOR_STORE=pgvector \
 pnpm --filter @bee-agent/server start
 ```
+
+`BEE_AGENT_VECTOR_STORE=pgvector` mounts the Vector Store plugin (ADR 0005)
+under the kernel's `vector-store` service key; it requires the PostgreSQL
+dialect and keeps vectors in dedicated tables (ADR 0006).
 
 The PostgreSQL integration tests need the same URL and skip without it:
 
@@ -176,7 +181,7 @@ bee-agent/
 │   ├── storage/sqlite/      # Working SQLite storage and Event Store
 │   ├── storage/postgres/    # Working PostgreSQL storage and Event Store
 │   ├── tools/calculator/    # Working calculator tool plugin
-│   └── vector/pgvector/     # Reserved pgvector adapter boundary
+│   └── vector/pgvector/     # Working pgvector Vector Store
 ├── adapters/                # Future external protocol and agent adapters
 ├── python/                  # Future Python worker projects
 ├── migrations/              # Dialect-specific database migrations
@@ -226,7 +231,7 @@ dedicated Vector Store contract.
 - [x] Add the HTTP/SSE server, Client SDK, and CLI
 - [x] Add the React Web UI
 - [x] Implement PostgreSQL using the shared storage contract suite
-- [ ] Implement pgvector and embedding-space validation
+- [x] Implement pgvector and embedding-space validation
 - [ ] Add memory, real model providers, MCP, Python workers, and external agents
 
 Architecture decisions and their constraints are recorded in

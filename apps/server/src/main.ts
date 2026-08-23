@@ -31,15 +31,25 @@ if (dialect === 'postgres' && (postgresUrl ?? '') === '') {
   process.exit(1)
 }
 
-const server = await buildServer(
-  dialect === 'postgres'
-    ? { postgresUrl, logger: true }
+// Optional Vector Store plugin; pgvector rides on the PostgreSQL dialect.
+const vectorStore = process.env.BEE_AGENT_VECTOR_STORE
+if (vectorStore !== undefined && vectorStore !== 'pgvector') {
+  console.error(
+    `BEE_AGENT_VECTOR_STORE must be "pgvector" when set, got "${vectorStore}"`,
+  )
+  process.exit(1)
+}
+
+const server = await buildServer({
+  ...(dialect === 'postgres'
+    ? { postgresUrl }
     : {
         sqliteFilename:
           process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
-        logger: true,
-      },
-)
+      }),
+  ...(vectorStore === 'pgvector' ? { vectorStore } : {}),
+  logger: true,
+})
 try {
   await server.app.listen({ host, port })
 } catch (error) {

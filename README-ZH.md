@@ -80,18 +80,18 @@ flowchart TB
 
 ## 当前能力
 
-| 领域              | 状态   | 说明                                                                                                                                |
-| ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo 工具链   | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                          |
-| 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                     |
-| Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
-| 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
-| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放，由共享存储契约套件验证                                                            |
-| 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封    |
-| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）  |
-| Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                  |
-| PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                    |
-| pgvector 记忆     | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
+| 领域              | 状态   | 说明                                                                                                                                                                                      |
+| ----------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo 工具链   | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                                                                                |
+| 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                                                                           |
+| Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载                                                                   |
+| 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎                                                       |
+| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放，由共享存储契约套件验证                                                                                                                  |
+| 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封                                                          |
+| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）                                                        |
+| Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                                                                        |
+| PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                                                                          |
+| pgvector 存储     | 已可用 | 基于 pgvector 的 Vector Store 适配器：校验维度并冻结模型/度量的嵌入空间注册表、带工作区隔离与元数据过滤的 cosine/euclidean/inner_product 检索，已过契约套件；供给它的记忆运行时属后续阶段 |
 
 ## 环境要求
 
@@ -141,8 +141,13 @@ docker run -d --name bee-agent-pg \
 
 BEE_AGENT_STORAGE_DIALECT=postgres \
 BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent \
+BEE_AGENT_VECTOR_STORE=pgvector \
 pnpm --filter @bee-agent/server start
 ```
+
+`BEE_AGENT_VECTOR_STORE=pgvector` 会把 Vector Store 插件（ADR 0005）挂载到
+内核的 `vector-store` 服务键下；它依赖 PostgreSQL 方言，向量保存在独立的表中
+（ADR 0006）。
 
 PostgreSQL 集成测试需要同样的 URL，未设置时自动跳过：
 
@@ -171,7 +176,7 @@ bee-agent/
 │   ├── storage/sqlite/      # 可用的 SQLite 存储与事件存储
 │   ├── storage/postgres/    # 可用的 PostgreSQL 存储与事件存储
 │   ├── tools/calculator/    # 可用的计算器工具插件
-│   └── vector/pgvector/     # 预留的 pgvector 适配器边界
+│   └── vector/pgvector/     # 可用的 pgvector 向量存储
 ├── adapters/                # 未来的外部协议与智能体适配器
 ├── python/                  # 未来的 Python worker 项目
 ├── migrations/              # 方言相关的数据库迁移
@@ -219,7 +224,7 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
 - [x] 增加 React Web 界面
 - [x] 基于共享存储契约套件实现 PostgreSQL
-- [ ] 实现 pgvector 与嵌入空间校验
+- [x] 实现 pgvector 与嵌入空间校验
 - [ ] 增加记忆、真实模型提供商、MCP、Python worker 与外部智能体
 
 架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中。

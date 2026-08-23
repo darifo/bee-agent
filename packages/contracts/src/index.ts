@@ -143,6 +143,11 @@ export const VectorSearchQuerySchema = z.object({
 })
 export type VectorSearchQuery = z.infer<typeof VectorSearchQuerySchema>
 
+/**
+ * Similarity score in the embedding space's metric: the raw distance the
+ * adapter computes (cosine distance, euclidean distance, or the negated
+ * inner product), so lower always means more similar.
+ */
 export const VectorSearchResultSchema = z.object({
   record: EmbeddingRecordSchema,
   score: z.number(),
