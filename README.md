@@ -78,21 +78,22 @@ flowchart TB
   plugins --> adapters
 ```
 
-The clients, server, and core agent loop shown above are planned layers. The
-kernel, contracts, storage abstractions, and SQLite Event Store are implemented
-today.
+The clients and server shown above are planned layers. The kernel, core
+runtimes, contracts, storage abstractions, and SQLite Event Store are
+implemented today.
 
 ## Current capabilities
 
-| Area                 | Status    | Details                                                                                                                                                                        |
-| -------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Monorepo toolchain   | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                               |
-| Shared contracts     | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                            |
-| Cordis kernel        | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting |
-| SQLite storage       | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay                                                                                       |
-| PostgreSQL storage   | Planned   | Plugin boundary and ADR are defined; implementation is deferred                                                                                                                |
-| pgvector memory      | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                      |
-| Server, CLI, and Web | Planned   | Application directories are reserved for later stages                                                                                                                          |
+| Area                 | Status    | Details                                                                                                                                                                                                         |
+| -------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo toolchain   | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                |
+| Shared contracts     | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                             |
+| Cordis kernel        | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                  |
+| Core runtimes        | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation |
+| SQLite storage       | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay                                                                                                                        |
+| PostgreSQL storage   | Planned   | Plugin boundary and ADR are defined; implementation is deferred                                                                                                                                                 |
+| pgvector memory      | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                                                       |
+| Server, CLI, and Web | Planned   | Application directories are reserved for later stages                                                                                                                                                           |
 
 ## Requirements
 
@@ -130,12 +131,14 @@ bee-agent/
 │   ├── contracts/           # Zod schemas and shared domain/transport types
 │   ├── plugin-sdk/          # Public plugin manifest and lifecycle contract
 │   ├── kernel/              # Cordis foundation: lifecycle, services, scopes, plugins
+│   ├── runtime/             # Core runtimes: task loop, state machine, agents, policies, tools
 │   ├── storage/             # Storage and transaction boundaries
 │   ├── event-store/         # Append-only Event Store contract
 │   └── vector-store/        # Vector Store and embedding-space boundary
 ├── plugins/
 │   ├── storage/sqlite/      # Working SQLite storage and Event Store
 │   ├── storage/postgres/    # Reserved PostgreSQL adapter boundary
+│   ├── tools/calculator/    # Working calculator tool plugin
 │   └── vector/pgvector/     # Reserved pgvector adapter boundary
 ├── adapters/                # Future external protocol and agent adapters
 ├── python/                  # Future Python worker projects
@@ -182,7 +185,7 @@ dedicated Vector Store contract.
 - [x] Define shared contracts and plugin SDK boundaries
 - [x] Implement the Cordis kernel and task-scope cleanup
 - [x] Implement and test the SQLite Event Store
-- [ ] Add the task state machine, policy engine, calculator tool, and mock agent
+- [x] Add the task state machine, policy engine, calculator tool, and mock agent
 - [ ] Add the HTTP/SSE server, Client SDK, and CLI
 - [ ] Add the React Web UI
 - [ ] Implement PostgreSQL using the shared storage contract suite

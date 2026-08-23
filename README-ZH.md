@@ -75,20 +75,21 @@ flowchart TB
   plugins --> adapters
 ```
 
-上图中客户端、服务器和核心智能体循环属于规划中的层次。内核、契约、存储抽象
+上图中客户端和服务器属于规划中的层次。内核、核心运行时、契约、存储抽象
 和 SQLite 事件存储目前已经实现。
 
 ## 当前能力
 
-| 领域               | 状态   | 说明                                                                                                                    |
-| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Monorepo 工具链    | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                              |
-| 共享契约           | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                         |
-| Cordis 内核        | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载 |
-| SQLite 存储        | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                        |
-| PostgreSQL 存储    | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                         |
-| pgvector 记忆      | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                             |
-| 服务器、CLI 与 Web | 规划中 | 应用目录已为后续阶段预留                                                                                                |
+| 领域               | 状态   | 说明                                                                                                                                |
+| ------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo 工具链    | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                          |
+| 共享契约           | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                     |
+| Cordis 内核        | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
+| 核心运行时         | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
+| SQLite 存储        | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                                    |
+| PostgreSQL 存储    | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                                     |
+| pgvector 记忆      | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
+| 服务器、CLI 与 Web | 规划中 | 应用目录已为后续阶段预留                                                                                                            |
 
 ## 环境要求
 
@@ -125,12 +126,14 @@ bee-agent/
 │   ├── contracts/           # Zod schema 与共享领域/传输类型
 │   ├── plugin-sdk/          # 公开的插件清单与生命周期契约
 │   ├── kernel/              # Cordis 基座：生命周期、服务、作用域、插件
+│   ├── runtime/             # 核心运行时：任务循环、状态机、智能体、策略、工具
 │   ├── storage/             # 存储与事务边界
 │   ├── event-store/         # 只追加事件存储契约
 │   └── vector-store/        # 向量存储与嵌入空间边界
 ├── plugins/
 │   ├── storage/sqlite/      # 可用的 SQLite 存储与事件存储
 │   ├── storage/postgres/    # 预留的 PostgreSQL 适配器边界
+│   ├── tools/calculator/    # 可用的计算器工具插件
 │   └── vector/pgvector/     # 预留的 pgvector 适配器边界
 ├── adapters/                # 未来的外部协议与智能体适配器
 ├── python/                  # 未来的 Python worker 项目
@@ -175,7 +178,7 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 定义共享契约与插件 SDK 边界
 - [x] 实现 Cordis 内核与任务作用域清理
 - [x] 实现并测试 SQLite 事件存储
-- [ ] 增加任务状态机、策略引擎、计算器工具与模拟智能体
+- [x] 增加任务状态机、策略引擎、计算器工具与模拟智能体
 - [ ] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
 - [ ] 增加 React Web 界面
 - [ ] 基于共享存储契约套件实现 PostgreSQL

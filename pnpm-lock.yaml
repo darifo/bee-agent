@@ -72,6 +72,21 @@ importers:
         specifier: ^4.1.13
         version: 4.4.3
 
+  packages/runtime:
+    dependencies:
+      '@bee-agent/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@bee-agent/event-store':
+        specifier: workspace:*
+        version: link:../event-store
+      '@bee-agent/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+
   packages/storage: {}
 
   packages/vector-store:
@@ -103,6 +118,18 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+
+  plugins/tools/calculator:
+    dependencies:
+      '@bee-agent/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@bee-agent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+      '@bee-agent/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
 
   plugins/vector/pgvector: {}
 

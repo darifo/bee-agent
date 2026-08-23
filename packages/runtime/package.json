@@ -1,0 +1,26 @@
+{
+  "name": "@bee-agent/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bee-agent/contracts": "workspace:*",
+    "@bee-agent/event-store": "workspace:*",
+    "@bee-agent/kernel": "workspace:*",
+    "zod": "^4.1.13"
+  }
+}
