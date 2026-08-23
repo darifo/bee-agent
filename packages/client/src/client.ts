@@ -3,8 +3,11 @@ import type {
   AgentEvent,
   ApprovalDecision,
   ApprovalRequest,
+  CreateMemoryDocumentRequest,
   CreateTaskRequest,
   CreateTaskResponse,
+  MemoryDocumentResponse,
+  MemoryRecallResponse,
 } from '@bee-agent/contracts'
 import type { TaskSnapshot } from '@bee-agent/runtime'
 import { BeeAgentClientError, BeeAgentProtocolError } from './errors.js'
@@ -118,6 +121,35 @@ export class BeeAgentClient {
       {
         body: reason === undefined ? { approved } : { approved, reason },
       },
+    )
+  }
+
+  /**
+   * Stores a document as embedded memory chunks. Requires a server with a
+   * Vector Store mounted (`BEE_AGENT_VECTOR_STORE=pgvector`).
+   */
+  async rememberDocument(
+    request: CreateMemoryDocumentRequest,
+  ): Promise<MemoryDocumentResponse> {
+    return this.#request('POST', 'memory/documents', { body: request })
+  }
+
+  /** Semantic recall of the nearest memory chunks, best first. */
+  async recallMemory(request: {
+    workspaceId: string
+    text: string
+    limit?: number | undefined
+    metadata?: Record<string, unknown> | undefined
+  }): Promise<MemoryRecallResponse> {
+    return this.#request('POST', 'memory/recall', { body: request })
+  }
+
+  /** Drops one memory chunk from its workspace. */
+  async forgetMemoryChunk(chunkId: string, workspaceId: string): Promise<void> {
+    await this.#request(
+      'DELETE',
+      `memory/chunks/${encodeURIComponent(chunkId)}`,
+      { query: { workspaceId } },
     )
   }
 

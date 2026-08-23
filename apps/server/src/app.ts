@@ -13,9 +13,10 @@ import { PgvectorPlugin } from '@bee-agent/plugin-vector-pgvector'
 import { SQLiteStoragePlugin } from '@bee-agent/plugin-storage-sqlite'
 import { PostgresStoragePlugin } from '@bee-agent/plugin-storage-postgres'
 import { CalculatorTool } from '@bee-agent/plugin-tool-calculator'
-import { MockAgent, TaskRuntime } from '@bee-agent/runtime'
+import { MemoryRuntime, MockAgent, TaskRuntime } from '@bee-agent/runtime'
 import type { Agent, Tool, ToolPolicy } from '@bee-agent/runtime'
 import { approvalRoutes } from './routes/approvals.js'
+import { memoryRoutes } from './routes/memory.js'
 import { streamRoutes } from './routes/stream.js'
 import { taskRoutes } from './routes/tasks.js'
 import { sendErrorResponse } from './errors.js'
@@ -57,6 +58,7 @@ export interface BeeServer {
   readonly app: FastifyInstance
   readonly kernel: Kernel
   readonly runtime: TaskRuntime
+  readonly memory: MemoryRuntime
 }
 
 /**
@@ -128,12 +130,13 @@ export async function buildServer(
     tools: options.tools ?? [new CalculatorTool()],
     policies: options.policies ?? [],
   })
+  const memory = new MemoryRuntime(kernel)
 
   const app = Fastify({ logger: options.logger ?? true })
-  app.decorate('bee', { kernel, runtime })
+  app.decorate('bee', { kernel, runtime, memory })
   await app.register(cors, {
     origin: options.corsOrigin ?? true,
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'DELETE'],
   })
   app.setErrorHandler(async (error, request, reply) => {
     await sendErrorResponse(error, request, reply)
@@ -141,11 +144,16 @@ export async function buildServer(
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(taskRoutes)
   await app.register(approvalRoutes)
+  if (options.vectorStore !== undefined) {
+    // Memory rides on the Vector Store (ADR 0005): no vector plugin, no
+    // memory surface — the paths 404 instead of stalling on the service.
+    await app.register(memoryRoutes)
+  }
   await app.register(streamRoutes, {
     corsOrigin: options.corsOrigin ?? true,
   })
   app.addHook('onClose', async () => {
     await kernel.stop()
   })
-  return { app, kernel, runtime }
+  return { app, kernel, runtime, memory }
 }

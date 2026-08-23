@@ -78,6 +78,19 @@ export type {
   MockAgentOutput,
   MockAgentStep,
 } from './mock-agent.js'
+export { MockEmbedder } from './embedder.js'
+export type { Embedder, MockEmbedderOptions } from './embedder.js'
+export { chunkContent, chunkDocument } from './memory-chunker.js'
+export {
+  MEMORY_CHUNK_METADATA_KEY,
+  MemoryRuntime,
+  MemoryRuntimeError,
+} from './memory-runtime.js'
+export type {
+  MemoryRecallQuery,
+  MemoryRuntimeOptions,
+  RememberedDocument,
+} from './memory-runtime.js'
 export {
   InvalidTaskStateError,
   TaskAlreadyActiveError,

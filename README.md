@@ -96,6 +96,7 @@ abstractions, and SQLite Event Store.
 | Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                                                                               |
 | PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                 |
 | pgvector store     | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage |
+| Memory runtime     | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                      |
 
 ## Requirements
 
@@ -152,7 +153,13 @@ pnpm --filter @bee-agent/server start
 
 `BEE_AGENT_VECTOR_STORE=pgvector` mounts the Vector Store plugin (ADR 0005)
 under the kernel's `vector-store` service key; it requires the PostgreSQL
-dialect and keeps vectors in dedicated tables (ADR 0006).
+dialect and keeps vectors in dedicated tables (ADR 0006). It also enables
+workspace memory over the same store:
+
+```bash
+bee memory remember -w docs -t "the cat sat on the mat"
+bee memory recall -w docs -q "cat mat"
+```
 
 The PostgreSQL integration tests need the same URL and skip without it:
 
@@ -232,7 +239,8 @@ dedicated Vector Store contract.
 - [x] Add the React Web UI
 - [x] Implement PostgreSQL using the shared storage contract suite
 - [x] Implement pgvector and embedding-space validation
-- [ ] Add memory, real model providers, MCP, Python workers, and external agents
+- [x] Add the memory runtime on the Vector Store
+- [ ] Add real model providers, MCP, Python workers, and external agents
 
 Architecture decisions and their constraints are recorded in
 [`docs/adr`](./docs/adr).

@@ -154,6 +154,42 @@ export const VectorSearchResultSchema = z.object({
 })
 export type VectorSearchResult = z.infer<typeof VectorSearchResultSchema>
 
+export const CreateMemoryDocumentRequestSchema = z.object({
+  workspaceId: z.string().min(1),
+  content: z.string().min(1),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+export type CreateMemoryDocumentRequest = z.infer<
+  typeof CreateMemoryDocumentRequestSchema
+>
+
+export const MemoryDocumentResponseSchema = z.object({
+  document: MemoryDocumentSchema,
+  chunks: z.array(MemoryChunkSchema),
+})
+export type MemoryDocumentResponse = z.infer<
+  typeof MemoryDocumentResponseSchema
+>
+
+export const MemoryRecallRequestSchema = z.object({
+  workspaceId: z.string().min(1),
+  text: z.string().min(1),
+  limit: z.number().int().min(1).max(100).default(10),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+})
+export type MemoryRecallRequest = z.infer<typeof MemoryRecallRequestSchema>
+
+export const MemoryRecallResultSchema = z.object({
+  chunk: MemoryChunkSchema,
+  score: z.number(),
+})
+export type MemoryRecallResult = z.infer<typeof MemoryRecallResultSchema>
+
+export const MemoryRecallResponseSchema = z.object({
+  results: z.array(MemoryRecallResultSchema),
+})
+export type MemoryRecallResponse = z.infer<typeof MemoryRecallResponseSchema>
+
 export const ErrorEnvelopeSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),

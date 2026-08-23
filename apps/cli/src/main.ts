@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander'
 import { registerApprovalCommands } from './commands/approval.js'
+import { registerMemoryCommands } from './commands/memory.js'
 import { registerTaskCommands } from './commands/task.js'
 
 const program = new Command()
@@ -17,6 +18,7 @@ program
 
 registerTaskCommands(program)
 registerApprovalCommands(program)
+registerMemoryCommands(program)
 
 program.parseAsync().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : String(error))

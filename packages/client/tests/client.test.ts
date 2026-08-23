@@ -100,6 +100,42 @@ beforeAll(async () => {
         respond(response, 200, { approvals: [] })
         return
       }
+      if (route === 'POST /memory/documents') {
+        const body = recorded.body as {
+          workspaceId: string
+          content: string
+        }
+        respond(response, 201, {
+          document: {
+            id: randomUUID(),
+            workspaceId: body.workspaceId,
+            content: body.content,
+            metadata: {},
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          chunks: [
+            {
+              id: randomUUID(),
+              documentId: randomUUID(),
+              workspaceId: body.workspaceId,
+              ordinal: 0,
+              content: body.content,
+              metadata: {},
+            },
+          ],
+        })
+        return
+      }
+      if (route === 'POST /memory/recall') {
+        respond(response, 200, { results: [] })
+        return
+      }
+      if (url.pathname.startsWith('/memory/chunks/')) {
+        response.writeHead(204)
+        response.end()
+        return
+      }
       if (
         url.pathname.startsWith('/approvals/') &&
         url.pathname.endsWith('/decision')
@@ -196,6 +232,36 @@ describe('bee agent client', () => {
     const decision = await api.resolveApproval('req-1', true, 'looks fine')
     expect(decision.approved).toBe(true)
     expect(lastRequest().body).toEqual({ approved: true, reason: 'looks fine' })
+  })
+
+  it('remembers, recalls, and forgets memory', async () => {
+    const api = client()
+    const remembered = await api.rememberDocument({
+      workspaceId: 'ws-1',
+      content: 'the cat sat',
+      metadata: { kind: 'pet' },
+    })
+    expect(remembered.document.workspaceId).toBe('ws-1')
+    expect(remembered.chunks[0]?.content).toBe('the cat sat')
+    expect(lastRequest().body).toEqual({
+      workspaceId: 'ws-1',
+      content: 'the cat sat',
+      metadata: { kind: 'pet' },
+    })
+
+    const recalled = await api.recallMemory({
+      workspaceId: 'ws-1',
+      text: 'cat',
+      limit: 3,
+    })
+    expect(recalled.results).toEqual([])
+
+    await api.forgetMemoryChunk(remembered.chunks[0]!.id, 'ws-1')
+    const last = lastRequest()
+    expect(last.method).toBe('DELETE')
+    expect(last.url).toContain(
+      `/memory/chunks/${remembered.chunks[0]!.id}?workspaceId=ws-1`,
+    )
   })
 
   it('maps error envelopes to BeeAgentClientError', async () => {

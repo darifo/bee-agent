@@ -92,6 +92,7 @@ flowchart TB
 | Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                                                                        |
 | PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                                                                          |
 | pgvector 存储     | 已可用 | 基于 pgvector 的 Vector Store 适配器：校验维度并冻结模型/度量的嵌入空间注册表、带工作区隔离与元数据过滤的 cosine/euclidean/inner_product 检索，已过契约套件；供给它的记忆运行时属后续阶段 |
+| 记忆运行时        | 已可用 | 工作区语义记忆（ADR 0012）：按词边界分块、可插拔 `Embedder`（真实模型提供商就绪前用确定性 mock）、按向量近似度排序的 recall，REST/SDK/CLI 三端 `remember`/`recall`/`forget`               |
 
 ## 环境要求
 
@@ -147,7 +148,12 @@ pnpm --filter @bee-agent/server start
 
 `BEE_AGENT_VECTOR_STORE=pgvector` 会把 Vector Store 插件（ADR 0005）挂载到
 内核的 `vector-store` 服务键下；它依赖 PostgreSQL 方言，向量保存在独立的表中
-（ADR 0006）。
+（ADR 0006）。它同时启用基于同一存储的工作区记忆：
+
+```bash
+bee memory remember -w docs -t "the cat sat on the mat"
+bee memory recall -w docs -q "cat mat"
+```
 
 PostgreSQL 集成测试需要同样的 URL，未设置时自动跳过：
 
@@ -225,7 +231,8 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 增加 React Web 界面
 - [x] 基于共享存储契约套件实现 PostgreSQL
 - [x] 实现 pgvector 与嵌入空间校验
-- [ ] 增加记忆、真实模型提供商、MCP、Python worker 与外部智能体
+- [x] 在 Vector Store 之上增加记忆运行时
+- [ ] 增加真实模型提供商、MCP、Python worker 与外部智能体
 
 架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中。
 

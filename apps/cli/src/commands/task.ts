@@ -15,7 +15,9 @@ export function clientFrom(program: Command): BeeAgentClient {
   return new BeeAgentClient({ baseUrl: url })
 }
 
-async function runCommand(action: () => Promise<number | void>): Promise<void> {
+export async function runCommand(
+  action: () => Promise<number | void>,
+): Promise<void> {
   try {
     const code = await action()
     if (typeof code === 'number') process.exitCode = code
