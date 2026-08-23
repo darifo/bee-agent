@@ -29,6 +29,35 @@ export function registerTaskCommands(program: Command): void {
   const task = program.command('task').description('Manage tasks')
 
   task
+    .command('list')
+    .description('List task snapshots, oldest first')
+    .option('--json', 'print raw JSON')
+    .action(async (options: { json?: boolean }) => {
+      await runCommand(async () => {
+        const tasks = await clientFrom(program).listTasks()
+        if (options.json) {
+          console.log(JSON.stringify(tasks, null, 2))
+          return
+        }
+        if (tasks.length === 0) {
+          console.log('no tasks')
+          return
+        }
+        for (const snapshot of tasks) {
+          const summary =
+            snapshot.error !== undefined
+              ? `  ${snapshot.error}`
+              : snapshot.cancelReason !== undefined
+                ? `  ${snapshot.cancelReason}`
+                : (snapshot.spec?.input ?? '')
+          console.log(
+            `${snapshot.taskId}  ${snapshot.state.padEnd(16)} ${summary}`,
+          )
+        }
+      })
+    })
+
+  task
     .command('create')
     .description('Create a pending task')
     .requiredOption('-i, --input <text>', 'task input')

@@ -41,4 +41,8 @@ export class MemoryEventStore implements EventStore {
   async getLatestSequence(taskId: string): Promise<number> {
     return (this.#events.get(taskId) ?? []).length
   }
+
+  listTaskIds(): Promise<readonly string[]> {
+    return Promise.resolve([...this.#events.keys()])
+  }
 }

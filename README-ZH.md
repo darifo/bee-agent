@@ -87,11 +87,11 @@ flowchart TB
 | Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载             |
 | 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎 |
 | SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放                                                                                    |
-| 服务器            | 已可用 | Fastify 组合根：REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、状态码映射的错误信封                                   |
-| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流）与 `bee` CLI（任务 create/run/watch/cancel 与审批 decide）                           |
+| 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封    |
+| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）  |
+| Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                  |
 | PostgreSQL 存储   | 规划中 | 插件边界与 ADR 已定义，实现延后                                                                                                     |
 | pgvector 记忆     | 规划中 | Vector Store 契约与插件边界已定义，检索延后                                                                                         |
-| Web 界面          | 规划中 | React 客户端为下一阶段预留                                                                                                          |
 
 ## 环境要求
 
@@ -117,7 +117,7 @@ pnpm lint
 pnpm test
 ```
 
-启动服务器并用 CLI 驱动：
+启动服务器并用 CLI 或 Web 控制台驱动：
 
 ```bash
 pnpm --filter @bee-agent/server start          # http://127.0.0.1:3000
@@ -126,6 +126,8 @@ export BEE_AGENT_URL=http://127.0.0.1:3000
 bee() { pnpm --filter @bee-agent/cli bee -- "$@"; }
 bee task create -i "hello"                     # 输出任务 id
 bee task run <taskId>                          # 流式输出事件直到任务结束
+
+pnpm --filter @bee-agent/web dev               # http://localhost:5173
 ```
 
 ## 仓库结构
@@ -135,7 +137,7 @@ bee-agent/
 ├── apps/
 │   ├── server/              # Fastify HTTP + SSE 组合根
 │   ├── cli/                 # 基于 Commander 的 `bee` 客户端
-│   └── web/                 # 预留的 React 客户端（下一阶段）
+│   └── web/                 # React 19 + Vite 任务控制台
 ├── packages/
 │   ├── contracts/           # Zod schema 与共享领域/传输类型
 │   ├── plugin-sdk/          # 公开的插件清单与生命周期契约
@@ -195,7 +197,7 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 实现并测试 SQLite 事件存储
 - [x] 增加任务状态机、策略引擎、计算器工具与模拟智能体
 - [x] 增加 HTTP/SSE 服务器、客户端 SDK 与 CLI
-- [ ] 增加 React Web 界面
+- [x] 增加 React Web 界面
 - [ ] 基于共享存储契约套件实现 PostgreSQL
 - [ ] 实现 pgvector 与嵌入空间校验
 - [ ] 增加记忆、真实模型提供商、MCP、Python worker 与外部智能体

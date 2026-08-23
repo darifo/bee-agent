@@ -91,11 +91,11 @@ abstractions, and SQLite Event Store.
 | Cordis kernel      | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                  |
 | Core runtimes      | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation |
 | SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay                                                                                                                        |
-| Server             | Available | Fastify composition root: REST commands, SSE event streaming with `Last-Event-ID` resume, approval decisions, error envelopes with mapped statuses                                                              |
-| Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support) and the `bee` CLI for task create/run/watch/cancel and approval decide                                                                            |
+| Server             | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses         |
+| Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                   |
+| Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                          |
 | PostgreSQL storage | Planned   | Plugin boundary and ADR are defined; implementation is deferred                                                                                                                                                 |
 | pgvector memory    | Planned   | Vector Store contract and plugin boundary are defined; search is deferred                                                                                                                                       |
-| Web UI             | Planned   | React client reserved for the next stage                                                                                                                                                                        |
 
 ## Requirements
 
@@ -121,7 +121,7 @@ pnpm lint
 pnpm test
 ```
 
-Start the server and drive it from the CLI:
+Start the server and drive it from the CLI or the Web console:
 
 ```bash
 pnpm --filter @bee-agent/server start          # http://127.0.0.1:3000
@@ -130,6 +130,8 @@ export BEE_AGENT_URL=http://127.0.0.1:3000
 bee() { pnpm --filter @bee-agent/cli bee -- "$@"; }
 bee task create -i "hello"                     # prints the task id
 bee task run <taskId>                          # streams events until the task finishes
+
+pnpm --filter @bee-agent/web dev               # http://localhost:5173
 ```
 
 ## Repository structure
@@ -139,7 +141,7 @@ bee-agent/
 ├── apps/
 │   ├── server/              # Fastify HTTP + SSE composition root
 │   ├── cli/                 # Commander-based `bee` client
-│   └── web/                 # Reserved React client for the next stage
+│   └── web/                 # React 19 + Vite task console
 ├── packages/
 │   ├── contracts/           # Zod schemas and shared domain/transport types
 │   ├── plugin-sdk/          # Public plugin manifest and lifecycle contract
@@ -201,7 +203,7 @@ dedicated Vector Store contract.
 - [x] Implement and test the SQLite Event Store
 - [x] Add the task state machine, policy engine, calculator tool, and mock agent
 - [x] Add the HTTP/SSE server, Client SDK, and CLI
-- [ ] Add the React Web UI
+- [x] Add the React Web UI
 - [ ] Implement PostgreSQL using the shared storage contract suite
 - [ ] Implement pgvector and embedding-space validation
 - [ ] Add memory, real model providers, MCP, Python workers, and external agents

@@ -1,6 +1,8 @@
 import Fastify from 'fastify'
 import type { FastifyInstance } from 'fastify'
+import cors from '@fastify/cors'
 import type { EventStore } from '@bee-agent/event-store'
+import type { Kernel } from '@bee-agent/kernel'
 import {
   createKernel,
   eventStoreService,
@@ -28,11 +30,16 @@ export interface ServerOptions {
   readonly eventStore?: EventStore | undefined
   /** Fastify logger toggle (enabled by default). */
   readonly logger?: boolean | undefined
+  /**
+   * Allowed CORS origins for browser clients; `true` (the default for this
+   * engineering preview) reflects any origin.
+   */
+  readonly corsOrigin?: boolean | string[] | undefined
 }
 
 export interface BeeServer {
   readonly app: FastifyInstance
-  readonly kernel: ReturnType<typeof createKernel>
+  readonly kernel: Kernel
   readonly runtime: TaskRuntime
 }
 
@@ -69,13 +76,19 @@ export async function buildServer(
 
   const app = Fastify({ logger: options.logger ?? true })
   app.decorate('bee', { kernel, runtime })
+  await app.register(cors, {
+    origin: options.corsOrigin ?? true,
+    methods: ['GET', 'POST'],
+  })
   app.setErrorHandler(async (error, request, reply) => {
     await sendErrorResponse(error, request, reply)
   })
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(taskRoutes)
   await app.register(approvalRoutes)
-  await app.register(streamRoutes)
+  await app.register(streamRoutes, {
+    corsOrigin: options.corsOrigin ?? true,
+  })
   app.addHook('onClose', async () => {
     await kernel.stop()
   })

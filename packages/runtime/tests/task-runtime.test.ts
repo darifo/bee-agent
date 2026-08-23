@@ -94,6 +94,19 @@ async function createSimpleTask(
 }
 
 describe('task runtime', () => {
+  it('lists task snapshots oldest first', async () => {
+    const { runtime } = await setup()
+    expect(await runtime.listTasks()).toEqual([])
+    const first = await createSimpleTask(runtime, 'first')
+    const second = await createSimpleTask(runtime, 'second')
+    await runtime.run(first)
+    const tasks = await runtime.listTasks()
+    expect(tasks.map((task) => task.taskId)).toEqual([first, second])
+    expect(tasks[0]!.state).toBe('completed')
+    expect(tasks[1]!.state).toBe('pending')
+    expect(tasks[1]!.spec?.input).toBe('second')
+  })
+
   it('creates pending tasks with generated ids', async () => {
     const { runtime } = await setup()
     const spec = await runtime.createTask({

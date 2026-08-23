@@ -14,13 +14,37 @@ const TERMINAL_EVENT_TYPES: ReadonlySet<string> = new Set([
 
 const HEARTBEAT_MS = 15_000
 
+export interface StreamRoutesOptions {
+  /**
+   * CORS origin policy mirroring the server's `corsOrigin` option. The
+   * hijacked SSE response bypasses the `@fastify/cors` hooks, so the header
+   * must be written here for browser clients.
+   */
+  readonly corsOrigin?: boolean | string[] | undefined
+}
+
+function allowOrigin(
+  requestOrigin: string | undefined,
+  corsOrigin: boolean | string[],
+): string | undefined {
+  if (corsOrigin === true) return requestOrigin ?? '*'
+  if (corsOrigin === false) return undefined
+  if (requestOrigin !== undefined && corsOrigin.includes(requestOrigin)) {
+    return requestOrigin
+  }
+  return undefined
+}
+
 /**
  * Streams a task's events over Server-Sent Events. Recorded events after the
  * `Last-Event-ID` header (or `?after=`) are replayed first, then live events
  * follow; the stream closes once the task reaches a terminal state or the
  * client disconnects.
  */
-export const streamRoutes: FastifyPluginAsync = async (app) => {
+export const streamRoutes: FastifyPluginAsync<StreamRoutesOptions> = async (
+  app,
+  options,
+) => {
   app.get(
     '/tasks/:taskId/events/stream',
     { logLevel: 'warn' },
@@ -40,9 +64,16 @@ export const streamRoutes: FastifyPluginAsync = async (app) => {
 
       reply.hijack()
       const raw = reply.raw
+      const origin = allowOrigin(
+        request.headers.origin,
+        options.corsOrigin ?? true,
+      )
       raw.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
+        ...(origin !== undefined
+          ? { 'access-control-allow-origin': origin }
+          : {}),
         connection: 'keep-alive',
         'x-accel-buffering': 'no',
       })

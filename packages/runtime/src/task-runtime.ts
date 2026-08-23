@@ -222,6 +222,16 @@ export class TaskRuntime {
     return reduceTaskSnapshot(taskId, store.readTask(taskId))
   }
 
+  /**
+   * Snapshots of every task with recorded events, oldest first. Each entry
+   * is a full replay, so listings stay correct across runtime restarts.
+   */
+  async listTasks(): Promise<TaskSnapshot[]> {
+    const store = await this.#resolveStore()
+    const ids = await store.listTaskIds()
+    return Promise.all(ids.map(async (taskId) => this.getSnapshot(taskId)))
+  }
+
   /** Streams recorded task events, optionally after a sequence. */
   async *readEvents(
     taskId: string,

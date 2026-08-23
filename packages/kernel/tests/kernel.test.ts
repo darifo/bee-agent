@@ -608,6 +608,7 @@ describe('Kernel service key catalog', () => {
       appendBatch: async () => [] as never[],
       readTask: async function* () {},
       getLatestSequence: async () => 0,
+      listTaskIds: async () => [] as readonly string[],
     }
     kernel.registerService(eventStoreService, fakeStore)
     expect(kernel.getService(eventStoreService)).toBe(fakeStore)

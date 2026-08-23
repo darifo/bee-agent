@@ -56,6 +56,12 @@ beforeAll(async () => {
       requests.push(recorded)
       const url = new URL(recorded.url, 'http://localhost')
       const route = `${recorded.method} ${url.pathname}`
+      if (route === 'GET /tasks') {
+        respond(response, 200, {
+          tasks: [{ taskId, state: 'pending', lastSequence: 1 }],
+        })
+        return
+      }
       if (route === 'POST /tasks') {
         respond(response, 201, {
           task: { ...(recorded.body as Record<string, unknown>), id: taskId },
@@ -168,6 +174,12 @@ describe('bee agent client', () => {
     expect((await api.runTask(taskId)).state).toBe('running')
     expect((await api.cancelTask(taskId, 'stop')).state).toBe('cancelled')
     expect(lastRequest().body).toEqual({ reason: 'stop' })
+  })
+
+  it('lists task snapshots', async () => {
+    const tasks = await client().listTasks()
+    expect(tasks).toEqual([{ taskId, state: 'pending', lastSequence: 1 }])
+    expect(lastRequest().url).toBe('/tasks')
   })
 
   it('lists events with an after query and validates them', async () => {

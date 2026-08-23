@@ -41,7 +41,9 @@ export class BeeAgentClient {
     if (this.#baseUrl.pathname !== '/' && this.#baseUrl.pathname !== '') {
       this.#baseUrl.pathname = `${this.#baseUrl.pathname.replace(/\/$/, '')}/`
     }
-    this.#fetch = options.fetch ?? fetch
+    // Bound so the default works in browsers, where calling the detached
+    // global fetch throws "Illegal invocation".
+    this.#fetch = options.fetch ?? fetch.bind(globalThis)
     this.#headers = { ...(options.headers ?? {}) }
   }
 
@@ -57,6 +59,15 @@ export class BeeAgentClient {
   /** Rebuilds the task snapshot by replaying its events. */
   async getTask(taskId: string): Promise<TaskSnapshot> {
     return this.#request('GET', `tasks/${encodeURIComponent(taskId)}`)
+  }
+
+  /** Snapshots of every task, oldest first. */
+  async listTasks(): Promise<TaskSnapshot[]> {
+    const payload = await this.#request<{ tasks: TaskSnapshot[] }>(
+      'GET',
+      'tasks',
+    )
+    return payload.tasks
   }
 
   /**

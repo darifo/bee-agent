@@ -75,6 +75,23 @@ async function streamAll(taskId: string, after = 0): Promise<AgentEvent[]> {
 }
 
 describe('bee agent server', () => {
+  it('lists task snapshots and allows cross-origin browser access', async () => {
+    const agentId = registerAgent([])
+    const first = await createTask(agentId, 'list one')
+    const second = await createTask(agentId, 'list two')
+    await api.runTask(first)
+    const tasks = await api.listTasks()
+    expect(tasks.map((task) => task.taskId)).toEqual([first, second])
+    expect(tasks[0]!.state).toBe('completed')
+    expect(tasks[1]!.state).toBe('pending')
+    const response = await fetch(new URL('tasks', baseUrl), {
+      headers: { origin: 'http://localhost:5173' },
+    })
+    expect(response.headers.get('access-control-allow-origin')).toBe(
+      'http://localhost:5173',
+    )
+  })
+
   it('serves health checks', async () => {
     const response = await fetch(new URL('/health', baseUrl))
     expect(response.status).toBe(200)
@@ -129,7 +146,7 @@ describe('bee agent server', () => {
     expect(final.messages).toEqual([{ role: 'assistant', content: 'done' }])
   })
 
-  it('resumes SSE from Last-Event-ID', async () => {
+  it('resumes SSE from Last-Event-ID and serves the stream with CORS headers', async () => {
     const agentId = registerAgent([])
     const taskId = await createTask(agentId, 'echo me')
     await api.runTask(taskId)
@@ -140,6 +157,21 @@ describe('bee agent server', () => {
     expect(resumed.map((event) => event.sequence)).toEqual(
       all.filter((event) => event.sequence > 2).map((event) => event.sequence),
     )
+    // The hijacked SSE response must carry the CORS header itself; the
+    // @fastify/cors hooks never run for hijacked replies.
+    const stream = await fetch(
+      new URL(`tasks/${taskId}/events/stream`, baseUrl),
+      {
+        headers: {
+          origin: 'http://localhost:5173',
+          accept: 'text/event-stream',
+        },
+      },
+    )
+    expect(stream.headers.get('access-control-allow-origin')).toBe(
+      'http://localhost:5173',
+    )
+    await stream.body?.cancel()
   })
 
   it('denies approvals and records the tool error', async () => {

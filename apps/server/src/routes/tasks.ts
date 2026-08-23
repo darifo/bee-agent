@@ -60,6 +60,10 @@ function trackRunStart(
 }
 
 export const taskRoutes: FastifyPluginAsync = async (app) => {
+  app.get('/tasks', async () => {
+    return { tasks: await app.bee.runtime.listTasks() }
+  })
+
   app.post('/tasks', async (request, reply) => {
     const body = CreateTaskRequestSchema.parse(request.body)
     const spec = await app.bee.runtime.createTask(body)

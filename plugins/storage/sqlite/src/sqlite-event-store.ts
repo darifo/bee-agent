@@ -105,4 +105,13 @@ export class SQLiteEventStore implements EventStore {
       .get(taskId)
     return row?.sequence ?? 0
   }
+
+  async listTaskIds(): Promise<readonly string[]> {
+    const rows = this.#storage.database
+      .prepare<[], { task_id: string }>(
+        'SELECT task_id FROM task_sequences ORDER BY rowid ASC',
+      )
+      .all()
+    return rows.map((row) => row.task_id)
+  }
 }
