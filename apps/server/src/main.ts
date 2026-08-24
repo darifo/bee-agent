@@ -1,3 +1,7 @@
+import {
+  CommandAgent,
+  CommandAgentConfigSchema,
+} from '@bee-agent/agent-adapters'
 import { OpenAIChatAgent, OpenAIEmbedder } from '@bee-agent/model-providers'
 import { McpServerConfigSchema } from '@bee-agent/plugin-tool-mcp'
 import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
@@ -126,6 +130,16 @@ const pythonEnabled = ['1', 'true'].includes(
   (process.env.BEE_AGENT_ENABLE_PYTHON ?? '').toLowerCase(),
 )
 
+// External command agents (ADR 0016): a JSON array of CommandAgent configs,
+// e.g. BEE_AGENT_COMMAND_AGENTS='[{"id":"agent.upper","command":"tr","args":["a-z","A-Z"],"inputVia":"stdin"}]'
+let commandAgents: CommandAgent[] | undefined
+const commandAgentsRaw = process.env.BEE_AGENT_COMMAND_AGENTS
+if (commandAgentsRaw !== undefined && commandAgentsRaw.trim() !== '') {
+  const parsed: unknown = JSON.parse(commandAgentsRaw)
+  const configs = CommandAgentConfigSchema.array().parse(parsed)
+  commandAgents = configs.map((config) => new CommandAgent(config))
+}
+
 const server = await buildServer({
   ...(dialect === 'postgres'
     ? { postgresUrl }
@@ -138,6 +152,7 @@ const server = await buildServer({
   ...(embedder !== undefined ? { embedder } : {}),
   ...(mcpServers !== undefined ? { mcpServers } : {}),
   ...(pythonEnabled ? { pythonTool: true } : {}),
+  ...(commandAgents !== undefined ? { agents: commandAgents } : {}),
   logger: true,
 })
 try {

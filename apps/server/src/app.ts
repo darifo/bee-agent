@@ -65,6 +65,12 @@ export interface ServerOptions {
    * the whole default set.
    */
   readonly pythonTool?: boolean | PythonToolOptions | undefined
+  /**
+   * Extra agents registered at startup under their own ids (ADR 0016):
+   * `RemoteAgent` federates to another server, `CommandAgent` wraps any
+   * command-line program. Task specs address them by agentId.
+   */
+  readonly agents?: readonly Agent[] | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
   readonly tools?: readonly Tool[] | undefined
   /** Policies seeded into the runtime's policy engine. */
@@ -165,6 +171,7 @@ export async function buildServer(
           ]),
     policies: options.policies ?? [],
   })
+  for (const agent of options.agents ?? []) runtime.registerAgent(agent)
   const memory = new MemoryRuntime(
     kernel,
     options.embedder === undefined ? {} : { embedder: options.embedder },

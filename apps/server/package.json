@@ -19,6 +19,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@bee-agent/agent-adapters": "workspace:*",
     "@bee-agent/contracts": "workspace:*",
     "@bee-agent/event-store": "workspace:*",
     "@bee-agent/kernel": "workspace:*",

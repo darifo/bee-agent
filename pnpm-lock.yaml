@@ -39,6 +39,28 @@ importers:
         specifier: ^4.0.15
         version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
+  adapters/agents:
+    dependencies:
+      '@bee-agent/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@bee-agent/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@bee-agent/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      '@bee-agent/server':
+        specifier: workspace:*
+        version: link:../../apps/server
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
+
   apps/cli:
     dependencies:
       '@bee-agent/client':
@@ -56,6 +78,9 @@ importers:
 
   apps/server:
     dependencies:
+      '@bee-agent/agent-adapters':
+        specifier: workspace:*
+        version: link:../../adapters/agents
       '@bee-agent/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
