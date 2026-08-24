@@ -120,6 +120,12 @@ if (mcpRaw !== undefined && mcpRaw.trim() !== '') {
   mcpServers = McpServerConfigSchema.array().parse(parsed)
 }
 
+// Python tool (ADR 0015): opt-in only — it runs arbitrary code in one-shot
+// child processes, which is crash isolation, not a security sandbox.
+const pythonEnabled = ['1', 'true'].includes(
+  (process.env.BEE_AGENT_ENABLE_PYTHON ?? '').toLowerCase(),
+)
+
 const server = await buildServer({
   ...(dialect === 'postgres'
     ? { postgresUrl }
@@ -131,6 +137,7 @@ const server = await buildServer({
   ...(defaultAgent !== undefined ? { defaultAgent } : {}),
   ...(embedder !== undefined ? { embedder } : {}),
   ...(mcpServers !== undefined ? { mcpServers } : {}),
+  ...(pythonEnabled ? { pythonTool: true } : {}),
   logger: true,
 })
 try {

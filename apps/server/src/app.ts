@@ -18,6 +18,8 @@ import {
   McpToolsPlugin,
 } from '@bee-agent/plugin-tool-mcp'
 import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
+import { PythonTool } from '@bee-agent/plugin-tool-python'
+import type { PythonToolOptions } from '@bee-agent/plugin-tool-python'
 import { MemoryRuntime, MockAgent, TaskRuntime } from '@bee-agent/runtime'
 import type { Agent, Embedder, Tool, ToolPolicy } from '@bee-agent/runtime'
 import { approvalRoutes } from './routes/approvals.js'
@@ -55,6 +57,14 @@ export interface ServerOptions {
    * `mcp.<server>.<tool>` and stop with the kernel.
    */
   readonly mcpServers?: readonly McpServerConfig[] | undefined
+  /**
+   * Opt in to the Python tool (ADR 0015): it executes arbitrary code in
+   * one-shot child processes, so it is never part of the default tool
+   * set. `true` enables it with defaults; an object tunes the
+   * interpreter, timeout, and output cap. Explicit `tools` still replace
+   * the whole default set.
+   */
+  readonly pythonTool?: boolean | PythonToolOptions | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
   readonly tools?: readonly Tool[] | undefined
   /** Policies seeded into the runtime's policy engine. */
@@ -143,7 +153,16 @@ export async function buildServer(
   }
   const runtime = new TaskRuntime(kernel, {
     defaultAgent: options.defaultAgent ?? new MockAgent(),
-    tools: options.tools ?? [new CalculatorTool()],
+    tools:
+      options.tools ??
+      (options.pythonTool === undefined
+        ? [new CalculatorTool()]
+        : [
+            new CalculatorTool(),
+            new PythonTool(
+              typeof options.pythonTool === 'object' ? options.pythonTool : {},
+            ),
+          ]),
     policies: options.policies ?? [],
   })
   const memory = new MemoryRuntime(

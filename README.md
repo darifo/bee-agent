@@ -99,6 +99,7 @@ abstractions, and SQLite Event Store.
 | Memory runtime     | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                           |
 | Model providers    | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted            |
 | MCP tools          | Available | Zero-dependency MCP stdio client (ADR 0014): each configured server runs as its own child process, tools register as `mcp.<server>.<tool>` and flow through the policy pipeline; server death surfaces as tool errors with the stderr tail; children stop with the kernel |
+| Python tool        | Available | Opt-in `tools.python` (ADR 0015, env `BEE_AGENT_ENABLE_PYTHON`): one-shot interpreter per call with `args` injection, stdout-as-output contract (JSON parsed), timeouts, output caps, and stderr-mapped tool errors — crash isolation, not a security sandbox             |
 
 ## Requirements
 
@@ -171,6 +172,19 @@ bee task create -i "list the files under /tmp and read notes.txt" -a agent.deeps
 bee task run <taskId>    # the model drives the MCP filesystem tools
 ```
 
+### Enabling the Python tool
+
+`tools.python` runs code in a fresh one-shot interpreter per call and is
+**opt-in** (ADR 0015 — crash isolation, not a security sandbox; keep it
+disabled for untrusted users or run the server in a container):
+
+```bash
+BEE_AGENT_ENABLE_PYTHON=1 pnpm --filter @bee-agent/server start
+
+bee task create -i "compute 2**100 exactly with the python tool" -a agent.deepseek
+bee task run <taskId>    # the model writes python, the tool prints the result
+```
+
 ### Running on PostgreSQL
 
 One storage dialect per instance (ADR 0004); pick it with environment
@@ -226,6 +240,7 @@ bee-agent/
 │   ├── storage/postgres/    # Working PostgreSQL storage and Event Store
 │   ├── tools/calculator/    # Working calculator tool plugin
 │   ├── tools/mcp/           # Working MCP stdio tool bridge
+│   ├── tools/python/        # Opt-in one-shot Python worker tool
 │   └── vector/pgvector/     # Working pgvector Vector Store
 ├── adapters/                # Future external protocol and agent adapters
 ├── python/                  # Future Python worker projects
@@ -280,7 +295,8 @@ dedicated Vector Store contract.
 - [x] Add the memory runtime on the Vector Store
 - [x] Add real model providers over OpenAI-compatible HTTP
 - [x] Add MCP tool servers over the stdio bridge
-- [ ] Add Python workers and external agents
+- [x] Add the opt-in Python worker tool
+- [ ] Add external agents
 
 Architecture decisions and their constraints are recorded in
 [`docs/adr`](./docs/adr).

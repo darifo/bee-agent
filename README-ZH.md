@@ -80,21 +80,22 @@ flowchart TB
 
 ## 当前能力
 
-| 领域              | 状态   | 说明                                                                                                                                                                                                               |
-| ----------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Monorepo 工具链   | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                                                                                                         |
-| 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                                                                                                    |
-| Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载                                                                                            |
-| 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎                                                                                |
-| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放，由共享存储契约套件验证                                                                                                                                           |
-| 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封                                                                                   |
-| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）                                                                                 |
-| Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                                                                                                 |
-| PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                                                                                                   |
-| pgvector 存储     | 已可用 | 基于 pgvector 的 Vector Store 适配器：校验维度并冻结模型/度量的嵌入空间注册表、带工作区隔离与元数据过滤的 cosine/euclidean/inner_product 检索，已过契约套件；供给它的记忆运行时属后续阶段                          |
-| 记忆运行时        | 已可用 | 工作区语义记忆（ADR 0012）：按词边界分块、可插拔 `Embedder`（真实模型提供商就绪前用确定性 mock）、按向量近似度排序的 recall，REST/SDK/CLI 三端 `remember`/`recall`/`forget`                                        |
-| 模型提供商        | 已可用 | OpenAI 兼容 HTTP 提供商（ADR 0013）：带回合上限工具调用循环的 `OpenAIChatAgent` 与声明维度的 `OpenAIEmbedder`；DeepSeek/OpenAI/兼容网关经 `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` 环境变量接入，密钥永不落盘 |
-| MCP 工具          | 已可用 | 零依赖 MCP stdio 客户端（ADR 0014）：每台服务器独立子进程，工具以 `mcp.<server>.<tool>` 注册并走策略管线；服务器崩溃以带 stderr 尾部的工具错误呈现；子进程随内核停止                                               |
+| 领域              | 状态   | 说明                                                                                                                                                                                                                  |
+| ----------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo 工具链   | 已可用 | pnpm workspaces、严格 TypeScript、ESLint、Prettier、Vitest、Changesets、CI                                                                                                                                            |
+| 共享契约          | 已可用 | 任务、事件、工具、审批、记忆、嵌入、向量检索、API 与 SSE schema                                                                                                                                                       |
+| Cordis 内核       | 已可用 | 生命周期状态机、服务键目录与等待、带 waterfall 中间件的领域事件、支持服务隔离的任务作用域、Cordis 与 Bee Agent 插件挂载                                                                                               |
+| 核心运行时        | 已可用 | 带可重放生命周期事件与快照的任务状态机、智能体契约与模拟智能体、工具注册表与 `tools/execute` 管线、含审批挂起、过期与取消的策略引擎                                                                                   |
+| SQLite 存储       | 已可用 | 迁移、事务、回滚、只追加事件、原子任务序列、重放，由共享存储契约套件验证                                                                                                                                              |
+| 服务器            | 已可用 | Fastify 组合根：含任务列表的 REST 命令、支持 `Last-Event-ID` 续传的 SSE 事件流、审批决定、CORS（含劫持流）、状态码映射的错误信封                                                                                      |
+| 客户端 SDK 与 CLI | 已可用 | `@bee-agent/client`（REST + 支持中止的 SSE 流，浏览器安全的 fetch）与 `bee` CLI（任务 list/create/run/watch/cancel 与审批 decide）                                                                                    |
+| Web 界面          | 已可用 | 基于 Client SDK 的 React 19 + Vite 控制台：任务创建、实时 SSE 事件流、带理由的审批通过与拒绝、取消，jsdom 组件测试                                                                                                    |
+| PostgreSQL 存储   | 已可用 | 基于共享契约套件的连接池适配器：重入自动加入的事务、原子序列分配、JSONB 事件、最旧优先任务列表、单方言服务器模式                                                                                                      |
+| pgvector 存储     | 已可用 | 基于 pgvector 的 Vector Store 适配器：校验维度并冻结模型/度量的嵌入空间注册表、带工作区隔离与元数据过滤的 cosine/euclidean/inner_product 检索，已过契约套件；供给它的记忆运行时属后续阶段                             |
+| 记忆运行时        | 已可用 | 工作区语义记忆（ADR 0012）：按词边界分块、可插拔 `Embedder`（真实模型提供商就绪前用确定性 mock）、按向量近似度排序的 recall，REST/SDK/CLI 三端 `remember`/`recall`/`forget`                                           |
+| 模型提供商        | 已可用 | OpenAI 兼容 HTTP 提供商（ADR 0013）：带回合上限工具调用循环的 `OpenAIChatAgent` 与声明维度的 `OpenAIEmbedder`；DeepSeek/OpenAI/兼容网关经 `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` 环境变量接入，密钥永不落盘    |
+| MCP 工具          | 已可用 | 零依赖 MCP stdio 客户端（ADR 0014）：每台服务器独立子进程，工具以 `mcp.<server>.<tool>` 注册并走策略管线；服务器崩溃以带 stderr 尾部的工具错误呈现；子进程随内核停止                                                  |
+| Python 工具       | 已可用 | 选择性启用的 `tools.python`（ADR 0015，环境变量 `BEE_AGENT_ENABLE_PYTHON`）：每次调用一个全新解释器、`args` 注入、stdout 即输出契约（JSON 自动解析）、超时与输出上限、stderr 映射为工具错误 —— 是崩溃隔离而非安全沙箱 |
 
 ## 环境要求
 
@@ -165,6 +166,19 @@ bee task create -i "列出 /tmp 下的文件并读出 notes.txt" -a agent.deepse
 bee task run <taskId>    # 模型会驱动 MCP 文件系统工具
 ```
 
+### 启用 Python 工具
+
+`tools.python` 每次调用都在全新的一次性解释器中运行代码，**需要显式启用**
+（ADR 0015 —— 是崩溃隔离而非安全沙箱；面向不可信用户时请保持关闭，或将
+服务器放进容器运行）：
+
+```bash
+BEE_AGENT_ENABLE_PYTHON=1 pnpm --filter @bee-agent/server start
+
+bee task create -i "用 python 工具精确计算 2 的 100 次方" -a agent.deepseek
+bee task run <taskId>    # 模型编写 python，工具打印结果
+```
+
 ### 运行在 PostgreSQL 上
 
 每个实例只启用一种存储方言（ADR 0004），通过环境变量选择，默认 SQLite：
@@ -218,6 +232,7 @@ bee-agent/
 │   ├── storage/postgres/    # 可用的 PostgreSQL 存储与事件存储
 │   ├── tools/calculator/    # 可用的计算器工具插件
 │   ├── tools/mcp/           # 可用的 MCP stdio 工具桥接
+│   ├── tools/python/        # 选择性启用的一次性 Python worker 工具
 │   └── vector/pgvector/     # 可用的 pgvector 向量存储
 ├── adapters/                # 未来的外部协议与智能体适配器
 ├── python/                  # 未来的 Python worker 项目
@@ -270,7 +285,8 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 在 Vector Store 之上增加记忆运行时
 - [x] 基于 OpenAI 兼容 HTTP 增加真实模型提供商
 - [x] 基于 stdio 桥接增加 MCP 工具服务器
-- [ ] 增加 Python worker 与外部智能体
+- [x] 增加选择性启用的 Python worker 工具
+- [ ] 增加外部智能体
 
 架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中。
 

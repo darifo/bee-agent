@@ -1,0 +1,29 @@
+# ADR 0015: Run Python in one-shot workers
+
+## Background
+
+Data-processing tasks often need Python; the tool pipeline so far only runs in-process JavaScript (calculator) or external MCP servers.
+
+## Decision
+
+Add `plugins/tools/python`: a `tools.python` Tool that runs caller-supplied Python in a fresh one-shot child process per call. The payload (`{ code, args }`) arrives as JSON on stdin, the interpreter bootstrap exposes `args` to the code, `stdout` is the output (JSON text is parsed into structured results), and non-zero exits, stderr, timeouts, and oversized output become tool errors. The composition root enables it only when explicitly opted in (`pythonTool` option / `BEE_AGENT_ENABLE_PYTHON`).
+
+## Reasons
+
+A fresh process per call is the strongest crash and state isolation available without sandboxing infrastructure; the stdout contract is notebook-simple for models and humans; failures stay tool-scoped through the existing error mapping; and opt-in keeps the default surface free of arbitrary code execution.
+
+## Alternatives
+
+A persistent worker process (state leaks between calls, harder cleanup), in-process JS Python runtimes (no isolation), or container-per-call sandboxes (deployment-heavy for an engineering preview, the right next step for hostile multi-tenant use).
+
+## Positive impact
+
+Agents gain the entire Python data ecosystem behind one tool id; the policy engine can gate it like any tool (`tools.python` approvals); timeouts and output caps bound runaway code.
+
+## Negative impact
+
+This is crash isolation, not a security sandbox — the code runs with the server's privileges; interpreter startup costs a few tens of milliseconds per call; only CPython with stdlib JSON is assumed.
+
+## Follow-up constraints
+
+Hostile workloads require container-level isolation around the server or a sandboxing executor behind the same Tool contract; the stdout/stderr contract stays stable so worker implementations can change.
