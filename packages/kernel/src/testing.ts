@@ -107,14 +107,16 @@ export interface FakeTool {
   ): unknown | Promise<unknown>
 }
 
-export function createFakeTool(options: {
-  id?: string
-  description?: string
-  handler?: (
-    input: Record<string, unknown>,
-    context: unknown,
-  ) => unknown | Promise<unknown>
-} = {}): FakeTool {
+export function createFakeTool(
+  options: {
+    id?: string
+    description?: string
+    handler?: (
+      input: Record<string, unknown>,
+      context: unknown,
+    ) => unknown | Promise<unknown>
+  } = {},
+): FakeTool {
   const id = options.id ?? 'tools.fake'
   const calls: FakeToolCall[] = []
   return {

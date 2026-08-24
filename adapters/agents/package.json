@@ -24,7 +24,6 @@
     "zod": "^4.1.13"
   },
   "devDependencies": {
-    "@bee-agent/server": "workspace:*",
     "vitest": "^4.0.15"
   }
 }
