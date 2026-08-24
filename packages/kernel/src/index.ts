@@ -1,7 +1,14 @@
 export { Kernel, createKernel } from './kernel.js'
 export { EventBus, EventBusChild } from './events.js'
-export { defineSerialEvent, defineWaterfallEvent } from './events.js'
+export {
+  defineBroadcastEvent,
+  defineParallelEvent,
+  defineSerialEvent,
+  defineWaterfallEvent,
+} from './events.js'
 export type {
+  BroadcastEvent,
+  ParallelEvent,
   SerialEvent,
   WaterfallEvent,
   SerialListener,
