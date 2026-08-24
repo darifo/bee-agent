@@ -116,7 +116,11 @@ export function defineChronicleStoreContractSuite<
           expectedSequence: 1,
         })
 
-        expect(await collect(store, streamId)).toEqual(['1:a.x', '2:a.y', '3:a.z'])
+        expect(await collect(store, streamId)).toEqual([
+          '1:a.x',
+          '2:a.y',
+          '3:a.z',
+        ])
         expect(await collect(store, streamId, 2)).toEqual(['3:a.z'])
         expect(await collect(store, streamId, 3)).toEqual([])
       }))
@@ -186,7 +190,13 @@ export function defineChronicleStoreContractSuite<
         await expect(
           store.append(
             streamId,
-            [newChronicleEvent({ eventType: 'e.typed', payload: 42, actor: testActor })],
+            [
+              newChronicleEvent({
+                eventType: 'e.typed',
+                payload: 42,
+                actor: testActor,
+              }),
+            ],
             { expectedSequence: 1 },
           ),
         ).rejects.toThrow(/payload schema/)

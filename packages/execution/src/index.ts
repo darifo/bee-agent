@@ -1,7 +1,12 @@
 /**
- * Bounded execution: capability pipeline, permissions, approvals, secret brokering, ExecutionWorld, sandbox, and artifact contracts.
- *
- * Skeleton package scaffolded in v1 Phase 0; public surface lands with the
- * Phase 1+ tasks in docs/architecture/bee-agent-v1.0.0-refactor-development-plan.md.
+ * Bounded execution: the content-addressed ArtifactStore contract (Phase 1)
+ * followed by the capability pipeline, permissions, approvals, secret
+ * brokering, ExecutionWorld, and sandbox contracts (Phase 3).
  */
-export {}
+export {
+  ArtifactNotFoundError,
+  InvalidArtifactDigestError,
+  LocalArtifactStore,
+  isValidArtifactDigest,
+} from './artifact-store.js'
+export type { ArtifactRef, ArtifactStore } from './artifact-store.js'

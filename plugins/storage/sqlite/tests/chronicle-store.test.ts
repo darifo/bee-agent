@@ -9,9 +9,7 @@ import {
   newChronicleEvent,
 } from '@bee-agent/knowledge'
 import type { ChronicleStore } from '@bee-agent/knowledge'
-import {
-  defineChronicleStoreContractSuite,
-} from '@bee-agent/knowledge/testing'
+import { defineChronicleStoreContractSuite } from '@bee-agent/knowledge/testing'
 import type { ChronicleContractSetup } from '@bee-agent/knowledge/testing'
 import { SQLiteChronicleStore } from '../src/index.js'
 

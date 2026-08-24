@@ -165,8 +165,8 @@ describe('ChronicleSchemaRegistry', () => {
   it('rejects duplicate registrations', () => {
     const registry = new ChronicleSchemaRegistry()
     registry.register('dup.once', { payload: z.unknown() })
-    expect(() => registry.register('dup.once', { payload: z.unknown() })).toThrow(
-      /already registered/,
-    )
+    expect(() =>
+      registry.register('dup.once', { payload: z.unknown() }),
+    ).toThrow(/already registered/)
   })
 })

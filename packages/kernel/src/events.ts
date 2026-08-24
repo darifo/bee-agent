@@ -156,7 +156,8 @@ export class EventBus {
     )
     const errors = settled
       .filter(
-        (result): result is PromiseRejectedResult => result.status === 'rejected',
+        (result): result is PromiseRejectedResult =>
+          result.status === 'rejected',
       )
       .map((result) => result.reason)
     if (errors.length > 0) throw new AggregateError(errors)

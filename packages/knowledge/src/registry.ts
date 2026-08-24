@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import type { z } from 'zod'
 import type { ChronicleEvent, NewChronicleEvent } from './envelope.js'
 import { NewChronicleEventSchema } from './envelope.js'
 

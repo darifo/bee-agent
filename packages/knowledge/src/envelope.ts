@@ -79,17 +79,16 @@ export type NewChronicleEvent = z.infer<typeof NewChronicleEventSchema>
 export type ChronicleEvent = z.infer<typeof ChronicleEventSchema>
 
 /** Producer-facing input: everything required minus the noisy defaults. */
-export interface NewChronicleEventInput<T = unknown>
-  extends Omit<
-    NewChronicleEvent,
-    | 'eventId'
-    | 'schemaVersion'
-    | 'eventTime'
-    | 'correlationId'
-    | 'classification'
-    | 'retentionClass'
-    | 'payload'
-  > {
+export interface NewChronicleEventInput<T = unknown> extends Omit<
+  NewChronicleEvent,
+  | 'eventId'
+  | 'schemaVersion'
+  | 'eventTime'
+  | 'correlationId'
+  | 'classification'
+  | 'retentionClass'
+  | 'payload'
+> {
   readonly payload: T
   readonly eventId?: string | undefined
   readonly schemaVersion?: number | undefined

@@ -113,7 +113,12 @@ export class SQLiteChronicleStore implements ChronicleStore {
         ingestTime,
       }))
       for (const event of stored) {
-        insert.run(streamId, event.sequence, event.eventId, JSON.stringify(event))
+        insert.run(
+          streamId,
+          event.sequence,
+          event.eventId,
+          JSON.stringify(event),
+        )
       }
       writeTail.run(stored[stored.length - 1]?.sequence ?? 0, streamId)
       return stored

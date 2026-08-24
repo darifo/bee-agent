@@ -15,6 +15,9 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.15"
   }
 }
