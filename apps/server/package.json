@@ -26,6 +26,7 @@
     "@bee-agent/plugin-storage-postgres": "workspace:*",
     "@bee-agent/plugin-storage-sqlite": "workspace:*",
     "@bee-agent/plugin-tool-calculator": "workspace:*",
+    "@bee-agent/plugin-tool-mcp": "workspace:*",
     "@bee-agent/plugin-vector-pgvector": "workspace:*",
     "@bee-agent/runtime": "workspace:*",
     "@fastify/cors": "^11.3.0",

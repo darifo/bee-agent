@@ -13,6 +13,11 @@ import { PgvectorPlugin } from '@bee-agent/plugin-vector-pgvector'
 import { SQLiteStoragePlugin } from '@bee-agent/plugin-storage-sqlite'
 import { PostgresStoragePlugin } from '@bee-agent/plugin-storage-postgres'
 import { CalculatorTool } from '@bee-agent/plugin-tool-calculator'
+import {
+  McpServerConfigSchema,
+  McpToolsPlugin,
+} from '@bee-agent/plugin-tool-mcp'
+import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
 import { MemoryRuntime, MockAgent, TaskRuntime } from '@bee-agent/runtime'
 import type { Agent, Embedder, Tool, ToolPolicy } from '@bee-agent/runtime'
 import { approvalRoutes } from './routes/approvals.js'
@@ -44,6 +49,12 @@ export interface ServerOptions {
    * until a real provider is configured.
    */
   readonly embedder?: Embedder | undefined
+  /**
+   * MCP servers to mount as tool providers (ADR 0014): each spawns a child
+   * process on the stdio transport whose tools are registered as
+   * `mcp.<server>.<tool>` and stop with the kernel.
+   */
+  readonly mcpServers?: readonly McpServerConfig[] | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
   readonly tools?: readonly Tool[] | undefined
   /** Policies seeded into the runtime's policy engine. */
@@ -139,6 +150,16 @@ export async function buildServer(
     kernel,
     options.embedder === undefined ? {} : { embedder: options.embedder },
   )
+  const mcpServers =
+    options.mcpServers === undefined
+      ? []
+      : McpServerConfigSchema.array().parse(options.mcpServers)
+  for (const config of mcpServers) {
+    const plugin = new McpToolsPlugin(config)
+    const handle = kernel.useBeeAgentPlugin(plugin)
+    await handle.ready
+    for (const tool of plugin.tools) runtime.tools.register(tool)
+  }
 
   const app = Fastify({ logger: options.logger ?? true })
   app.decorate('bee', { kernel, runtime, memory })

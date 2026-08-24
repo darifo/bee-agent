@@ -1,4 +1,6 @@
 import { OpenAIChatAgent, OpenAIEmbedder } from '@bee-agent/model-providers'
+import { McpServerConfigSchema } from '@bee-agent/plugin-tool-mcp'
+import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
 import type { Agent, Embedder } from '@bee-agent/runtime'
 import { buildServer } from './app.js'
 
@@ -109,6 +111,15 @@ if (embeddingProvider === 'openai-compatible') {
   })
 }
 
+// MCP tool servers (ADR 0014): a JSON array of stdio server configs, e.g.
+// BEE_AGENT_MCP='[{"name":"fs","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}]'
+let mcpServers: McpServerConfig[] | undefined
+const mcpRaw = process.env.BEE_AGENT_MCP
+if (mcpRaw !== undefined && mcpRaw.trim() !== '') {
+  const parsed: unknown = JSON.parse(mcpRaw)
+  mcpServers = McpServerConfigSchema.array().parse(parsed)
+}
+
 const server = await buildServer({
   ...(dialect === 'postgres'
     ? { postgresUrl }
@@ -119,6 +130,7 @@ const server = await buildServer({
   ...(vectorStore === 'pgvector' ? { vectorStore } : {}),
   ...(defaultAgent !== undefined ? { defaultAgent } : {}),
   ...(embedder !== undefined ? { embedder } : {}),
+  ...(mcpServers !== undefined ? { mcpServers } : {}),
   logger: true,
 })
 try {

@@ -20,6 +20,9 @@ importers:
       eslint:
         specifier: ^9.39.1
         version: 9.39.5
+      globals:
+        specifier: ^17.11.0
+        version: 17.11.0
       prettier:
         specifier: ^3.7.4
         version: 3.9.6
@@ -74,6 +77,9 @@ importers:
       '@bee-agent/plugin-tool-calculator':
         specifier: workspace:*
         version: link:../../plugins/tools/calculator
+      '@bee-agent/plugin-tool-mcp':
+        specifier: workspace:*
+        version: link:../../plugins/tools/mcp
       '@bee-agent/plugin-vector-pgvector':
         specifier: workspace:*
         version: link:../../plugins/vector/pgvector
@@ -284,6 +290,25 @@ importers:
       '@bee-agent/runtime':
         specifier: workspace:*
         version: link:../../../packages/runtime
+
+  plugins/tools/mcp:
+    dependencies:
+      '@bee-agent/contracts':
+        specifier: workspace:*
+        version: link:../../../packages/contracts
+      '@bee-agent/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sdk
+      '@bee-agent/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
   plugins/vector/pgvector:
     dependencies:
@@ -1665,6 +1690,10 @@ packages:
 
   globals@14.0.0:
     resolution: {integrity: sha512-oahGvuMGQlPw/ivIYBjVSrWAfWLBeku5tpPE2fOPLi+WHffIWbuh2tCjhyQhTBPMf5E9jDEH4FOmTYgYwbKwtQ==}
+    engines: {node: '>=18'}
+
+  globals@17.11.0:
+    resolution: {integrity: sha512-Z2I8hM+PbJDXQDq3Icgpzv+mPdwr68iZUU9d5WW4FuXfDUQfkZaZuvjMv42/5crNyw154+9+VWXbYrUgDXbxNw==}
     engines: {node: '>=18'}
 
   globby@11.1.0:
@@ -4133,6 +4162,8 @@ snapshots:
       is-glob: 4.0.3
 
   globals@14.0.0: {}
+
+  globals@17.11.0: {}
 
   globby@11.1.0:
     dependencies:

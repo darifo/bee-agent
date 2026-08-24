@@ -1,0 +1,10 @@
+{
+  "id": "tools.mcp",
+  "name": "MCP Tools",
+  "version": "0.1.0",
+  "engine": { "pluginApi": ">=0.1.0 <0.2.0" },
+  "requires": [],
+  "capabilities": [{ "type": "tool", "name": "mcp" }],
+  "permissions": ["process:spawn"],
+  "entry": "./dist/index.js"
+}

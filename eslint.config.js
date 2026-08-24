@@ -1,5 +1,6 @@
 import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
+import globals from 'globals'
 
 export default tseslint.config(
   {
@@ -7,6 +8,13 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  {
+    // Plain Node scripts (MCP server fixtures and friends).
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+  },
   {
     files: ['**/*.ts'],
     rules: {

@@ -94,6 +94,7 @@ flowchart TB
 | pgvector 存储     | 已可用 | 基于 pgvector 的 Vector Store 适配器：校验维度并冻结模型/度量的嵌入空间注册表、带工作区隔离与元数据过滤的 cosine/euclidean/inner_product 检索，已过契约套件；供给它的记忆运行时属后续阶段                          |
 | 记忆运行时        | 已可用 | 工作区语义记忆（ADR 0012）：按词边界分块、可插拔 `Embedder`（真实模型提供商就绪前用确定性 mock）、按向量近似度排序的 recall，REST/SDK/CLI 三端 `remember`/`recall`/`forget`                                        |
 | 模型提供商        | 已可用 | OpenAI 兼容 HTTP 提供商（ADR 0013）：带回合上限工具调用循环的 `OpenAIChatAgent` 与声明维度的 `OpenAIEmbedder`；DeepSeek/OpenAI/兼容网关经 `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` 环境变量接入，密钥永不落盘 |
+| MCP 工具          | 已可用 | 零依赖 MCP stdio 客户端（ADR 0014）：每台服务器独立子进程，工具以 `mcp.<server>.<tool>` 注册并走策略管线；服务器崩溃以带 stderr 尾部的工具错误呈现；子进程随内核停止                                               |
 
 ## 环境要求
 
@@ -151,6 +152,19 @@ bee task run <taskId>    # 模型会调用计算器工具，然后给出答案
 同一套变量模式可为记忆配置真实嵌入器
 （`BEE_AGENT_EMBEDDING_PROVIDER/BASE_URL/API_KEY/MODEL/DIMENSIONS`）。
 
+### 挂载 MCP 工具服务器
+
+`BEE_AGENT_MCP` 接受 stdio MCP 服务器配置的 JSON 数组（ADR 0014）；每台
+服务器变成所有智能体（包括真实模型）可用的 `mcp.<name>.*` 工具：
+
+```bash
+BEE_AGENT_MCP='[{"name":"fs","command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/tmp"]}]' \
+pnpm --filter @bee-agent/server start
+
+bee task create -i "列出 /tmp 下的文件并读出 notes.txt" -a agent.deepseek
+bee task run <taskId>    # 模型会驱动 MCP 文件系统工具
+```
+
 ### 运行在 PostgreSQL 上
 
 每个实例只启用一种存储方言（ADR 0004），通过环境变量选择，默认 SQLite：
@@ -203,6 +217,7 @@ bee-agent/
 │   ├── storage/sqlite/      # 可用的 SQLite 存储与事件存储
 │   ├── storage/postgres/    # 可用的 PostgreSQL 存储与事件存储
 │   ├── tools/calculator/    # 可用的计算器工具插件
+│   ├── tools/mcp/           # 可用的 MCP stdio 工具桥接
 │   └── vector/pgvector/     # 可用的 pgvector 向量存储
 ├── adapters/                # 未来的外部协议与智能体适配器
 ├── python/                  # 未来的 Python worker 项目
@@ -254,7 +269,8 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 实现 pgvector 与嵌入空间校验
 - [x] 在 Vector Store 之上增加记忆运行时
 - [x] 基于 OpenAI 兼容 HTTP 增加真实模型提供商
-- [ ] 增加 MCP、Python worker 与外部智能体
+- [x] 基于 stdio 桥接增加 MCP 工具服务器
+- [ ] 增加 Python worker 与外部智能体
 
 架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中。
 
