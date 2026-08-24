@@ -310,6 +310,9 @@ importers:
       '@bee-agent/event-store':
         specifier: workspace:*
         version: link:../../../packages/event-store
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../../../packages/knowledge
       '@bee-agent/plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -323,6 +326,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
 
   plugins/tools/calculator:
     dependencies:
