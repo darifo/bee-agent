@@ -192,7 +192,7 @@ packages/client   → thread（仅协议类型）
 | --- | --- | --- | --- | --- | --- | --- |
 | P0-1 | 冻结 v0 legacy | 在 `1eb2a1a` 上打 `v0.11.0-legacy` tag；README/README-ZH 标注 v0 维护模式 | — | S | tag 存在；双 README 同步更新 | done |
 | P0-2 | 核心 ADR | 撰写 ADR 0017（个人超级智能体定位）、0018（Cordis-style 可逆插件微内核）、0031（v1 clean break），沿用现有 7 节模板 | — | S | 三份 ADR 合入，模板与既有 16 份一致 | done |
-| P0-3 | 新包骨架 | 创建 §3.1 的 9 个目标包目录 + package.json/tsconfig/空 src/index.ts，挂入 pnpm workspace 与 vitest workspace | — | M | `pnpm build/typecheck/test` 全绿；workspace 含 adapters/* | todo |
+| P0-3 | 新包骨架 | 创建 §3.1 的 9 个目标包目录 + package.json/tsconfig/空 src/index.ts，挂入 pnpm workspace 与 vitest workspace | — | M | `pnpm build/typecheck/test` 全绿；workspace 含 adapters/* | done |
 | P0-4 | 依赖边界 lint | eslint 规则强制 §3.3 依赖图；旧包暂按现有实际依赖跑通，新包立即生效 | P0-3 | M | 违规 import 在 CI 失败；规则有单测 | todo |
 | P0-5 | CI 门禁改造 | ci.yml 增加 postgres+pgvector service；postgres/pgvector/memory 旧套件在 CI 真实执行；统一"跳过需显式环境标注"策略；修复 vitest.workspace.ts 漏配 adapters/* | — | M | CI 日志可见 postgres 套件执行而非 skip；无隐性跳过 | todo |
 | P0-6 | 确定性测试基线 | fake clock / fake LLMRuntime / fake tool 放入 kernel 测试工具模块；选一既有测试改造示范 | P0-3 | M | 基线可用并被示范测试引用；文档说明注入约定 | todo |
