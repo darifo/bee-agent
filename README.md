@@ -97,6 +97,7 @@ abstractions, and SQLite Event Store.
 | PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                 |
 | pgvector store     | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage |
 | Memory runtime     | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                      |
+| Model providers    | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted       |
 
 ## Requirements
 
@@ -134,6 +135,26 @@ bee task run <taskId>                          # streams events until the task f
 
 pnpm --filter @bee-agent/web dev               # http://localhost:5173
 ```
+
+### Running with real models (DeepSeek and other OpenAI-compatible providers)
+
+The mock agent is the default; point the server at any OpenAI-compatible
+provider with environment variables (ADR 0013 — keys never touch the
+repository):
+
+```bash
+BEE_AGENT_MODEL_PROVIDER=openai-compatible \
+BEE_AGENT_MODEL_BASE_URL=https://api.deepseek.com \
+BEE_AGENT_MODEL_API_KEY=$DEEPSEEK_API_KEY \
+BEE_AGENT_MODEL_NAME=deepseek-chat \
+pnpm --filter @bee-agent/server start
+
+bee task create -i "compute 12*7+15 with the calculator" -a agent.deepseek
+bee task run <taskId>    # the model calls the calculator tool, then answers
+```
+
+The same pattern configures a real embedder for memory
+(`BEE_AGENT_EMBEDDING_PROVIDER/BASE_URL/API_KEY/MODEL/DIMENSIONS`).
 
 ### Running on PostgreSQL
 
@@ -181,6 +202,7 @@ bee-agent/
 │   ├── kernel/              # Cordis foundation: lifecycle, services, scopes, plugins
 │   ├── runtime/             # Core runtimes: task loop, state machine, agents, policies, tools
 │   ├── client/              # Client SDK: REST commands + SSE event streaming
+│   ├── model-providers/     # OpenAI-compatible Agent and Embedder providers
 │   ├── storage/             # Storage and transaction boundaries
 │   ├── event-store/         # Append-only Event Store contract
 │   └── vector-store/        # Vector Store and embedding-space boundary
@@ -240,7 +262,8 @@ dedicated Vector Store contract.
 - [x] Implement PostgreSQL using the shared storage contract suite
 - [x] Implement pgvector and embedding-space validation
 - [x] Add the memory runtime on the Vector Store
-- [ ] Add real model providers, MCP, Python workers, and external agents
+- [x] Add real model providers over OpenAI-compatible HTTP
+- [ ] Add MCP, Python workers, and external agents
 
 Architecture decisions and their constraints are recorded in
 [`docs/adr`](./docs/adr).

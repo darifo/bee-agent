@@ -14,7 +14,7 @@ import { SQLiteStoragePlugin } from '@bee-agent/plugin-storage-sqlite'
 import { PostgresStoragePlugin } from '@bee-agent/plugin-storage-postgres'
 import { CalculatorTool } from '@bee-agent/plugin-tool-calculator'
 import { MemoryRuntime, MockAgent, TaskRuntime } from '@bee-agent/runtime'
-import type { Agent, Tool, ToolPolicy } from '@bee-agent/runtime'
+import type { Agent, Embedder, Tool, ToolPolicy } from '@bee-agent/runtime'
 import { approvalRoutes } from './routes/approvals.js'
 import { memoryRoutes } from './routes/memory.js'
 import { streamRoutes } from './routes/stream.js'
@@ -39,6 +39,11 @@ export interface ServerOptions {
   readonly vectorStore?: 'pgvector' | undefined
   /** Agent used when a task spec references an unregistered `agentId`. */
   readonly defaultAgent?: Agent | undefined
+  /**
+   * Embedder for the memory runtime; defaults to the deterministic mock
+   * until a real provider is configured.
+   */
+  readonly embedder?: Embedder | undefined
   /** Tools seeded into the runtime; defaults to the calculator tool. */
   readonly tools?: readonly Tool[] | undefined
   /** Policies seeded into the runtime's policy engine. */
@@ -130,7 +135,10 @@ export async function buildServer(
     tools: options.tools ?? [new CalculatorTool()],
     policies: options.policies ?? [],
   })
-  const memory = new MemoryRuntime(kernel)
+  const memory = new MemoryRuntime(
+    kernel,
+    options.embedder === undefined ? {} : { embedder: options.embedder },
+  )
 
   const app = Fastify({ logger: options.logger ?? true })
   app.decorate('bee', { kernel, runtime, memory })

@@ -1,3 +1,5 @@
+import { OpenAIChatAgent, OpenAIEmbedder } from '@bee-agent/model-providers'
+import type { Agent, Embedder } from '@bee-agent/runtime'
 import { buildServer } from './app.js'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -40,6 +42,73 @@ if (vectorStore !== undefined && vectorStore !== 'pgvector') {
   process.exit(1)
 }
 
+// Real model providers speak the OpenAI-compatible HTTP surface (ADR 0013);
+// keys arrive via environment only and are never persisted.
+const modelProvider = process.env.BEE_AGENT_MODEL_PROVIDER
+if (modelProvider !== undefined && modelProvider !== 'openai-compatible') {
+  console.error(
+    `BEE_AGENT_MODEL_PROVIDER must be "openai-compatible" when set, got "${modelProvider}"`,
+  )
+  process.exit(1)
+}
+let defaultAgent: Agent | undefined
+if (modelProvider === 'openai-compatible') {
+  const apiKey = process.env.BEE_AGENT_MODEL_API_KEY ?? ''
+  const modelName = process.env.BEE_AGENT_MODEL_NAME ?? ''
+  if (apiKey === '' || modelName === '') {
+    console.error(
+      'BEE_AGENT_MODEL_API_KEY and BEE_AGENT_MODEL_NAME are required when BEE_AGENT_MODEL_PROVIDER=openai-compatible',
+    )
+    process.exit(1)
+  }
+  defaultAgent = new OpenAIChatAgent({
+    apiKey,
+    model: modelName,
+    ...(process.env.BEE_AGENT_MODEL_BASE_URL !== undefined
+      ? { baseUrl: process.env.BEE_AGENT_MODEL_BASE_URL }
+      : {}),
+    ...(process.env.BEE_AGENT_MODEL_SYSTEM_PROMPT !== undefined
+      ? { systemPrompt: process.env.BEE_AGENT_MODEL_SYSTEM_PROMPT }
+      : {}),
+  })
+}
+
+const embeddingProvider = process.env.BEE_AGENT_EMBEDDING_PROVIDER
+if (
+  embeddingProvider !== undefined &&
+  embeddingProvider !== 'openai-compatible'
+) {
+  console.error(
+    `BEE_AGENT_EMBEDDING_PROVIDER must be "openai-compatible" when set, got "${embeddingProvider}"`,
+  )
+  process.exit(1)
+}
+let embedder: Embedder | undefined
+if (embeddingProvider === 'openai-compatible') {
+  const apiKey = process.env.BEE_AGENT_EMBEDDING_API_KEY ?? ''
+  const modelName = process.env.BEE_AGENT_EMBEDDING_MODEL ?? ''
+  const dimensions = Number(process.env.BEE_AGENT_EMBEDDING_DIMENSIONS ?? '')
+  if (
+    apiKey === '' ||
+    modelName === '' ||
+    !Number.isInteger(dimensions) ||
+    dimensions < 1
+  ) {
+    console.error(
+      'BEE_AGENT_EMBEDDING_API_KEY, BEE_AGENT_EMBEDDING_MODEL, and a positive integer BEE_AGENT_EMBEDDING_DIMENSIONS are required when BEE_AGENT_EMBEDDING_PROVIDER=openai-compatible',
+    )
+    process.exit(1)
+  }
+  embedder = new OpenAIEmbedder({
+    apiKey,
+    model: modelName,
+    dimensions,
+    ...(process.env.BEE_AGENT_EMBEDDING_BASE_URL !== undefined
+      ? { baseUrl: process.env.BEE_AGENT_EMBEDDING_BASE_URL }
+      : {}),
+  })
+}
+
 const server = await buildServer({
   ...(dialect === 'postgres'
     ? { postgresUrl }
@@ -48,6 +117,8 @@ const server = await buildServer({
           process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
       }),
   ...(vectorStore === 'pgvector' ? { vectorStore } : {}),
+  ...(defaultAgent !== undefined ? { defaultAgent } : {}),
+  ...(embedder !== undefined ? { embedder } : {}),
   logger: true,
 })
 try {
