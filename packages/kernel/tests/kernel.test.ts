@@ -65,7 +65,7 @@ describe('Kernel', () => {
     scope.context.effect(() => () => {
       released = true
     })
-    scope.dispose()
+    await scope.dispose()
 
     expect(scope.disposed).toBe(true)
     expect(released).toBe(true)
@@ -236,7 +236,7 @@ describe('Kernel task scopes', () => {
     await kernel.stop()
   })
 
-  it('runs onDispose callbacks in registration order', async () => {
+  it('runs onDispose callbacks in reverse registration order', async () => {
     const kernel = createKernel()
     await kernel.start()
     const scope = kernel.createTaskScope('task-1')
@@ -247,8 +247,8 @@ describe('Kernel task scopes', () => {
     scope.onDispose(async () => {
       calls.push('second')
     })
-    scope.dispose()
-    expect(calls).toEqual(['first', 'second'])
+    await scope.dispose()
+    expect(calls).toEqual(['second', 'first'])
     await kernel.stop()
   })
 
@@ -261,7 +261,7 @@ describe('Kernel task scopes', () => {
       called = true
     })
     off()
-    scope.dispose()
+    await scope.dispose()
     expect(called).toBe(false)
     await kernel.stop()
   })
@@ -270,7 +270,7 @@ describe('Kernel task scopes', () => {
     const kernel = createKernel()
     await kernel.start()
     const scope = kernel.createTaskScope('task-1')
-    scope.dispose()
+    await scope.dispose()
     expect(() => scope.onDispose(() => undefined)).toThrow(/already disposed/)
     await kernel.stop()
   })
@@ -282,11 +282,11 @@ describe('Kernel task scopes', () => {
     expect(kernel.getTaskScope('task-1')).toBe(scope)
     expect(kernel.taskScopes).toEqual([scope])
 
-    expect(kernel.disposeTaskScope('task-1')).toBe(true)
+    expect(await kernel.disposeTaskScope('task-1')).toBe(true)
     expect(scope.disposed).toBe(true)
     expect(kernel.getTaskScope('task-1')).toBeUndefined()
     expect(kernel.taskScopes).toEqual([])
-    expect(kernel.disposeTaskScope('task-1')).toBe(false)
+    expect(await kernel.disposeTaskScope('task-1')).toBe(false)
     await kernel.stop()
   })
 
@@ -320,7 +320,7 @@ describe('Kernel task scopes', () => {
     })
 
     const scope = kernel.createTaskScope('task-1')
-    scope.dispose()
+    await scope.dispose()
     expect(events).toEqual(['created:task-1', 'disposed:task-1'])
     await kernel.stop()
   })
@@ -580,7 +580,7 @@ describe('TaskScope event bindings', () => {
     await kernel.events.dispatch('agent/step', { step: 1 })
     expect(seen).toEqual([1])
 
-    scope.dispose()
+    await scope.dispose()
     await kernel.events.dispatch('agent/step', { step: 2 })
     expect(seen).toEqual([1])
 
@@ -669,7 +669,7 @@ describe('TaskScope service isolation', () => {
     expect(kernel.getService('tools')).toBe(globalService)
     expect(registeredEvents).toBe(1)
 
-    scope.dispose()
+    await scope.dispose()
     expect(kernel.getService('tools')).toBe(globalService)
     await kernel.stop()
   })
@@ -690,8 +690,8 @@ describe('TaskScope service isolation', () => {
     expect(scopeB.context.get('tools')).toBe(realmService)
     expect(kernel.getService('tools')).toEqual({ where: 'global' })
 
-    scopeA.dispose()
-    scopeB.dispose()
+    await scopeA.dispose()
+    await scopeB.dispose()
     await kernel.stop()
   })
 
@@ -699,7 +699,7 @@ describe('TaskScope service isolation', () => {
     const kernel = createKernel()
     await kernel.start()
     const scope = kernel.createTaskScope('task-1')
-    scope.dispose()
+    await scope.dispose()
     expect(() => scope.isolateService('tools')).toThrow(/already disposed/)
     await kernel.stop()
   })

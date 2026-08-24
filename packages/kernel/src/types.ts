@@ -1,5 +1,6 @@
 import type { Context } from 'cordis'
 import type { EventBusChild } from './events.js'
+import type { EffectScope } from './effects.js'
 import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 
 export interface KernelConfig {
@@ -20,14 +21,22 @@ export interface TaskScope {
   readonly id: string
   readonly context: Context
   readonly disposed: boolean
-  dispose(): void
   /**
-   * Registers a cleanup callback that runs when the scope is disposed, either
+   * Disposes the scope: releases every registered effect in reverse
+   * registration order, then tears down the underlying context. Failures are
+   * aggregated and rethrown after teardown completed.
+   */
+  dispose(): Promise<void>
+  /**
+   * Registers a cleanup callback released when the scope is disposed, either
    * through {@link TaskScope.dispose}, {@link Kernel.disposeTaskScope}, or
-   * kernel shutdown. Callbacks run in registration order. Returns a function
-   * that unregisters the callback.
+   * kernel shutdown. Callbacks run in reverse registration order via
+   * {@link TaskScope.effects}. Returns a function that unregisters the
+   * callback.
    */
   onDispose(callback: () => void | Promise<void>): () => void
+  /** The reversible-effect registry backing {@link onDispose}. */
+  readonly effects: EffectScope
   /**
    * Scope-bound view over the kernel domain event bus. Registrations made
    * through it are removed automatically when the scope is disposed.
@@ -83,6 +92,14 @@ export interface PluginEvent {
   readonly id: string
 }
 
+/** Emitted when a plugin failed to unload and was quarantined. */
+export interface PluginQuarantinedEvent {
+  readonly id: string
+  /** Manifest id for Bee Agent plugins; absent for plain cordis plugins. */
+  readonly pluginId?: string | undefined
+  readonly error: unknown
+}
+
 export interface KernelEvents {
   'state-changed': StateChangedEvent
   'service-registered': ServiceRegisteredEvent
@@ -91,18 +108,70 @@ export interface KernelEvents {
   'task-scope-disposed': TaskScopeEvent
   'plugin-mounted': PluginEvent
   'plugin-unmounted': PluginEvent
+  'plugin-quarantined': PluginQuarantinedEvent
 }
 
 export type KernelEventName = string & keyof KernelEvents
+
+export type PluginHandleStatus = 'mounted' | 'disposed' | 'quarantined'
+
+export interface PluginDrainOptions {
+  /**
+   * Upper bound for reaching quiescence. When the plugin does not finish
+   * draining in time, the report says so instead of rejecting.
+   */
+  readonly timeoutMs?: number
+}
+
+export interface PluginDrainReport {
+  /** True when the timeout elapsed before the plugin reached quiescence. */
+  readonly timedOut: boolean
+}
+
+export type PluginHealthStatus = 'healthy' | 'degraded' | 'unhealthy'
+
+export interface PluginHealthReport {
+  readonly status: PluginHealthStatus
+  readonly detail?: string
+}
+
+/** A quarantined plugin recorded by the kernel after a failed unload. */
+export interface PluginQuarantineEntry {
+  /** Kernel handle id of the failed plugin. */
+  readonly id: string
+  /** Manifest id for Bee Agent plugins; absent for plain cordis plugins. */
+  readonly pluginId?: string | undefined
+  /** The error that made the unload fail. */
+  readonly error: unknown
+}
 
 export interface PluginHandle {
   readonly id: string
   readonly context: Context
   readonly disposed: boolean
+  /** Lifecycle status; quarantined means the unload failed midway. */
+  readonly status: PluginHandleStatus
+  /** The error that quarantined this plugin, if any. */
+  readonly quarantineError: unknown
   /** Resolves when the mounted plugin finished starting; rejects on failure. */
   readonly ready: Promise<void>
+  /**
+   * Disposes the plugin. When the unload fails, the handle is quarantined,
+   * the error is rethrown, and further dispose calls are no-ops — a
+   * quarantined plugin requires a kernel restart and is never force-cleaned.
+   */
   dispose(): Promise<void>
   update(config: unknown): void
+  /**
+   * Asks the plugin to stop accepting new work and wait for in-flight work
+   * to reach quiescence. Plugins without a drain hook report immediately.
+   */
+  drain(options?: PluginDrainOptions): Promise<PluginDrainReport>
+  /**
+   * Probes the plugin's health. Plugins without a health-check hook report
+   * healthy unless the handle is quarantined.
+   */
+  healthCheck(): Promise<PluginHealthReport>
 }
 
 export interface BeeAgentPluginMountOptions {
@@ -115,6 +184,22 @@ export interface BeeAgentPluginMountOptions {
     | ((plugin: BeeAgentPlugin) => Record<string, unknown>)
 }
 
+/**
+ * Optional lifecycle hooks the kernel recognizes on Bee Agent plugins:
+ * drain/quiesce before hot operations, health checks for orchestration.
+ * Required for Tier A/B hot replacement (ADR 0018).
+ */
+export interface BeeAgentPluginLifecycleHooks {
+  /** Stop accepting new work and wait for in-flight work to finish. */
+  drain(options?: PluginDrainOptions): Promise<PluginDrainReport>
+  /** Liveness probe used before and after hot operations. */
+  healthCheck(): Promise<PluginHealthReport>
+}
+
+/** A Bee Agent plugin that may implement the kernel lifecycle hooks. */
+export type LifecycleBeeAgentPlugin = BeeAgentPlugin &
+  Partial<BeeAgentPluginLifecycleHooks>
+
 export interface BeeAgentPluginHandle extends PluginHandle {
-  readonly plugin: BeeAgentPlugin
+  readonly plugin: LifecycleBeeAgentPlugin
 }

@@ -1,8 +1,14 @@
 import type { Context, ForkScope, Plugin } from 'cordis'
-import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
+import { drainWithTimeout } from './plugin-handle.js'
+import type { PluginHandleCallbacks } from './plugin-handle.js'
 import type {
   BeeAgentPluginHandle,
   BeeAgentPluginMountOptions,
+  LifecycleBeeAgentPlugin,
+  PluginDrainOptions,
+  PluginDrainReport,
+  PluginHandleStatus,
+  PluginHealthReport,
 } from './types.js'
 
 /**
@@ -17,7 +23,7 @@ export interface BeeAgentPluginMountController {
 }
 
 export function prepareBeeAgentPluginMount(
-  plugin: BeeAgentPlugin,
+  plugin: LifecycleBeeAgentPlugin,
   options: BeeAgentPluginMountOptions,
 ): BeeAgentPluginMountController {
   let resolveReady!: () => void
@@ -65,29 +71,38 @@ export function prepareBeeAgentPluginMount(
 export class CordisBeeAgentPluginHandle implements BeeAgentPluginHandle {
   readonly id: string
   readonly context: Context
-  readonly plugin: BeeAgentPlugin
+  readonly plugin: LifecycleBeeAgentPlugin
   readonly #scope: ForkScope<Context>
   readonly #controller: BeeAgentPluginMountController
-  readonly #onDisposed: (id: string) => void
-  #disposed = false
+  readonly #callbacks: PluginHandleCallbacks
+  #status: PluginHandleStatus = 'mounted'
+  #quarantineError: unknown
 
   constructor(
     id: string,
     scope: ForkScope<Context>,
-    plugin: BeeAgentPlugin,
+    plugin: LifecycleBeeAgentPlugin,
     controller: BeeAgentPluginMountController,
-    onDisposed: (id: string) => void,
+    callbacks: PluginHandleCallbacks,
   ) {
     this.id = id
     this.#scope = scope
     this.context = scope.ctx
     this.plugin = plugin
     this.#controller = controller
-    this.#onDisposed = onDisposed
+    this.#callbacks = callbacks
   }
 
   get disposed(): boolean {
-    return this.#disposed
+    return this.#status === 'disposed'
+  }
+
+  get status(): PluginHandleStatus {
+    return this.#status
+  }
+
+  get quarantineError(): unknown {
+    return this.#quarantineError
   }
 
   get ready(): Promise<void> {
@@ -95,14 +110,50 @@ export class CordisBeeAgentPluginHandle implements BeeAgentPluginHandle {
   }
 
   async dispose(): Promise<void> {
-    if (this.#disposed) return
-    this.#disposed = true
-    this.#scope.dispose()
-    await this.#controller.requestStop()
-    this.#onDisposed(this.id)
+    // A quarantined plugin is never retried or force-cleaned: it keeps its
+    // state until the whole kernel restarts.
+    if (this.#status !== 'mounted') return
+    try {
+      this.#scope.dispose()
+    } catch (error) {
+      this.#quarantine(error)
+      throw error
+    }
+    try {
+      await this.#controller.requestStop()
+    } catch (error) {
+      this.#quarantine(error)
+      throw error
+    }
+    this.#status = 'disposed'
+    this.#callbacks.onDisposed(this.id)
   }
 
   update(config: unknown): void {
     this.#scope.update(config)
+  }
+
+  async drain(options?: PluginDrainOptions): Promise<PluginDrainReport> {
+    if (typeof this.plugin.drain !== 'function') return { timedOut: false }
+    return drainWithTimeout(
+      Promise.resolve(this.plugin.drain(options)),
+      options?.timeoutMs,
+    )
+  }
+
+  async healthCheck(): Promise<PluginHealthReport> {
+    if (typeof this.plugin.healthCheck === 'function') {
+      return this.plugin.healthCheck()
+    }
+    if (this.#status === 'quarantined') {
+      return { status: 'unhealthy', detail: 'plugin is quarantined' }
+    }
+    return { status: 'healthy' }
+  }
+
+  #quarantine(error: unknown): void {
+    this.#status = 'quarantined'
+    this.#quarantineError = error
+    this.#callbacks.onQuarantined(this.id, error)
   }
 }

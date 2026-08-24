@@ -1,5 +1,12 @@
 export { Kernel, createKernel } from './kernel.js'
 export { EventBus, EventBusChild } from './events.js'
+export { EffectScope } from './effects.js'
+export type {
+  EffectAddOptions,
+  EffectDisposer,
+  EffectReleaseFailure,
+  EffectReleaseResult,
+} from './effects.js'
 export {
   defineBroadcastEvent,
   defineParallelEvent,
@@ -23,12 +30,21 @@ export {
 export { defineServiceKey, serviceName } from './types.js'
 export type {
   BeeAgentPluginHandle,
+  BeeAgentPluginLifecycleHooks,
   BeeAgentPluginMountOptions,
   KernelConfig,
   KernelEvents,
   KernelEventName,
   KernelState,
+  LifecycleBeeAgentPlugin,
   PluginHandle,
+  PluginHandleStatus,
+  PluginDrainOptions,
+  PluginDrainReport,
+  PluginHealthReport,
+  PluginHealthStatus,
+  PluginQuarantineEntry,
+  PluginQuarantinedEvent,
   ServiceKey,
   ServiceKeyLike,
   StateChangedEvent,
