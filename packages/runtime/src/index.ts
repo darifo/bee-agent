@@ -102,3 +102,25 @@ export {
   taskEventRecordedEvent,
 } from './task-runtime.js'
 export type { TaskRuntimeOptions } from './task-runtime.js'
+
+export {
+  LlmRuntimeError,
+  classifyLlmError,
+  isLlmRuntimeError,
+} from './llm-runtime.js'
+export type {
+  ContextBundle,
+  LlmCall,
+  LlmCallOptions,
+  LlmCapabilities,
+  LlmMessage,
+  LlmProviderInfo,
+  LlmResult,
+  LlmRetryability,
+  LlmRuntime,
+  LlmStopReason,
+  LlmStreamEvent,
+  LlmToolCall,
+  LlmToolSpec,
+  LlmUsage,
+} from './llm-runtime.js'
