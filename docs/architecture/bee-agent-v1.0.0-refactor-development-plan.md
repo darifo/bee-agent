@@ -40,32 +40,32 @@
 
 ### 2.1 现有资产清单
 
-| 模块 | 规模（src LOC） | 内容摘要 | v1 去向（见 §3.2） |
-| --- | --- | --- | --- |
-| `packages/contracts` | 214 | 全部 Zod 契约：Task/事件/工具/审批/记忆 DTO；其中 `CheckpointSchema`、`HandoffSchema` 为死契约（全仓库零引用） | 按域拆入 thread / knowledge / execution，包删除 |
-| `packages/event-store` | 10 | 仅 `EventStore` 接口；无 expected-sequence、无跨流语义 | 并入 knowledge 的 ChronicleStore 契约 |
-| `packages/storage` | 197 | `StorageProvider`/事务管理器/方言抽象 + EventStore contract suite（`testing.ts`） | 演进为 storage（持久化原语 + 契约套件模式） |
-| `packages/vector-store` | 330 | `VectorStore` 接口 + contract suite | 吸收进 memory-bee 内部与测试模式，包删除 |
-| `packages/plugin-sdk` | 21 | `PluginManifestSchema` + `BeeAgentPlugin`；capabilities/permissions 仅声明、内核不强制 | 并入 kernel（新 manifest/capability/permission 契约） |
-| `packages/kernel` | 952 | cordis ^3.18.1 封装：Kernel 生命周期、service slot、task scope、插件挂载；EventBus **只有 serial/waterfall 两种模式** | 原位演进（事件模式补全、可逆 effect 正式化、bundle/profile） |
-| `packages/runtime` | 1698 | TaskRuntime（627 行编排器）、任务状态机、12 种事件 payload、Tool/ToolRegistry、PolicyEngine、Agent 接口、MockAgent、MemoryRuntime、chunker、Embedder | 拆分重写：TaskRuntime/MemoryRuntime 删除，其余按域归入 runtime/context/execution/kanban |
-| `packages/model-providers` | 441 | `OpenAIChatAgent`（内含 messages 数组 + 工具循环）、`OpenAIEmbedder` | 重写为 adapters/models/*（LLMRuntime 适配器，去 loop） |
-| `packages/client` | 387 | REST + SSE SDK（`/tasks` 全套 + SSE 解析器） | 重写为面向 `/threads` + Item stream |
-| `apps/server` | 822 | Fastify 组合根；13 个端点；无认证，CORS 默认反射任意来源 | 重写为 `apps/bee`（Personal Bee Host） |
-| `apps/cli` | 533 | HTTP-only CLI（task/approval/memory 命令组） | 重写（对话 + Kanban 命令） |
-| `apps/web` | 146 | React 19 任务控制台（单视图，7 个 SDK 调用） | 重写（Thread/Kanban/审批视图） |
-| `plugins/storage/sqlite` | 249 | better-sqlite3 + WAL + 事务序列分配 | 演进为 `adapters/storage/sqlite`（默认嵌入式存储） |
-| `plugins/storage/postgres` | 280 | pg Pool + 原子序列分配 | 演进为 `adapters/storage/postgres`（可选后端） |
-| `plugins/vector/pgvector` | 315 | pgvector + embedding space 注册表 | 删除（语义检索由 memory-bee 内嵌向量与 memory-remote 承接） |
-| `plugins/tools/calculator` | 268 | 安全表达式求值工具（默认挂载） | 迁移为 `adapters/tools/calculator` |
-| `plugins/tools/python` | 205 | one-shot `spawn(python3)`，stdin JSON 协议 | 迁移入统一执行管线 |
-| `plugins/tools/mcp` | 402 | 零依赖 MCP stdio 客户端（自带 spawn） | 迁移入统一执行管线 |
-| `adapters/agents` | 202 | `RemoteAgent`（未接线）、`CommandAgent`（直接 `spawn`） | 经 AgentProtocol 重写为 adapters/agents/{local,remote,command} |
-| `migrations/` | — | 与插件内嵌 DDL 重复，postgres 侧为空 | 收编进 storage 统一迁移机制 |
-| `configs/*.yaml` | — | 死配置（无任何代码加载） | 删除 |
-| `tests/{contracts,e2e,integration}` | — | 仅占位 README | Phase 0 决策处置（§5.1 P0-9） |
-| `python/` | — | 占位 README | 保留占位，Phase 3 后按需启用 |
-| `.changeset/` | — | 已配置，11 个待消费 changeset | 延续使用 |
+| 模块                                | 规模（src LOC） | 内容摘要                                                                                                                                             | v1 去向（见 §3.2）                                                                      |
+| ----------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `packages/contracts`                | 214             | 全部 Zod 契约：Task/事件/工具/审批/记忆 DTO；其中 `CheckpointSchema`、`HandoffSchema` 为死契约（全仓库零引用）                                       | 按域拆入 thread / knowledge / execution，包删除                                         |
+| `packages/event-store`              | 10              | 仅 `EventStore` 接口；无 expected-sequence、无跨流语义                                                                                               | 并入 knowledge 的 ChronicleStore 契约                                                   |
+| `packages/storage`                  | 197             | `StorageProvider`/事务管理器/方言抽象 + EventStore contract suite（`testing.ts`）                                                                    | 演进为 storage（持久化原语 + 契约套件模式）                                             |
+| `packages/vector-store`             | 330             | `VectorStore` 接口 + contract suite                                                                                                                  | 吸收进 memory-bee 内部与测试模式，包删除                                                |
+| `packages/plugin-sdk`               | 21              | `PluginManifestSchema` + `BeeAgentPlugin`；capabilities/permissions 仅声明、内核不强制                                                               | 并入 kernel（新 manifest/capability/permission 契约）                                   |
+| `packages/kernel`                   | 952             | cordis ^3.18.1 封装：Kernel 生命周期、service slot、task scope、插件挂载；EventBus **只有 serial/waterfall 两种模式**                                | 原位演进（事件模式补全、可逆 effect 正式化、bundle/profile）                            |
+| `packages/runtime`                  | 1698            | TaskRuntime（627 行编排器）、任务状态机、12 种事件 payload、Tool/ToolRegistry、PolicyEngine、Agent 接口、MockAgent、MemoryRuntime、chunker、Embedder | 拆分重写：TaskRuntime/MemoryRuntime 删除，其余按域归入 runtime/context/execution/kanban |
+| `packages/model-providers`          | 441             | `OpenAIChatAgent`（内含 messages 数组 + 工具循环）、`OpenAIEmbedder`                                                                                 | 重写为 adapters/models/*（LLMRuntime 适配器，去 loop）                                  |
+| `packages/client`                   | 387             | REST + SSE SDK（`/tasks` 全套 + SSE 解析器）                                                                                                         | 重写为面向 `/threads` + Item stream                                                     |
+| `apps/server`                       | 822             | Fastify 组合根；13 个端点；无认证，CORS 默认反射任意来源                                                                                             | 重写为 `apps/bee`（Personal Bee Host）                                                  |
+| `apps/cli`                          | 533             | HTTP-only CLI（task/approval/memory 命令组）                                                                                                         | 重写（对话 + Kanban 命令）                                                              |
+| `apps/web`                          | 146             | React 19 任务控制台（单视图，7 个 SDK 调用）                                                                                                         | 重写（Thread/Kanban/审批视图）                                                          |
+| `plugins/storage/sqlite`            | 249             | better-sqlite3 + WAL + 事务序列分配                                                                                                                  | 演进为 `adapters/storage/sqlite`（默认嵌入式存储）                                      |
+| `plugins/storage/postgres`          | 280             | pg Pool + 原子序列分配                                                                                                                               | 演进为 `adapters/storage/postgres`（可选后端）                                          |
+| `plugins/vector/pgvector`           | 315             | pgvector + embedding space 注册表                                                                                                                    | 删除（语义检索由 memory-bee 内嵌向量与 memory-remote 承接）                             |
+| `plugins/tools/calculator`          | 268             | 安全表达式求值工具（默认挂载）                                                                                                                       | 迁移为 `adapters/tools/calculator`                                                      |
+| `plugins/tools/python`              | 205             | one-shot `spawn(python3)`，stdin JSON 协议                                                                                                           | 迁移入统一执行管线                                                                      |
+| `plugins/tools/mcp`                 | 402             | 零依赖 MCP stdio 客户端（自带 spawn）                                                                                                                | 迁移入统一执行管线                                                                      |
+| `adapters/agents`                   | 202             | `RemoteAgent`（未接线）、`CommandAgent`（直接 `spawn`）                                                                                              | 经 AgentProtocol 重写为 adapters/agents/{local,remote,command}                          |
+| `migrations/`                       | —               | 与插件内嵌 DDL 重复，postgres 侧为空                                                                                                                 | 收编进 storage 统一迁移机制                                                             |
+| `configs/*.yaml`                    | —               | 死配置（无任何代码加载）                                                                                                                             | 删除                                                                                    |
+| `tests/{contracts,e2e,integration}` | —               | 仅占位 README                                                                                                                                        | Phase 0 决策处置（§5.1 P0-9）                                                           |
+| `python/`                           | —               | 占位 README                                                                                                                                          | 保留占位，Phase 3 后按需启用                                                            |
+| `.changeset/`                       | —               | 已配置，11 个待消费 changeset                                                                                                                        | 延续使用                                                                                |
 
 ### 2.2 重构必须解决的结构性问题（源码审计确认）
 
@@ -116,29 +116,29 @@ workers/
 
 处置分四类：**演进**（保留代码原地深化）、**拆分**（按域并入多个目标包）、**迁移**（换目录并接入新契约）、**删除**（clean break，不留 facade）。
 
-| 现有模块 | 处置 | 目标位置与说明 |
-| --- | --- | --- |
-| `packages/kernel` | 演进 | 原地深化：事件模式补全（P1-1）、可逆 effect/drain（P1-2）、bundle/profile（P1-3）、A/B/C 热换（P1-4）；吸收 plugin-sdk 的 manifest 契约并赋予运行时强制力 |
-| `packages/contracts` | 拆分 | Thread/Turn/Item/流式协议 → thread；ChronicleEvent 信封与事件类型 → knowledge；Tool/Capability/Approval/Secret 契约 → execution；Memory DTO → knowledge（MemoryProvider 契约）；包本身删除 |
-| `packages/event-store` | 拆分 | 接口并入 knowledge（ChronicleStore）；`MemoryEventStore` 测试夹具随 contract suite 迁移 |
-| `packages/storage` | 演进 | 保留事务/方言抽象；`defineEventStoreContractSuite` 模式泛化为多契约套件工厂 |
-| `packages/vector-store` | 删除（部分吸收） | 接口与 FTS/向量细节归 memory-bee 内部；contract suite 模式迁入 storage 供 MemoryProvider 套件复用 |
-| `packages/plugin-sdk` | 拆分 | manifest schema 并入 kernel；`BeeAgentPlugin` 生命周期并入 kernel 插件系统 |
-| `packages/runtime` | 拆分 | `agent.ts` 的 Agent 语义 → runtime（AgentLoop）+ adapters/models（LLMRuntime）；`tool.ts`/`policy.ts` → context（注册/索引）+ execution（权限/执行）；`task-state-machine`/`task-events`/`task-runtime` → 删除，由 thread + kanban + runtime 的新状态机取代；`memory-runtime`/`memory-chunker` → 删除（memory-bee 取代）；`mock-agent` → 删除（fake LLMRuntime 取代，入测试基线）；`embedder.ts` → memory-bee / adapters/models |
-| `packages/model-providers` | 迁移 | → `adapters/models/`；`OpenAIChatAgent` 重写为实现 LLMRuntime 契约的纯适配器（无内部循环、无 messages 状态）；`OpenAIEmbedder` 随 memory 走 |
-| `packages/client` | 迁移 | → 原地重写为 `/threads` + Item stream SDK；SSE 解析器（`parseSseStream`）保留复用 |
-| `apps/server` | 迁移 | → `apps/bee`；Fastify 骨架、错误包装、SSE 传输经验保留，端点按新协议重写 |
-| `apps/cli` / `apps/web` | 迁移 | 原地重写；CLI 命令树换为 thread/kanban/approval；Web 换 Item 流消费 |
-| `plugins/storage/sqlite` | 迁移 | → `adapters/storage/sqlite`，升级为默认嵌入式存储（新增 Chronicle/Kanban/审批/记忆表族） |
-| `plugins/storage/postgres` | 迁移 | → `adapters/storage/postgres`（多设备/远程 Worker 场景的可选后端） |
-| `plugins/vector/pgvector` | 删除 | — |
-| `plugins/tools/calculator` | 迁移 | → `adapters/tools/calculator`（经 ExecutionWorld） |
-| `plugins/tools/python` | 迁移 | → `adapters/tools/python`（经 ExecutionWorld，Phase 3 完成迁入） |
-| `plugins/tools/mcp` | 迁移 | → `adapters/tools/mcp`（经 ExecutionWorld，Phase 3 完成迁入） |
-| `adapters/agents` | 迁移 | → `adapters/agents/{local,remote,command}`，统一实现 AgentProtocol（Phase 3） |
-| `migrations/` | 拆分 | DDL 收编进 adapters/storage 各自的版本化迁移；目录并入 storage 迁移框架 |
-| `configs/` | 删除 | 死配置 |
-| `tests/{contracts,e2e,integration}` | 演进 | 启用为跨包契约/e2e/集测试层（P0-9） |
+| 现有模块                            | 处置             | 目标位置与说明                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/kernel`                   | 演进             | 原地深化：事件模式补全（P1-1）、可逆 effect/drain（P1-2）、bundle/profile（P1-3）、A/B/C 热换（P1-4）；吸收 plugin-sdk 的 manifest 契约并赋予运行时强制力                                                                                                                                                                                                                                                                       |
+| `packages/contracts`                | 拆分             | Thread/Turn/Item/流式协议 → thread；ChronicleEvent 信封与事件类型 → knowledge；Tool/Capability/Approval/Secret 契约 → execution；Memory DTO → knowledge（MemoryProvider 契约）；包本身删除                                                                                                                                                                                                                                      |
+| `packages/event-store`              | 拆分             | 接口并入 knowledge（ChronicleStore）；`MemoryEventStore` 测试夹具随 contract suite 迁移                                                                                                                                                                                                                                                                                                                                         |
+| `packages/storage`                  | 演进             | 保留事务/方言抽象；`defineEventStoreContractSuite` 模式泛化为多契约套件工厂                                                                                                                                                                                                                                                                                                                                                     |
+| `packages/vector-store`             | 删除（部分吸收） | 接口与 FTS/向量细节归 memory-bee 内部；contract suite 模式迁入 storage 供 MemoryProvider 套件复用                                                                                                                                                                                                                                                                                                                               |
+| `packages/plugin-sdk`               | 拆分             | manifest schema 并入 kernel；`BeeAgentPlugin` 生命周期并入 kernel 插件系统                                                                                                                                                                                                                                                                                                                                                      |
+| `packages/runtime`                  | 拆分             | `agent.ts` 的 Agent 语义 → runtime（AgentLoop）+ adapters/models（LLMRuntime）；`tool.ts`/`policy.ts` → context（注册/索引）+ execution（权限/执行）；`task-state-machine`/`task-events`/`task-runtime` → 删除，由 thread + kanban + runtime 的新状态机取代；`memory-runtime`/`memory-chunker` → 删除（memory-bee 取代）；`mock-agent` → 删除（fake LLMRuntime 取代，入测试基线）；`embedder.ts` → memory-bee / adapters/models |
+| `packages/model-providers`          | 迁移             | → `adapters/models/`；`OpenAIChatAgent` 重写为实现 LLMRuntime 契约的纯适配器（无内部循环、无 messages 状态）；`OpenAIEmbedder` 随 memory 走                                                                                                                                                                                                                                                                                     |
+| `packages/client`                   | 迁移             | → 原地重写为 `/threads` + Item stream SDK；SSE 解析器（`parseSseStream`）保留复用                                                                                                                                                                                                                                                                                                                                               |
+| `apps/server`                       | 迁移             | → `apps/bee`；Fastify 骨架、错误包装、SSE 传输经验保留，端点按新协议重写                                                                                                                                                                                                                                                                                                                                                        |
+| `apps/cli` / `apps/web`             | 迁移             | 原地重写；CLI 命令树换为 thread/kanban/approval；Web 换 Item 流消费                                                                                                                                                                                                                                                                                                                                                             |
+| `plugins/storage/sqlite`            | 迁移             | → `adapters/storage/sqlite`，升级为默认嵌入式存储（新增 Chronicle/Kanban/审批/记忆表族）                                                                                                                                                                                                                                                                                                                                        |
+| `plugins/storage/postgres`          | 迁移             | → `adapters/storage/postgres`（多设备/远程 Worker 场景的可选后端）                                                                                                                                                                                                                                                                                                                                                              |
+| `plugins/vector/pgvector`           | 删除             | —                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `plugins/tools/calculator`          | 迁移             | → `adapters/tools/calculator`（经 ExecutionWorld）                                                                                                                                                                                                                                                                                                                                                                              |
+| `plugins/tools/python`              | 迁移             | → `adapters/tools/python`（经 ExecutionWorld，Phase 3 完成迁入）                                                                                                                                                                                                                                                                                                                                                                |
+| `plugins/tools/mcp`                 | 迁移             | → `adapters/tools/mcp`（经 ExecutionWorld，Phase 3 完成迁入）                                                                                                                                                                                                                                                                                                                                                                   |
+| `adapters/agents`                   | 迁移             | → `adapters/agents/{local,remote,command}`，统一实现 AgentProtocol（Phase 3）                                                                                                                                                                                                                                                                                                                                                   |
+| `migrations/`                       | 拆分             | DDL 收编进 adapters/storage 各自的版本化迁移；目录并入 storage 迁移框架                                                                                                                                                                                                                                                                                                                                                         |
+| `configs/`                          | 删除             | 死配置                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `tests/{contracts,e2e,integration}` | 演进             | 启用为跨包契约/e2e/集测试层（P0-9）                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 3.3 包间依赖规则
 
@@ -176,70 +176,70 @@ packages/client   → thread（仅协议类型）
 
 ### 5.0 阶段总览
 
-| 阶段 | 主题 | 关键交付 | 方案对应 | 分配 ADR |
-| --- | --- | --- | --- | --- |
-| Phase 0 | 决策与基建 | legacy tag、核心 ADR、包骨架、CI 门禁、测试基线、threat model | §19 Phase 0 | 0017, 0018, 0031 |
-| Phase 1 | Cordis 基座与 Thread 协议 | 内核深化、Chronicle、thread 包、AgentLoop、/threads API、client/CLI/Web、删除旧运行时 | §19 Phase 1 | 0019, 0020, 0028 |
-| Phase 2 | Kanban、Context Budget、Skills | kanban 包与 Dispatcher、上下文预算与压缩、Skill/Tool 两阶段加载、Goal/Plan 可选增强 | §19 Phase 2 | 0022, 0029 |
-| Phase 3 | 统一执行世界与安全边界 | ExecutionWorld、权限/审批持久化、SecretBroker、沙箱 provider、worktree、工具全量迁入 | §19 Phase 3 | 0023, 0030 |
-| Phase 4 | 记忆、世界与长时运行 | memory-bee、memory-remote、World/Structure、Trajectory、Scheduler、Host 守护运行 | §19 Phase 4 | 0021, 0024, 0027 |
-| Phase 5 | 后台学习 | Consolidator、Proposal、Experiment、L0–L3 自治分级、回滚保护 | §19 Phase 5 | 0025, 0026 |
-| Phase 6 | 体验收敛与发布 | onboarding、doctor、v0 导入、文档、发布验收 | §19 Phase 6 | — |
+| 阶段    | 主题                           | 关键交付                                                                              | 方案对应    | 分配 ADR         |
+| ------- | ------------------------------ | ------------------------------------------------------------------------------------- | ----------- | ---------------- |
+| Phase 0 | 决策与基建                     | legacy tag、核心 ADR、包骨架、CI 门禁、测试基线、threat model                         | §19 Phase 0 | 0017, 0018, 0031 |
+| Phase 1 | Cordis 基座与 Thread 协议      | 内核深化、Chronicle、thread 包、AgentLoop、/threads API、client/CLI/Web、删除旧运行时 | §19 Phase 1 | 0019, 0020, 0028 |
+| Phase 2 | Kanban、Context Budget、Skills | kanban 包与 Dispatcher、上下文预算与压缩、Skill/Tool 两阶段加载、Goal/Plan 可选增强   | §19 Phase 2 | 0022, 0029       |
+| Phase 3 | 统一执行世界与安全边界         | ExecutionWorld、权限/审批持久化、SecretBroker、沙箱 provider、worktree、工具全量迁入  | §19 Phase 3 | 0023, 0030       |
+| Phase 4 | 记忆、世界与长时运行           | memory-bee、memory-remote、World/Structure、Trajectory、Scheduler、Host 守护运行      | §19 Phase 4 | 0021, 0024, 0027 |
+| Phase 5 | 后台学习                       | Consolidator、Proposal、Experiment、L0–L3 自治分级、回滚保护                          | §19 Phase 5 | 0025, 0026       |
+| Phase 6 | 体验收敛与发布                 | onboarding、doctor、v0 导入、文档、发布验收                                           | §19 Phase 6 | —                |
 
 ### 5.1 Phase 0：决策与基建（任务级）
 
-| ID | 任务 | 内容 | 依赖 | 规模 | 验收标准 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- |
-| P0-1 | 冻结 v0 legacy | 在 `1eb2a1a` 上打 `v0.11.0-legacy` tag；README/README-ZH 标注 v0 维护模式 | — | S | tag 存在；双 README 同步更新 | done |
-| P0-2 | 核心 ADR | 撰写 ADR 0017（个人超级智能体定位）、0018（Cordis-style 可逆插件微内核）、0031（v1 clean break），沿用现有 7 节模板 | — | S | 三份 ADR 合入，模板与既有 16 份一致 | done |
-| P0-3 | 新包骨架 | 创建 §3.1 的 9 个目标包目录 + package.json/tsconfig/空 src/index.ts，挂入 pnpm workspace 与 vitest workspace | — | M | `pnpm build/typecheck/test` 全绿；workspace 含 adapters/* | done |
-| P0-4 | 依赖边界 lint | eslint 规则强制 §3.3 依赖图；旧包暂按现有实际依赖跑通，新包立即生效 | P0-3 | M | 违规 import 在 CI 失败；规则有单测 | todo |
-| P0-5 | CI 门禁改造 | ci.yml 增加 postgres+pgvector service；postgres/pgvector/memory 旧套件在 CI 真实执行；统一"跳过需显式环境标注"策略；修复 vitest.workspace.ts 漏配 adapters/* | — | M | CI 日志可见 postgres 套件执行而非 skip；无隐性跳过 | todo |
-| P0-6 | 确定性测试基线 | fake clock / fake LLMRuntime / fake tool 放入 kernel 测试工具模块；选一既有测试改造示范 | P0-3 | M | 基线可用并被示范测试引用；文档说明注入约定 | todo |
-| P0-7 | threat model 与数据目录 | 撰写 threat model 文档（资产/攻击面/信任边界，覆盖方案 §13.5/§16.4）；设计个人数据目录布局与 export/import 边界（设计文档，不实现） | P0-2 | M | 文档合入 docs/architecture/；数据目录布局被 ADR 0018 或 0027 引用 | todo |
-| P0-8 | 清理死资产 | 删除 configs/*.yaml、contracts 死契约、migrations/ 重复 DDL；决策 tests/ 占位目录的去留（建议：contracts 并入各契约套件、e2e/integration 保留待 Phase 1/2 启用） | — | S | 死代码清零；决策记录进本表备注 | todo |
-| P0-9 | 阶段验收 | 对照 §7.1 Phase 0 退出条件；细化 Phase 1 任务状态 | 全部 | S | 退出条件逐项核验通过 | todo |
+| ID   | 任务                    | 内容                                                                                                                                                             | 依赖 | 规模 | 验收标准                                                          | 状态 |
+| ---- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- | ---- | ----------------------------------------------------------------- | ---- |
+| P0-1 | 冻结 v0 legacy          | 在 `1eb2a1a` 上打 `v0.11.0-legacy` tag；README/README-ZH 标注 v0 维护模式                                                                                        | —    | S    | tag 存在；双 README 同步更新                                      | done |
+| P0-2 | 核心 ADR                | 撰写 ADR 0017（个人超级智能体定位）、0018（Cordis-style 可逆插件微内核）、0031（v1 clean break），沿用现有 7 节模板                                              | —    | S    | 三份 ADR 合入，模板与既有 16 份一致                               | done |
+| P0-3 | 新包骨架                | 创建 §3.1 的 9 个目标包目录 + package.json/tsconfig/空 src/index.ts，挂入 pnpm workspace 与 vitest workspace                                                     | —    | M    | `pnpm build/typecheck/test` 全绿；workspace 含 adapters/*         | done |
+| P0-4 | 依赖边界 lint           | eslint 规则强制 §3.3 依赖图；旧包暂按现有实际依赖跑通，新包立即生效                                                                                              | P0-3 | M    | 违规 import 在 CI 失败；规则有单测                                | done |
+| P0-5 | CI 门禁改造             | ci.yml 增加 postgres+pgvector service；postgres/pgvector/memory 旧套件在 CI 真实执行；统一"跳过需显式环境标注"策略；修复 vitest.workspace.ts 漏配 adapters/*     | —    | M    | CI 日志可见 postgres 套件执行而非 skip；无隐性跳过                | todo |
+| P0-6 | 确定性测试基线          | fake clock / fake LLMRuntime / fake tool 放入 kernel 测试工具模块；选一既有测试改造示范                                                                          | P0-3 | M    | 基线可用并被示范测试引用；文档说明注入约定                        | todo |
+| P0-7 | threat model 与数据目录 | 撰写 threat model 文档（资产/攻击面/信任边界，覆盖方案 §13.5/§16.4）；设计个人数据目录布局与 export/import 边界（设计文档，不实现）                              | P0-2 | M    | 文档合入 docs/architecture/；数据目录布局被 ADR 0018 或 0027 引用 | todo |
+| P0-8 | 清理死资产              | 删除 configs/*.yaml、contracts 死契约、migrations/ 重复 DDL；决策 tests/ 占位目录的去留（建议：contracts 并入各契约套件、e2e/integration 保留待 Phase 1/2 启用） | —    | S    | 死代码清零；决策记录进本表备注                                    | todo |
+| P0-9 | 阶段验收                | 对照 §7.1 Phase 0 退出条件；细化 Phase 1 任务状态                                                                                                                | 全部 | S    | 退出条件逐项核验通过                                              | todo |
 
 ### 5.2 Phase 1：Cordis 基座与 Thread 协议（任务级）
 
 任务按四条轨道组织：内核（K）、事件（C）、协议与循环（T）、宿主与客户端（H）。依赖图见 §6。
 
-| ID | 轨道 | 任务 | 内容 | 依赖 | 规模 | 验收标准 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| P1-1 | K | 事件模式补全 | EventBus 增加 `emit`（广播、错误隔离）与 `parallel`（并发、AggregateError）模式，与既有 serial/waterfall 并存；四模式契约测试 | — | M | 四模式行为有单测；现有 kernel 测试不回归 | todo |
-| P1-2 | K | 可逆 effect 正式化 | 统一 disposer 注册与逆序释放；插件增加 drain/quiesce + 健康检查接口；卸载失败进入 quarantine 并标记 restart-required，不得强行覆盖 | P1-1 | L | 生命周期故障注入测试通过（含卸载抛错场景） | todo |
-| P1-3 | K | Bundle 与唯一 bee Profile | bundle 定义语法、组合解析为 EffectiveStructure、digest 计算、解析结果写入 Chronicle；不提供 Profile 创建/切换 | P1-6 | L | 同一 bundle 两次解析 digest 一致；effective tree 可查询来源 | todo |
-| P1-4 | K | A/B/C 分级热换 | 插件声明替换级别；B 级在 Turn 边界重绑（停新调用→drain→checkpoint→重绑）；Turn 执行期间固定 StructureVersion | P1-2, P1-3 | L | A/B/C 三级各有边界测试；执行中替换不影响当前 Turn | todo |
-| P1-5 | C | Chronicle 信封与 registry | 方案 §8.2 事件信封全集（时间字段、causation/correlation、classification/retention）；`(streamId, sequence)` 唯一；append 带 expected sequence；schema registry：未知 eventType 默认失败、显式 ignorable 才跳过；大 payload 走内容寻址引用 | — | L | 信封 Zod 契约 + registry 单测；并发 append 冲突返回明确错误 | todo |
-| P1-6 | C | ChronicleStore + SQLite | ChronicleStore 契约与 contract suite（自 `defineEventStoreContractSuite` 演进：多流、expected sequence、跨流查询）；`adapters/storage/sqlite` 实现并成为默认 | P1-5, P0-3 | L | contract suite 通过；replay 重放一致 | todo |
-| P1-7 | C | ArtifactStore | 内容寻址存储契约 + 本地实现；事件只存 digest 引用 | P1-5 | M | 大 payload 往返一致；引用缺失时显式报错 | todo |
-| P1-8 | T | thread 包 | Thread/Turn/Item 模型与 Zod 契约；Item 生命周期事件（started/delta/completed/failed）；流式分页与 `after` 恢复语义；协议类型零 cordis 依赖 | P1-5 | L | 协议契约测试；client 可仅依赖协议类型 | todo |
-| P1-9 | T | LLMRuntime 契约 | 输入 ContextBundle、输出 message delta/结构化决策流、usage 统计、取消与重试分类；Provider 不持有 messages 状态 | — | M | 契约类型评审通过；fake LLMRuntime 实现入库 | todo |
-| P1-10 | T | OpenAI 适配器重写 | `adapters/models/openai-chat` 实现新 LLMRuntime；删除内部工具循环与 messages 数组 | P1-9 | M | 既有 model-providers 测试改写后通过；无内部循环 | todo |
-| P1-11 | T | AgentLoop | Step 循环（Observe→Retrieve→Plan→Act→Verify→Record 的最小核：Act/Record 先行，检索/计划钩子留接口）；工具调度经执行插槽（本阶段直连，Phase 3 换 ExecutionWorld）；审批等待挂起；checkpoint；terminal decision | P1-6, P1-8, P1-9 | L | 崩溃后可从 Chronicle + checkpoint 续跑（测试覆盖） | todo |
-| P1-12 | T | ContextManifest 最小版 | 每次模型调用持久化 manifest（sections/digest/tokens/omissions 结构落地）；预算分配留待 Phase 2 | P1-5, P1-11 | M | 任意历史调用可由 source+renderer 重建输入 | todo |
-| P1-13 | H | Host 雏形 + /threads API | `apps/bee`：`POST /threads`、`POST /threads/:id/turns`、`GET .../items`（SSE 流 + Last-Event-ID 恢复）；审批走持久化 Item 的最小实现 | P1-8, P1-11 | L | 一个命令启动；SSE 断线重连不丢 Item | todo |
-| P1-14 | H | 安全默认值先行 | 默认仅监听 loopback；本地一次性会话 token；CORS 收紧为自身 origin（方案 §16.4 中可先行部分） | P1-13 | S | 远程默认不可达；CORS 不再反射任意 origin | todo |
-| P1-15 | H | client SDK 重写 | 面向 /threads + Item stream；复用 `parseSseStream` | P1-13 | M | SDK 契约测试（含 SSE 恢复）通过 | todo |
-| P1-16 | H | CLI 与 Web 重写 | CLI 对话命令（thread/turn/approval）；Web 消费 Item 流的对话视图 | P1-15 | M | CLI 可完成连续对话 + 工具调用 + 审批；Web 同步验收 | todo |
-| P1-17 | H | 删除旧路径 | 删除 TaskRuntime、task-events、task-state-machine、旧 `/tasks` API、旧 client 方法、MockAgent、MemoryRuntime（含 PG/pgvector 插件下线）；旧测试随删 | P1-13 验收后 | M | 仓库内无旧运行时残留引用；build/test/lint 全绿 | todo |
-| P1-18 | — | 阶段验收 | 对照 §7.1 Phase 1 退出条件；撰写 ADR 0019/0020/0028；细化 Phase 2 | 全部 | S | 退出条件逐项核验；ADR 合入 | todo |
+| ID    | 轨道 | 任务                      | 内容                                                                                                                                                                                                                                      | 依赖             | 规模 | 验收标准                                                    | 状态 |
+| ----- | ---- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---- | ----------------------------------------------------------- | ---- |
+| P1-1  | K    | 事件模式补全              | EventBus 增加 `emit`（广播、错误隔离）与 `parallel`（并发、AggregateError）模式，与既有 serial/waterfall 并存；四模式契约测试                                                                                                             | —                | M    | 四模式行为有单测；现有 kernel 测试不回归                    | todo |
+| P1-2  | K    | 可逆 effect 正式化        | 统一 disposer 注册与逆序释放；插件增加 drain/quiesce + 健康检查接口；卸载失败进入 quarantine 并标记 restart-required，不得强行覆盖                                                                                                        | P1-1             | L    | 生命周期故障注入测试通过（含卸载抛错场景）                  | todo |
+| P1-3  | K    | Bundle 与唯一 bee Profile | bundle 定义语法、组合解析为 EffectiveStructure、digest 计算、解析结果写入 Chronicle；不提供 Profile 创建/切换                                                                                                                             | P1-6             | L    | 同一 bundle 两次解析 digest 一致；effective tree 可查询来源 | todo |
+| P1-4  | K    | A/B/C 分级热换            | 插件声明替换级别；B 级在 Turn 边界重绑（停新调用→drain→checkpoint→重绑）；Turn 执行期间固定 StructureVersion                                                                                                                              | P1-2, P1-3       | L    | A/B/C 三级各有边界测试；执行中替换不影响当前 Turn           | todo |
+| P1-5  | C    | Chronicle 信封与 registry | 方案 §8.2 事件信封全集（时间字段、causation/correlation、classification/retention）；`(streamId, sequence)` 唯一；append 带 expected sequence；schema registry：未知 eventType 默认失败、显式 ignorable 才跳过；大 payload 走内容寻址引用 | —                | L    | 信封 Zod 契约 + registry 单测；并发 append 冲突返回明确错误 | todo |
+| P1-6  | C    | ChronicleStore + SQLite   | ChronicleStore 契约与 contract suite（自 `defineEventStoreContractSuite` 演进：多流、expected sequence、跨流查询）；`adapters/storage/sqlite` 实现并成为默认                                                                              | P1-5, P0-3       | L    | contract suite 通过；replay 重放一致                        | todo |
+| P1-7  | C    | ArtifactStore             | 内容寻址存储契约 + 本地实现；事件只存 digest 引用                                                                                                                                                                                         | P1-5             | M    | 大 payload 往返一致；引用缺失时显式报错                     | todo |
+| P1-8  | T    | thread 包                 | Thread/Turn/Item 模型与 Zod 契约；Item 生命周期事件（started/delta/completed/failed）；流式分页与 `after` 恢复语义；协议类型零 cordis 依赖                                                                                                | P1-5             | L    | 协议契约测试；client 可仅依赖协议类型                       | todo |
+| P1-9  | T    | LLMRuntime 契约           | 输入 ContextBundle、输出 message delta/结构化决策流、usage 统计、取消与重试分类；Provider 不持有 messages 状态                                                                                                                            | —                | M    | 契约类型评审通过；fake LLMRuntime 实现入库                  | todo |
+| P1-10 | T    | OpenAI 适配器重写         | `adapters/models/openai-chat` 实现新 LLMRuntime；删除内部工具循环与 messages 数组                                                                                                                                                         | P1-9             | M    | 既有 model-providers 测试改写后通过；无内部循环             | todo |
+| P1-11 | T    | AgentLoop                 | Step 循环（Observe→Retrieve→Plan→Act→Verify→Record 的最小核：Act/Record 先行，检索/计划钩子留接口）；工具调度经执行插槽（本阶段直连，Phase 3 换 ExecutionWorld）；审批等待挂起；checkpoint；terminal decision                             | P1-6, P1-8, P1-9 | L    | 崩溃后可从 Chronicle + checkpoint 续跑（测试覆盖）          | todo |
+| P1-12 | T    | ContextManifest 最小版    | 每次模型调用持久化 manifest（sections/digest/tokens/omissions 结构落地）；预算分配留待 Phase 2                                                                                                                                            | P1-5, P1-11      | M    | 任意历史调用可由 source+renderer 重建输入                   | todo |
+| P1-13 | H    | Host 雏形 + /threads API  | `apps/bee`：`POST /threads`、`POST /threads/:id/turns`、`GET .../items`（SSE 流 + Last-Event-ID 恢复）；审批走持久化 Item 的最小实现                                                                                                      | P1-8, P1-11      | L    | 一个命令启动；SSE 断线重连不丢 Item                         | todo |
+| P1-14 | H    | 安全默认值先行            | 默认仅监听 loopback；本地一次性会话 token；CORS 收紧为自身 origin（方案 §16.4 中可先行部分）                                                                                                                                              | P1-13            | S    | 远程默认不可达；CORS 不再反射任意 origin                    | todo |
+| P1-15 | H    | client SDK 重写           | 面向 /threads + Item stream；复用 `parseSseStream`                                                                                                                                                                                        | P1-13            | M    | SDK 契约测试（含 SSE 恢复）通过                             | todo |
+| P1-16 | H    | CLI 与 Web 重写           | CLI 对话命令（thread/turn/approval）；Web 消费 Item 流的对话视图                                                                                                                                                                          | P1-15            | M    | CLI 可完成连续对话 + 工具调用 + 审批；Web 同步验收          | todo |
+| P1-17 | H    | 删除旧路径                | 删除 TaskRuntime、task-events、task-state-machine、旧 `/tasks` API、旧 client 方法、MockAgent、MemoryRuntime（含 PG/pgvector 插件下线）；旧测试随删                                                                                       | P1-13 验收后     | M    | 仓库内无旧运行时残留引用；build/test/lint 全绿              | todo |
+| P1-18 | —    | 阶段验收                  | 对照 §7.1 Phase 1 退出条件；撰写 ADR 0019/0020/0028；细化 Phase 2                                                                                                                                                                         | 全部             | S    | 退出条件逐项核验；ADR 合入                                  | todo |
 
 ### 5.3 Phase 2：Kanban、Context Budget、Skills（任务级）
 
-| ID | 任务 | 内容 | 依赖 | 规模 | 验收标准 | 状态 |
-| --- | --- | --- | --- | --- | --- | --- |
-| P2-1 | Kanban 领域模型 | KanbanTask 字段全集（方案 §15.2：目标/验收/依赖/来源/workspace/capability/预算/scheduledAt/deadline/idempotency key/认领租约）；状态机 `inbox→triaged→ready→running→blocked/review→done` + `failed/cancelled/archived`；expected-version 并发控制 | P1-6 | L | 状态机单测全覆盖；并发转换冲突报错 | todo |
-| P2-2 | KanbanStore + Dispatcher | store 契约 + SQLite 实现 + contract suite；Dispatcher：claim/lease/heartbeat、超时回收、依赖/时间/优先级调度、幂等重试、backpressure；Host 重启恢复 | P2-1 | L | 故障注入测试（杀 Worker/租约过期/重复认领）通过；任务跨重启续跑 | todo |
-| P2-3 | Kanban API 与 agent tools | REST 端点 + `kanban_create/list/show/update/block/comment/complete/cancel` 工具（延迟加载形态）；CLI/Web/Scheduler/Agent 读写同一 store | P2-2 | M | 对话内创建的任务可由后台认领并跨重启完成 | todo |
-| P2-4 | Kanban↔Thread 双向链接 | 来源 Thread/Turn 与执行 Episode、Artifact、最终 Item 双向可追溯 | P2-3 | M | 任一方向查询不超过一步跳转 | todo |
-| P2-5 | Goal/Plan 可选增强 | Thread 层 Goal/Plan 版本化 DAG；复杂任务自动出现、简单问答零仪式 | P1-11 | M/L | 简单对话不产生 Goal/Plan 噪声；复杂任务有可查 Plan | todo |
-| P2-6 | context 包 | PromptSection 渲染器与 rendererVersion；ContextBudget 按方案 §10.4 优先级分配；压缩策略与"不可删清单"（未决审批/未消费工具结果/活跃计划约束/失败原因/artifact 引用/记忆来源/权限边界）；ContextManifest 完整版（含 omissions 审计） | P1-12 | L | 压缩后关键信息保留性有测试；manifest 可解释 token 去向 | todo |
-| P2-7 | Skill Registry | manifest/版本/摘要索引；两阶段加载（index→resolve）；所需 capability/permission 声明；基础 Skill eval 骨架 | P2-6 | L | 未命中 Skill 不占上下文（token 计量验证）；命中后完整加载 | todo |
-| P2-8 | Tool Index/Resolver | `ToolIndex.search(query, budget)` + `ToolResolver.resolve(ids)`；核心小工具常驻，MCP/长尾延迟加载；Turn 内版本固定；命名空间冲突即失败 | P2-6 | L | 相同任务集下上下文 token 显著低于全量工具基线 | todo |
-| P2-9 | CLI/Web Kanban 视图 | CLI kanban 命令组；Web 任务板视图 | P2-3 | M | 与对话共用同一 store，状态实时一致 | todo |
-| P2-10 | token 基线评测 | 全量 history+全量 tools vs 预算化+两阶段加载的对比脚本与报告（golden 场景集） | P2-6, P2-8 | M | 报告进入 CI（不回归基线阈值） | todo |
-| P2-11 | 阶段验收 | 对照 §7.1 Phase 2 退出条件；ADR 0022/0029；细化 Phase 3 | 全部 | S | 退出条件逐项核验 | todo |
+| ID    | 任务                      | 内容                                                                                                                                                                                                                                              | 依赖       | 规模 | 验收标准                                                        | 状态 |
+| ----- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---- | --------------------------------------------------------------- | ---- |
+| P2-1  | Kanban 领域模型           | KanbanTask 字段全集（方案 §15.2：目标/验收/依赖/来源/workspace/capability/预算/scheduledAt/deadline/idempotency key/认领租约）；状态机 `inbox→triaged→ready→running→blocked/review→done` + `failed/cancelled/archived`；expected-version 并发控制 | P1-6       | L    | 状态机单测全覆盖；并发转换冲突报错                              | todo |
+| P2-2  | KanbanStore + Dispatcher  | store 契约 + SQLite 实现 + contract suite；Dispatcher：claim/lease/heartbeat、超时回收、依赖/时间/优先级调度、幂等重试、backpressure；Host 重启恢复                                                                                               | P2-1       | L    | 故障注入测试（杀 Worker/租约过期/重复认领）通过；任务跨重启续跑 | todo |
+| P2-3  | Kanban API 与 agent tools | REST 端点 + `kanban_create/list/show/update/block/comment/complete/cancel` 工具（延迟加载形态）；CLI/Web/Scheduler/Agent 读写同一 store                                                                                                           | P2-2       | M    | 对话内创建的任务可由后台认领并跨重启完成                        | todo |
+| P2-4  | Kanban↔Thread 双向链接    | 来源 Thread/Turn 与执行 Episode、Artifact、最终 Item 双向可追溯                                                                                                                                                                                   | P2-3       | M    | 任一方向查询不超过一步跳转                                      | todo |
+| P2-5  | Goal/Plan 可选增强        | Thread 层 Goal/Plan 版本化 DAG；复杂任务自动出现、简单问答零仪式                                                                                                                                                                                  | P1-11      | M/L  | 简单对话不产生 Goal/Plan 噪声；复杂任务有可查 Plan              | todo |
+| P2-6  | context 包                | PromptSection 渲染器与 rendererVersion；ContextBudget 按方案 §10.4 优先级分配；压缩策略与"不可删清单"（未决审批/未消费工具结果/活跃计划约束/失败原因/artifact 引用/记忆来源/权限边界）；ContextManifest 完整版（含 omissions 审计）               | P1-12      | L    | 压缩后关键信息保留性有测试；manifest 可解释 token 去向          | todo |
+| P2-7  | Skill Registry            | manifest/版本/摘要索引；两阶段加载（index→resolve）；所需 capability/permission 声明；基础 Skill eval 骨架                                                                                                                                        | P2-6       | L    | 未命中 Skill 不占上下文（token 计量验证）；命中后完整加载       | todo |
+| P2-8  | Tool Index/Resolver       | `ToolIndex.search(query, budget)` + `ToolResolver.resolve(ids)`；核心小工具常驻，MCP/长尾延迟加载；Turn 内版本固定；命名空间冲突即失败                                                                                                            | P2-6       | L    | 相同任务集下上下文 token 显著低于全量工具基线                   | todo |
+| P2-9  | CLI/Web Kanban 视图       | CLI kanban 命令组；Web 任务板视图                                                                                                                                                                                                                 | P2-3       | M    | 与对话共用同一 store，状态实时一致                              | todo |
+| P2-10 | token 基线评测            | 全量 history+全量 tools vs 预算化+两阶段加载的对比脚本与报告（golden 场景集）                                                                                                                                                                     | P2-6, P2-8 | M    | 报告进入 CI（不回归基线阈值）                                   | todo |
+| P2-11 | 阶段验收                  | 对照 §7.1 Phase 2 退出条件；ADR 0022/0029；细化 Phase 3                                                                                                                                                                                           | 全部       | S    | 退出条件逐项核验                                                | todo |
 
 ### 5.4 Phase 3：统一执行世界与安全边界（工作流级）
 
@@ -285,23 +285,23 @@ packages/client   → thread（仅协议类型）
 
 15 个 ADR 全部纳入（方案 §22），沿用现有 7 节模板（Background/Decision/Reasons/Alternatives/Positive impact/Negative impact/Follow-up constraints），文件名 `NNNN-kebab-case.md`：
 
-| ADR | 主题 | 阶段 | 撰写时机 |
-| --- | --- | --- | --- |
-| 0017 | Position Bee Agent as a simple, learning Personal Super Agent | P0 | P0-2 |
-| 0018 | Adopt a Cordis-style reversible plugin microkernel | P0 | P0-2 |
-| 0031 | Make v1 a clean break from v0 contracts and storage semantics | P0 | P0-2 |
-| 0019 | Use Thread–Turn–Item as the public interaction protocol | P1 | P1-18 |
-| 0020 | Use Chronicle as the temporal source of truth | P1 | P1-18 |
-| 0028 | Keep exactly one root Profile named bee | P1 | P1-18 |
-| 0022 | Budget context and lazily resolve Skills and Tools | P2 | P2-11 |
-| 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2 | P2-11 |
-| 0023 | Route every capability through ExecutionWorld and sandbox providers | P3 | 阶段验收时 |
-| 0030 | Classify plugin replacement as live, Turn-boundary, or restart-required | P3 | 阶段验收时 |
-| 0021 | Model Time, Environment, Structure, and Trajectory internally | P4 | 阶段验收时 |
-| 0024 | Use memory-bee by default and memory-remote for every external memory | P4 | 阶段验收时 |
-| 0027 | Default to an embedded single-host runtime with optional remote adapters | P4 | 阶段验收时 |
-| 0025 | Separate foreground execution from background learning | P5 | 阶段验收时 |
-| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback | P5 | 阶段验收时 |
+| ADR  | 主题                                                                               | 阶段 | 撰写时机   |
+| ---- | ---------------------------------------------------------------------------------- | ---- | ---------- |
+| 0017 | Position Bee Agent as a simple, learning Personal Super Agent                      | P0   | P0-2       |
+| 0018 | Adopt a Cordis-style reversible plugin microkernel                                 | P0   | P0-2       |
+| 0031 | Make v1 a clean break from v0 contracts and storage semantics                      | P0   | P0-2       |
+| 0019 | Use Thread–Turn–Item as the public interaction protocol                            | P1   | P1-18      |
+| 0020 | Use Chronicle as the temporal source of truth                                      | P1   | P1-18      |
+| 0028 | Keep exactly one root Profile named bee                                            | P1   | P1-18      |
+| 0022 | Budget context and lazily resolve Skills and Tools                                 | P2   | P2-11      |
+| 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2   | P2-11      |
+| 0023 | Route every capability through ExecutionWorld and sandbox providers                | P3   | 阶段验收时 |
+| 0030 | Classify plugin replacement as live, Turn-boundary, or restart-required            | P3   | 阶段验收时 |
+| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | 阶段验收时 |
+| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | 阶段验收时 |
+| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | 阶段验收时 |
+| 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时 |
+| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时 |
 
 ## 6. 任务依赖图（Phase 0–2）
 
@@ -374,52 +374,52 @@ flowchart TD
 
 对齐方案 §19，逐阶段核验（括号内为方案小节）：
 
-| 阶段 | 退出条件 |
-| --- | --- |
-| P0 | 任一新模块都能回答"是否让 Bee 更简单/更聪明/更安全"；核心 ADR 合入；CI 门禁真实执行（§19 Phase 0） |
-| P1 | 一个命令启动 Host；用户能连续对话、暂停、恢复、查看 Item；替换模型插件不改 AgentLoop；旧运行时路径已删除（§19 Phase 1） |
-| P2 | Kanban Task 可从对话创建、由后台认领并跨重启完成；相同任务集上下文 token 明显低于全量基线且成功率不降（§19 Phase 2） |
-| P3 | 无允许的直接执行绕行；低风险顺畅、高风险展示真实副作用后询问（§19 Phase 3） |
-| P4 | 低上下文成本下正确调用过去偏好/项目经验；关闭外部记忆不丢 Chronicle 事实（§19 Phase 4） |
-| P5 | 至少一个真实轨迹产生的候选通过隔离评测、经批准改善任务且可撤回（§19 Phase 5） |
-| P6 | 新用户无需数据库/内部架构知识即可完成真实任务；方案 §20 六组验收全项通过（§19/§20） |
+| 阶段 | 退出条件                                                                                                                |
+| ---- | ----------------------------------------------------------------------------------------------------------------------- |
+| P0   | 任一新模块都能回答"是否让 Bee 更简单/更聪明/更安全"；核心 ADR 合入；CI 门禁真实执行（§19 Phase 0）                      |
+| P1   | 一个命令启动 Host；用户能连续对话、暂停、恢复、查看 Item；替换模型插件不改 AgentLoop；旧运行时路径已删除（§19 Phase 1） |
+| P2   | Kanban Task 可从对话创建、由后台认领并跨重启完成；相同任务集上下文 token 明显低于全量基线且成功率不降（§19 Phase 2）    |
+| P3   | 无允许的直接执行绕行；低风险顺畅、高风险展示真实副作用后询问（§19 Phase 3）                                             |
+| P4   | 低上下文成本下正确调用过去偏好/项目经验；关闭外部记忆不丢 Chronicle 事实（§19 Phase 4）                                 |
+| P5   | 至少一个真实轨迹产生的候选通过隔离评测、经批准改善任务且可撤回（§19 Phase 5）                                           |
+| P6   | 新用户无需数据库/内部架构知识即可完成真实任务；方案 §20 六组验收全项通过（§19/§20）                                     |
 
 每阶段另需通过该阶段引入的 CI 门禁（§7.2）与演示脚本（P1：对话+工具+审批+断线恢复；P2：跨重启后台任务+token 报告；P3：沙箱内外对比+取消无孤儿；P4：跨天续聊+记忆纠正；P5：提案批准/回滚演示；P6：全新环境首启到完成真实任务）。
 
 ### 7.2 CI 门禁递进清单
 
-| 自阶段起 | 新增门禁 |
-| --- | --- |
-| P0 | PostgreSQL + pgvector service；adapters/* 纳入 vitest workspace；跳过必须显式标注 |
-| P1 | ChronicleStore contract suite；event replay/projection rebuild；SSE 断线恢复；插件生命周期故障注入 |
-| P2 | Kanban claim/lease/heartbeat 故障注入；expected-version 并发；token 基线阈值（P2-10 产出） |
-| P3 | Linux bwrap + macOS Seatbelt 双平台沙箱契约；secret/network/path escape 测试；spawn 禁令 lint |
-| P4 | MemoryProvider contract suite；记忆矛盾/时间有效性；provider outage 降级；跨天模拟（fake clock 长程） |
-| P5 | proposal experiment/个人试用/回滚测试；学习预算不阻塞 Turn 的回归 |
-| P6 | long-horizon soak；资源泄漏；golden trajectory 与 context manifest 快照 |
+| 自阶段起 | 新增门禁                                                                                              |
+| -------- | ----------------------------------------------------------------------------------------------------- |
+| P0       | PostgreSQL + pgvector service；adapters/* 纳入 vitest workspace；跳过必须显式标注                     |
+| P1       | ChronicleStore contract suite；event replay/projection rebuild；SSE 断线恢复；插件生命周期故障注入    |
+| P2       | Kanban claim/lease/heartbeat 故障注入；expected-version 并发；token 基线阈值（P2-10 产出）            |
+| P3       | Linux bwrap + macOS Seatbelt 双平台沙箱契约；secret/network/path escape 测试；spawn 禁令 lint         |
+| P4       | MemoryProvider contract suite；记忆矛盾/时间有效性；provider outage 降级；跨天模拟（fake clock 长程） |
+| P5       | proposal experiment/个人试用/回滚测试；学习预算不阻塞 Turn 的回归                                     |
+| P6       | long-horizon soak；资源泄漏；golden trajectory 与 context manifest 快照                               |
 
 ### 7.3 旧测试资产处置
 
-| 资产 | 处置 |
-| --- | --- |
-| `defineEventStoreContractSuite`（storage/testing.ts） | 演进为 ChronicleStore 契约套件（多流/expected sequence/ignorable 规则） |
-| `defineVectorStoreContractSuite` | 随 pgvector 删除；测试思路并入 MemoryProvider 套件（Phase 4） |
-| runtime 包 7 个测试文件（1574 行） | 大部分随 TaskRuntime 删除；task-events 的 fold/sequence 断言思路迁入 Chronicle 套件；policy 测试迁入 execution（Phase 3 前以最小权限引擎过渡） |
-| kernel 测试（706 行） | 保留并扩展（事件四模式、effect 生命周期、热换边界） |
-| model-providers 测试（423 行） | 改写为 LLMRuntime 适配器测试（断言点从"循环结果"改为"决策流+usage"） |
-| client/server 测试 | 重写为 /threads + Item stream 契约 |
-| `MemoryEventStore` 夹具 | 演进为 ChronicleStore 内存实现（各契约套件的默认 harness） |
+| 资产                                                  | 处置                                                                                                                                           |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `defineEventStoreContractSuite`（storage/testing.ts） | 演进为 ChronicleStore 契约套件（多流/expected sequence/ignorable 规则）                                                                        |
+| `defineVectorStoreContractSuite`                      | 随 pgvector 删除；测试思路并入 MemoryProvider 套件（Phase 4）                                                                                  |
+| runtime 包 7 个测试文件（1574 行）                    | 大部分随 TaskRuntime 删除；task-events 的 fold/sequence 断言思路迁入 Chronicle 套件；policy 测试迁入 execution（Phase 3 前以最小权限引擎过渡） |
+| kernel 测试（706 行）                                 | 保留并扩展（事件四模式、effect 生命周期、热换边界）                                                                                            |
+| model-providers 测试（423 行）                        | 改写为 LLMRuntime 适配器测试（断言点从"循环结果"改为"决策流+usage"）                                                                           |
+| client/server 测试                                    | 重写为 /threads + Item stream 契约                                                                                                             |
+| `MemoryEventStore` 夹具                               | 演进为 ChronicleStore 内存实现（各契约套件的默认 harness）                                                                                     |
 
 ## 8. 风险与应对
 
-| 风险 | 影响 | 应对 |
-| --- | --- | --- |
-| 长分支与 main 漂移 | 合并冲突失控、重复劳动 | v0 冻结为维护模式（P0-1）；main 只收关键修复；v1 侧不反向合并非必要变更 |
-| cordis ^3.18.1 升级破坏内核抽象 | Phase 1 返工 | Phase 0–1 锁定版本；kernel 深化完成（P1-4）后再单独评估升级，作为独立任务 |
-| better-sqlite3 原生模块在 CI 的平台兼容 | CI 间歇失败 | P0-5 改造时验证 ubuntu/arm64 构建；保留 `onlyBuiltDependencies` 缓存策略 |
-| clean break 期间功能回退 | 中途无可演示产品 | 每阶段以"可运行演示脚本"为门禁（§7.1）；P1-17 删除旧路径以 P1-13/16 验收为前置 |
-| 测试资产大量作废拖慢节奏 | 阶段超时 | §7.3 的处置表先行；契约套件模式最大化复用；不为旧运行时补新测试 |
-| 拆包后边界规则流于形式 | 架构腐化复发 | P0-4 lint 规则进 CI；新增内部包必须先更新 §3.3 再开包 |
-| 远期工作流细化时范围蔓延 | 计划失真 | §1.3 滚动细化 + 准入检查；每任务标注与方案章节的对应关系 |
-| 记忆/学习等 Phase 4–5 依赖外部研究（Honcho 抽象等） | 设计反复 | Phase 1–3 期间并行做小规模 spike，结论回写方案与本计划，不动代码主线 |
-| 单人开发关键路径阻塞 | 整体停摆 | 依赖图标注的并行缝隙（内核/模型轨道）允许切换上下文；每任务规模上限 L，超限必拆 |
+| 风险                                                | 影响                   | 应对                                                                            |
+| --------------------------------------------------- | ---------------------- | ------------------------------------------------------------------------------- |
+| 长分支与 main 漂移                                  | 合并冲突失控、重复劳动 | v0 冻结为维护模式（P0-1）；main 只收关键修复；v1 侧不反向合并非必要变更         |
+| cordis ^3.18.1 升级破坏内核抽象                     | Phase 1 返工           | Phase 0–1 锁定版本；kernel 深化完成（P1-4）后再单独评估升级，作为独立任务       |
+| better-sqlite3 原生模块在 CI 的平台兼容             | CI 间歇失败            | P0-5 改造时验证 ubuntu/arm64 构建；保留 `onlyBuiltDependencies` 缓存策略        |
+| clean break 期间功能回退                            | 中途无可演示产品       | 每阶段以"可运行演示脚本"为门禁（§7.1）；P1-17 删除旧路径以 P1-13/16 验收为前置  |
+| 测试资产大量作废拖慢节奏                            | 阶段超时               | §7.3 的处置表先行；契约套件模式最大化复用；不为旧运行时补新测试                 |
+| 拆包后边界规则流于形式                              | 架构腐化复发           | P0-4 lint 规则进 CI；新增内部包必须先更新 §3.3 再开包                           |
+| 远期工作流细化时范围蔓延                            | 计划失真               | §1.3 滚动细化 + 准入检查；每任务标注与方案章节的对应关系                        |
+| 记忆/学习等 Phase 4–5 依赖外部研究（Honcho 抽象等） | 设计反复               | Phase 1–3 期间并行做小规模 spike，结论回写方案与本计划，不动代码主线            |
+| 单人开发关键路径阻塞                                | 整体停摆               | 依赖图标注的并行缝隙（内核/模型轨道）允许切换上下文；每任务规模上限 L，超限必拆 |
