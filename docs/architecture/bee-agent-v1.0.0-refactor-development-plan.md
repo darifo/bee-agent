@@ -22,10 +22,11 @@
 
 ### 1.2 分支与版本策略
 
-- `feature/v1.0.0` 为长生命周期开发分支，直至 Phase 6 验收通过后合入 `main` 并发布 1.0.0；
-- v0.11.0 在基线 commit 上冻结为 legacy tag（任务 P0-1）；`main` 进入维护模式，只接收 v0 的关键缺陷修复，不接收新功能，降低长分支的合并压力；
+- **每个 Phase 对应一个小版本分支**：Phase 0 = `feature/v1.0.0`、Phase 1 = `feature/v1.1.0`、Phase 2 = `feature/v1.2.0`、Phase 3 = `feature/v1.3.0`、Phase 4 = `feature/v1.4.0`、Phase 5 = `feature/v1.5.0`、Phase 6 = `feature/v1.6.0`；
+- 每个阶段完成即提交并推送当前分支，然后从该分支迁出下一阶段分支；分支链保持线性，上一阶段分支的末端即下一阶段的基线；最终发布版本号在 Phase 6 验收时确定；
+- v0.11.0 在基线 commit 上冻结为 legacy tag（任务 P0-1）；`main` 进入维护模式，只接收 v0 的关键缺陷修复，不接收新功能，降低合并压力；
 - clean break：各阶段**末尾**删除旧路径（旧 API、旧运行时、旧事件类型），不保留兼容 facade；删除动作是阶段退出条件的一部分，不允许"新旧并存渡过下个阶段"；
-- changesets 纪律延续（ADR 0008）：每个包级变更附 `.changeset/*.md`；v1.0.0 发布时统一消费积压的 changeset。
+- changesets 纪律延续（ADR 0008）：每个包级变更附 `.changeset/*.md`；发布时统一消费积压的 changeset。
 
 ### 1.3 计划维护规则
 
