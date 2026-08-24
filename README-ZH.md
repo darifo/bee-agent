@@ -263,9 +263,7 @@ bee-agent/
 │   └── vector/pgvector/     # 可用的 pgvector 向量存储
 ├── adapters/                # 外部智能体适配器（远程联邦、命令包装）
 ├── python/                  # 未来的 Python worker 项目
-├── migrations/              # 方言相关的数据库迁移
-├── configs/                 # 环境配置示例
-├── tests/                   # 共享契约、集成与端到端测试套件
+├── tests/                   # 共享集成与端到端测试套件
 └── docs/                    # ADR 与 v1 架构/重构计划
 ```
 

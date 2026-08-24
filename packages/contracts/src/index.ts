@@ -77,25 +77,6 @@ export const ApprovalDecisionSchema = z.object({
 })
 export type ApprovalDecision = z.infer<typeof ApprovalDecisionSchema>
 
-export const CheckpointSchema = z.object({
-  id: z.uuid(),
-  taskId: z.uuid(),
-  sequence: z.number().int().nonnegative(),
-  state: z.record(z.string(), z.unknown()),
-  createdAt: z.iso.datetime(),
-})
-export type Checkpoint = z.infer<typeof CheckpointSchema>
-
-export const HandoffSchema = z.object({
-  id: z.uuid(),
-  taskId: z.uuid(),
-  fromAgentId: z.string().min(1),
-  toAgentId: z.string().min(1),
-  context: z.record(z.string(), z.unknown()).default({}),
-  createdAt: z.iso.datetime(),
-})
-export type Handoff = z.infer<typeof HandoffSchema>
-
 export const MemoryDocumentSchema = z.object({
   id: z.uuid(),
   workspaceId: z.string().min(1),

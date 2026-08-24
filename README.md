@@ -273,9 +273,7 @@ bee-agent/
 │   └── vector/pgvector/     # Working pgvector Vector Store
 ├── adapters/                # External agent adapters (remote federation, commands)
 ├── python/                  # Future Python worker projects
-├── migrations/              # Dialect-specific database migrations
-├── configs/                 # Environment configuration examples
-├── tests/                   # Shared contract, integration, and E2E suites
+├── tests/                   # Shared integration and E2E suites
 └── docs/                    # ADRs and the v1 architecture/refactor plans
 ```
 

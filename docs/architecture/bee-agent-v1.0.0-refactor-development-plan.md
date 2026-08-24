@@ -197,7 +197,7 @@ packages/client   → thread（仅协议类型）
 | P0-5 | CI 门禁改造             | ci.yml 增加 postgres+pgvector service；postgres/pgvector/memory 旧套件在 CI 真实执行；统一"跳过需显式环境标注"策略；修复 vitest.workspace.ts 漏配 adapters/\*     | —    | M    | CI 日志可见 postgres 套件执行而非 skip；无隐性跳过                | done（CI 执行需推送后在线验证） |
 | P0-6 | 确定性测试基线          | fake clock / fake LLMRuntime / fake tool 放入 kernel 测试工具模块；选一既有测试改造示范                                                                          | P0-3 | M    | 基线可用并被示范测试引用；文档说明注入约定                        | done（示范以基线自身 9 项单测承担，旧运行时不补新测试） |
 | P0-7 | threat model 与数据目录 | 撰写 threat model 文档（资产/攻击面/信任边界，覆盖方案 §13.5/§16.4）；设计个人数据目录布局与 export/import 边界（设计文档，不实现）                              | P0-2 | M    | 文档合入 docs/architecture/；数据目录布局被 ADR 0018 或 0027 引用 | done（ADR 0017/0018 已引用） |
-| P0-8 | 清理死资产              | 删除 configs/*.yaml、contracts 死契约、migrations/ 重复 DDL；决策 tests/ 占位目录的去留（建议：contracts 并入各契约套件、e2e/integration 保留待 Phase 1/2 启用） | —    | S    | 死代码清零；决策记录进本表备注                                    | todo |
+| P0-8 | 清理死资产              | 删除 configs/*.yaml、contracts 死契约、migrations/ 重复 DDL；决策 tests/ 占位目录的去留（建议：contracts 并入各契约套件、e2e/integration 保留待 Phase 1/2 启用） | —    | S    | 死代码清零；决策记录进本表备注                                    | done（决策：tests/contracts 删除并入各包契约套件；e2e/integration 保留待 Phase 1/2 启用；DDL 归属插件内嵌迁移，Phase 1 起收编进 storage 框架） |
 | P0-9 | 阶段验收                | 对照 §7.1 Phase 0 退出条件；细化 Phase 1 任务状态                                                                                                                | 全部 | S    | 退出条件逐项核验通过                                              | todo |
 
 ### 5.2 Phase 1：Cordis 基座与 Thread 协议（任务级）

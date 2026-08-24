@@ -1,4 +1,0 @@
-storage:
-  dialect: sqlite
-  sqlite:
-    filename: ':memory:'
