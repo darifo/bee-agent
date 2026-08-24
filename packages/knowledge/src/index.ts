@@ -35,3 +35,15 @@ export {
   type ChronicleStore,
 } from './chronicle-store.js'
 export type { ChronicleAppendOptions } from './chronicle-store.js'
+export {
+  STRUCTURE_RESOLVED_EVENT_TYPE,
+  STRUCTURE_STREAM_ID,
+  StructureResolvedPayloadSchema,
+  appendResolvedStructure,
+  registerStructureChronicleEvents,
+  structureResolvedEvent,
+} from './structure-events.js'
+export type {
+  AppendResolvedStructureOptions,
+  StructureResolvedPayload,
+} from './structure-events.js'

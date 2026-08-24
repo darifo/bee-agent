@@ -213,9 +213,15 @@ importers:
       cordis:
         specifier: ^3.18.1
         version: 3.18.1
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
 
   packages/knowledge:
     dependencies:
+      '@bee-agent/kernel':
+        specifier: workspace:*
+        version: link:../kernel
       zod:
         specifier: ^4.1.13
         version: 4.4.3

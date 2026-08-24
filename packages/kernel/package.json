@@ -26,6 +26,7 @@
     "@bee-agent/plugin-sdk": "workspace:*",
     "@bee-agent/storage": "workspace:*",
     "@bee-agent/vector-store": "workspace:*",
-    "cordis": "^3.18.1"
+    "cordis": "^3.18.1",
+    "zod": "^4.1.13"
   }
 }

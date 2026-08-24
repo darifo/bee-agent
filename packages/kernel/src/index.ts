@@ -28,6 +28,32 @@ export {
   vectorStoreService,
 } from './service-keys.js'
 export { defineServiceKey, serviceName } from './types.js'
+export {
+  BEE_PROFILE_ID,
+  BundleSchema,
+  BundleSourceSchema,
+  BudgetValueSchema,
+  EffectiveSlotSchema,
+  EffectiveStructureSchema,
+  StructureRefSchema,
+  canonicalJson,
+  computeStructureDigest,
+  resolveEffectiveStructure,
+  structureVersionOf,
+  traceStructure,
+} from './structure.js'
+export type {
+  Bundle,
+  BundleLoader,
+  BundleSource,
+  BudgetValue,
+  EffectiveSlot,
+  EffectiveStructure,
+  ScalarSlotName,
+  StructureProvenanceEntry,
+  StructureRef,
+  StructureVersion,
+} from './structure.js'
 export type {
   BeeAgentPluginHandle,
   BeeAgentPluginLifecycleHooks,

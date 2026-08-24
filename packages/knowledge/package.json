@@ -22,6 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bee-agent/kernel": "workspace:*",
     "zod": "^4.1.13"
   },
   "devDependencies": {
