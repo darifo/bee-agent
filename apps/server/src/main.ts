@@ -2,10 +2,10 @@ import {
   CommandAgent,
   CommandAgentConfigSchema,
 } from '@bee-agent/agent-adapters'
-import { OpenAIChatAgent, OpenAIEmbedder } from '@bee-agent/model-providers'
+import { OpenAIEmbedder } from '@bee-agent/model-providers'
 import { McpServerConfigSchema } from '@bee-agent/plugin-tool-mcp'
 import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
-import type { Agent, Embedder } from '@bee-agent/runtime'
+import type { Embedder } from '@bee-agent/runtime'
 import { buildServer } from './app.js'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -48,36 +48,9 @@ if (vectorStore !== undefined && vectorStore !== 'pgvector') {
   process.exit(1)
 }
 
-// Real model providers speak the OpenAI-compatible HTTP surface (ADR 0013);
-// keys arrive via environment only and are never persisted.
-const modelProvider = process.env.BEE_AGENT_MODEL_PROVIDER
-if (modelProvider !== undefined && modelProvider !== 'openai-compatible') {
-  console.error(
-    `BEE_AGENT_MODEL_PROVIDER must be "openai-compatible" when set, got "${modelProvider}"`,
-  )
-  process.exit(1)
-}
-let defaultAgent: Agent | undefined
-if (modelProvider === 'openai-compatible') {
-  const apiKey = process.env.BEE_AGENT_MODEL_API_KEY ?? ''
-  const modelName = process.env.BEE_AGENT_MODEL_NAME ?? ''
-  if (apiKey === '' || modelName === '') {
-    console.error(
-      'BEE_AGENT_MODEL_API_KEY and BEE_AGENT_MODEL_NAME are required when BEE_AGENT_MODEL_PROVIDER=openai-compatible',
-    )
-    process.exit(1)
-  }
-  defaultAgent = new OpenAIChatAgent({
-    apiKey,
-    model: modelName,
-    ...(process.env.BEE_AGENT_MODEL_BASE_URL !== undefined
-      ? { baseUrl: process.env.BEE_AGENT_MODEL_BASE_URL }
-      : {}),
-    ...(process.env.BEE_AGENT_MODEL_SYSTEM_PROMPT !== undefined
-      ? { systemPrompt: process.env.BEE_AGENT_MODEL_SYSTEM_PROMPT }
-      : {}),
-  })
-}
+// Real model providers are configured through the v1 LLMRuntime (P1-10) and
+// wired by the apps/bee host in P1-13; the v0 Agent-based default model is
+// gone with the OpenAIChatAgent removal.
 
 const embeddingProvider = process.env.BEE_AGENT_EMBEDDING_PROVIDER
 if (
@@ -148,7 +121,6 @@ const server = await buildServer({
           process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
       }),
   ...(vectorStore === 'pgvector' ? { vectorStore } : {}),
-  ...(defaultAgent !== undefined ? { defaultAgent } : {}),
   ...(embedder !== undefined ? { embedder } : {}),
   ...(mcpServers !== undefined ? { mcpServers } : {}),
   ...(pythonEnabled ? { pythonTool: true } : {}),

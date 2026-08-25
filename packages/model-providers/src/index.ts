@@ -1,6 +1,6 @@
 export { ModelProtocolError, ModelProviderError } from './errors.js'
-export { OpenAIChatAgent } from './openai-chat-agent.js'
-export type { OpenAIChatAgentOptions } from './openai-chat-agent.js'
+export { OpenAIChatRuntime } from './openai-chat-runtime.js'
+export type { OpenAIChatRuntimeOptions } from './openai-chat-runtime.js'
 export { OpenAIEmbedder } from './openai-embedder.js'
 export type { OpenAIEmbedderOptions } from './openai-embedder.js'
 export { DEFAULT_OPENAI_BASE_URL } from './shared.js'
