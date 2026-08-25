@@ -84,4 +84,21 @@ describe('kanban tools', () => {
       executor.execute({ toolId: 'kanban_show', input: { id: '' } }),
     ).rejects.toThrow(/non-empty string/)
   })
+
+  it('records source provenance when given conversation context', async () => {
+    const executor = createExecutor()
+    const threadId = crypto.randomUUID()
+    const turnId = crypto.randomUUID()
+    const itemId = crypto.randomUUID()
+    const created = await executor.execute({
+      toolId: 'kanban_create',
+      input: { title: 'Linked' },
+      context: { threadId, turnId, itemId },
+    })
+    expect((created.output as KanbanTask).source).toEqual({
+      threadId,
+      turnId,
+      itemId,
+    })
+  })
 })

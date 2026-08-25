@@ -242,6 +242,23 @@ export function defineKanbanStoreContractSuite<
         expect(ready.map((task) => task.title)).toEqual(['high', 'low'])
       }))
 
+    it('filters by source thread and item', () =>
+      withSubject(setup, async ({ store }) => {
+        const threadId = crypto.randomUUID()
+        const itemId = crypto.randomUUID()
+        const task = await store.create({
+          title: 'Linked',
+          now: NOW,
+          source: { threadId, itemId },
+        })
+        await store.create({ title: 'Unlinked', now: NOW })
+
+        const byThread = await store.list({ sourceThreadId: threadId })
+        expect(byThread.map((t) => t.id)).toEqual([task.id])
+        const byItem = await store.list({ sourceItemId: itemId })
+        expect(byItem.map((t) => t.id)).toEqual([task.id])
+      }))
+
     it('rebuilds the projection from the event log', () =>
       withSubject(setup, async ({ store }) => {
         const task = await store.create({ title: 'Rebuild', now: NOW })

@@ -62,6 +62,10 @@ export interface KanbanTaskQuery {
   readonly priority?: KanbanPriority | undefined
   /** Only tasks with `scheduledAt` absent or at/before this time. */
   readonly scheduledBefore?: string | undefined
+  /** Only tasks originating from this thread (Thread → Task one-hop). */
+  readonly sourceThreadId?: string | undefined
+  /** Only tasks originating from this tool_call item (Item → Task one-hop). */
+  readonly sourceItemId?: string | undefined
   readonly limit?: number | undefined
 }
 
@@ -249,6 +253,14 @@ export class ChronicleKanbanStore implements KanbanStore {
           task.scheduledAt === undefined ||
           task.scheduledAt <= query.scheduledBefore!,
       )
+    }
+    if (query.sourceThreadId !== undefined) {
+      tasks = tasks.filter(
+        (task) => task.source?.threadId === query.sourceThreadId,
+      )
+    }
+    if (query.sourceItemId !== undefined) {
+      tasks = tasks.filter((task) => task.source?.itemId === query.sourceItemId)
     }
     tasks.sort(compareTasks)
     return query.limit === undefined ? tasks : tasks.slice(0, query.limit)

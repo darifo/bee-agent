@@ -128,9 +128,17 @@ export interface KanbanToolResult {
   readonly content: string
 }
 
+/** Provenance the host supplies so a created task links back to its thread. */
+export interface KanbanToolContext {
+  readonly threadId?: string | undefined
+  readonly turnId?: string | undefined
+  readonly itemId?: string | undefined
+}
+
 export interface KanbanToolInput {
   readonly toolId: string
   readonly input: unknown
+  readonly context?: KanbanToolContext | undefined
 }
 
 export interface KanbanToolExecutor {
@@ -230,7 +238,7 @@ export function createKanbanToolExecutor(
   store: KanbanStore,
 ): KanbanToolExecutor {
   return {
-    async execute({ toolId, input }) {
+    async execute({ toolId, input, context }) {
       const args = (input ?? {}) as Args
       switch (toolId) {
         case 'kanban_create': {
@@ -244,6 +252,18 @@ export function createKanbanToolExecutor(
           const labels = optionalStringArray(args, 'labels')
           const deadline = optionalString(args, 'deadline')
           const scheduledAt = optionalString(args, 'scheduledAt')
+          const source =
+            context !== undefined && context.threadId !== undefined
+              ? {
+                  threadId: context.threadId,
+                  ...(context.turnId !== undefined
+                    ? { turnId: context.turnId }
+                    : {}),
+                  ...(context.itemId !== undefined
+                    ? { itemId: context.itemId }
+                    : {}),
+                }
+              : undefined
           return resultOf(
             await store.create({
               title,
@@ -255,6 +275,7 @@ export function createKanbanToolExecutor(
               ...(labels !== undefined ? { labels } : {}),
               ...(deadline !== undefined ? { deadline } : {}),
               ...(scheduledAt !== undefined ? { scheduledAt } : {}),
+              ...(source !== undefined ? { source } : {}),
             }),
           )
         }

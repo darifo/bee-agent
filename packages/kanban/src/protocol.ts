@@ -57,10 +57,12 @@ export const KanbanDependencySchema = z.object({
 })
 export type KanbanDependency = z.infer<typeof KanbanDependencySchema>
 
-/** Where the task came from: a thread, and optionally the turn inside it. */
+/** Where the task came from: a thread, optionally the turn and originating item. */
 export const KanbanSourceSchema = z.object({
   threadId: z.uuid(),
   turnId: z.uuid().optional(),
+  /** The originating tool_call item id, for Item ↔ Task one-hop links. */
+  itemId: z.uuid().optional(),
 })
 export type KanbanSource = z.infer<typeof KanbanSourceSchema>
 

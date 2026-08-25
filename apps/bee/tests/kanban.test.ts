@@ -192,6 +192,18 @@ describe('apps/bee kanban agent tool ↔ dispatcher', () => {
       const taskId = tasks[0]?.id
       expect(tasks[0]?.status).toBe('inbox')
 
+      // Bidirectional link: the task records its source thread/turn/item, and
+      // the store resolves thread/item → task in one hop.
+      expect(tasks[0]?.source?.threadId).toBe(thread.id)
+      expect(tasks[0]?.source?.turnId).toBeDefined()
+      expect(tasks[0]?.source?.itemId).toBeDefined()
+      const byThread = await kanban.list({ sourceThreadId: thread.id })
+      expect(byThread.map((task) => task.id)).toEqual([taskId])
+      const byItem = await kanban.list({
+        sourceItemId: tasks[0]?.source?.itemId,
+      })
+      expect(byItem.map((task) => task.id)).toEqual([taskId])
+
       // The background dispatcher claims and completes it after triage.
       await kanban.transition(taskId!, {
         to: 'triaged',

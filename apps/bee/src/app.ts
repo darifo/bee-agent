@@ -135,6 +135,11 @@ function compositeToolSlot(
         const result = await executor.execute({
           toolId: call.call.toolId,
           input: call.call.input,
+          context: {
+            threadId: call.threadId,
+            turnId: call.turnId,
+            itemId: call.itemId,
+          },
         })
         return {
           kind: 'result',
