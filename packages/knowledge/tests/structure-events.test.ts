@@ -9,9 +9,9 @@ import {
   appendResolvedStructure,
   registerStructureChronicleEvents,
   structureResolvedEvent,
-} from '../src/index.js'
-import type { ChronicleEvent } from '../src/index.js'
-import { MemoryChronicleStore } from '../src/testing.js'
+} from '../src/index.ts'
+import type { ChronicleEvent } from '../src/index.ts'
+import { MemoryChronicleStore } from '../src/testing.ts'
 
 function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()

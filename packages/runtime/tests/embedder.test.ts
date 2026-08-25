@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MockEmbedder } from '../src/index.js'
+import { MockEmbedder } from '../src/index.ts'
 
 describe('MockEmbedder', () => {
   it('is deterministic for identical input', () => {

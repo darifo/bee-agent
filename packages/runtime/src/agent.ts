@@ -1,5 +1,5 @@
 import type { ToolResult } from '@bee-agent/contracts'
-import type { ToolRegistry } from './tool.js'
+import type { ToolRegistry } from './tool.ts'
 
 /**
  * Context a task runtime hands to an agent for one task run. Agents drive the

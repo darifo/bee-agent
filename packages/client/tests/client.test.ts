@@ -5,8 +5,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import { AgentEventSchema } from '@bee-agent/contracts'
 import type { AgentEvent } from '@bee-agent/contracts'
-import { BeeAgentClient, BeeAgentClientError } from '../src/index.js'
-import { parseSseStream } from '../src/index.js'
+import { BeeAgentClient, BeeAgentClientError } from '../src/index.ts'
+import { parseSseStream } from '../src/index.ts'
 
 const taskId = randomUUID()
 

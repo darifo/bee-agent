@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { EmbeddingSpace } from '@bee-agent/contracts'
 import { defineVectorStoreContractSuite } from '@bee-agent/vector-store/testing'
-import { PgvectorStore } from '../src/index.js'
+import { PgvectorStore } from '../src/index.ts'
 
 // Integration tests need a real PostgreSQL with the pgvector extension;
 // point this at one to run them (skips otherwise):

@@ -1,5 +1,5 @@
 import type { Command } from 'commander'
-import { clientFrom, runCommand } from './task.js'
+import { clientFrom, runCommand } from './task.ts'
 
 function parseLimit(value: string): number {
   const parsed = Number.parseInt(value, 10)

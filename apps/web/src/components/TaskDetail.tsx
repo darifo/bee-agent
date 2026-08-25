@@ -1,8 +1,8 @@
 import type { ApprovalRequest, AgentEvent } from '@bee-agent/contracts'
 import type { TaskSnapshot } from '@bee-agent/runtime'
-import { StateBadge } from './StateBadge.js'
-import { EventFeed } from './EventFeed.js'
-import { ApprovalPanel } from './ApprovalPanel.js'
+import { StateBadge } from './StateBadge.tsx'
+import { EventFeed } from './EventFeed.tsx'
+import { ApprovalPanel } from './ApprovalPanel.tsx'
 
 export interface TaskDetailProps {
   snapshot: TaskSnapshot

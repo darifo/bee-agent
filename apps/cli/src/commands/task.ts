@@ -5,7 +5,7 @@ import {
   printError,
   printEvent,
   printSnapshot,
-} from '../format.js'
+} from '../format.ts'
 
 const DEFAULT_URL = 'http://127.0.0.1:3000'
 

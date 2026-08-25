@@ -1,5 +1,5 @@
 import type { AgentLoop } from '@bee-agent/runtime'
-import type { BroadcastingChronicleStore } from './broadcasting-store.js'
+import type { BroadcastingChronicleStore } from './broadcasting-store.ts'
 
 declare module 'fastify' {
   interface FastifyInstance {

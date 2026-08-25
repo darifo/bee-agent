@@ -11,7 +11,7 @@ import {
 import type { ChronicleStore } from '@bee-agent/knowledge'
 import { defineChronicleStoreContractSuite } from '@bee-agent/knowledge/testing'
 import type { ChronicleContractSetup } from '@bee-agent/knowledge/testing'
-import { SQLiteChronicleStore } from '../src/index.js'
+import { SQLiteChronicleStore } from '../src/index.ts'
 
 const setup: ChronicleContractSetup = {
   name: 'SQLiteChronicleStore (Chronicle contract suite)',

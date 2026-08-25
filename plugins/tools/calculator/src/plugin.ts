@@ -2,7 +2,7 @@ import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
 import type { Tool } from '@bee-agent/runtime'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
-import { CalculatorTool } from './tool.js'
+import { CalculatorTool } from './tool.ts'
 
 /**
  * Calculator capability plugin. The composition root passes `plugin.tool`

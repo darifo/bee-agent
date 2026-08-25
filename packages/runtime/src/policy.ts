@@ -1,6 +1,6 @@
 import type { ToolCall, ToolManifest } from '@bee-agent/contracts'
-import type { ToolExecuteMiddleware } from './tool.js'
-import { failedToolResult } from './tool.js'
+import type { ToolExecuteMiddleware } from './tool.ts'
+import { failedToolResult } from './tool.ts'
 
 export type ApprovalRisk = 'low' | 'medium' | 'high'
 

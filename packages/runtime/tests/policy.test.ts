@@ -8,8 +8,8 @@ import {
   failedToolResult,
   toolExecuteEvent,
   toolPolicyMiddleware,
-} from '../src/index.js'
-import type { ToolExecutionContext, ToolPolicy } from '../src/index.js'
+} from '../src/index.ts'
+import type { ToolExecutionContext, ToolPolicy } from '../src/index.ts'
 
 const taskId = '4e5d6c58-6c66-4c99-bd51-6b2b6c0b7cc1'
 

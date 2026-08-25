@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AgentEventSchema, TaskSpecSchema } from '../src/index.js'
+import { AgentEventSchema, TaskSpecSchema } from '../src/index.ts'
 
 describe('contracts', () => {
   it('applies task metadata defaults', () => {

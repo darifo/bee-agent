@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defineEventStoreContractSuite } from '@bee-agent/storage/testing'
-import { SQLiteEventStore, SQLiteStorage } from '../src/index.js'
+import { SQLiteEventStore, SQLiteStorage } from '../src/index.ts'
 
 defineEventStoreContractSuite(
   { describe, it, expect },

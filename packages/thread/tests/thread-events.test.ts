@@ -18,8 +18,8 @@ import {
   threadStreamId,
   turnCompletedEvent,
   turnStartedEvent,
-} from '../src/index.js'
-import type { ChronicleStore, ThreadEvent } from '../src/index.js'
+} from '../src/index.ts'
+import type { ChronicleStore, ThreadEvent } from '../src/index.ts'
 
 function createStore(): ChronicleStore {
   const registry = new ChronicleSchemaRegistry()

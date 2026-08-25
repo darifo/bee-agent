@@ -11,7 +11,7 @@ export {
   NewChronicleEventSchema,
   ValidTimeSchema,
   newChronicleEvent,
-} from './envelope.js'
+} from './envelope.ts'
 export type {
   ChronicleActor,
   ChronicleEvent,
@@ -19,22 +19,22 @@ export type {
   NewChronicleEvent,
   NewChronicleEventInput,
   ValidTime,
-} from './envelope.js'
+} from './envelope.ts'
 export {
   ChronicleEventValidationError,
   ChronicleSchemaRegistry,
   UnknownChronicleEventTypeError,
-} from './registry.js'
+} from './registry.ts'
 export type {
   ChronicleTypeRegistration,
   ChronicleTypeRegistrationOptions,
   ReplayValidation,
-} from './registry.js'
+} from './registry.ts'
 export {
   ChronicleSequenceConflictError,
   type ChronicleStore,
-} from './chronicle-store.js'
-export type { ChronicleAppendOptions } from './chronicle-store.js'
+} from './chronicle-store.ts'
+export type { ChronicleAppendOptions } from './chronicle-store.ts'
 export {
   STRUCTURE_RESOLVED_EVENT_TYPE,
   STRUCTURE_STREAM_ID,
@@ -42,8 +42,8 @@ export {
   appendResolvedStructure,
   registerStructureChronicleEvents,
   structureResolvedEvent,
-} from './structure-events.js'
+} from './structure-events.ts'
 export type {
   AppendResolvedStructureOptions,
   StructureResolvedPayload,
-} from './structure-events.js'
+} from './structure-events.ts'

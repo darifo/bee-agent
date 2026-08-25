@@ -7,8 +7,8 @@ import type {
 } from '@bee-agent/contracts'
 import { createKernel } from '@bee-agent/kernel'
 import type { VectorStore } from '@bee-agent/vector-store'
-import { MemoryRuntime, chunkContent } from '../src/index.js'
-import { MemoryRuntimeError } from '../src/index.js'
+import { MemoryRuntime, chunkContent } from '../src/index.ts'
+import { MemoryRuntimeError } from '../src/index.ts'
 
 /** Brute-force cosine store so runtime tests stay hermetic. */
 class InMemoryVectorStore implements VectorStore {

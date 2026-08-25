@@ -5,7 +5,7 @@ import type {
   TransactionContext,
   TransactionManager,
 } from '@bee-agent/storage'
-import { initialMigration } from './migration.js'
+import { initialMigration } from './migration.ts'
 
 class SQLiteTransactionManager implements TransactionManager {
   readonly #database: Database.Database

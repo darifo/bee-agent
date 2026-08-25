@@ -2,8 +2,8 @@ import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
 import type { Tool } from '@bee-agent/runtime'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
-import { McpClient } from './mcp-client.js'
-import type { McpServerConfig, McpToolDescriptor } from './mcp-client.js'
+import { McpClient } from './mcp-client.ts'
+import type { McpServerConfig, McpToolDescriptor } from './mcp-client.ts'
 
 export class McpToolError extends Error {
   constructor(message: string) {

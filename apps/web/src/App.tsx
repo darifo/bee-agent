@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ApprovalRequest } from '@bee-agent/contracts'
 import type { TaskSnapshot } from '@bee-agent/runtime'
 import type { BeeAgentClient } from '@bee-agent/client'
-import { TaskForm } from './components/TaskForm.js'
-import { TaskList } from './components/TaskList.js'
-import { TaskDetail } from './components/TaskDetail.js'
-import { useTaskStream } from './hooks/useTaskStream.js'
+import { TaskForm } from './components/TaskForm.tsx'
+import { TaskList } from './components/TaskList.tsx'
+import { TaskDetail } from './components/TaskDetail.tsx'
+import { useTaskStream } from './hooks/useTaskStream.ts'
 
 export interface AppProps {
   client: BeeAgentClient

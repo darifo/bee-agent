@@ -11,14 +11,14 @@ import type {
   LlmStreamEvent,
   LlmToolCall,
 } from '@bee-agent/runtime'
-import { ModelProtocolError, ModelProviderError } from './errors.js'
-import type { HttpOptions } from './shared.js'
+import { ModelProtocolError, ModelProviderError } from './errors.ts'
+import type { HttpOptions } from './shared.ts'
 import {
   DEFAULT_OPENAI_BASE_URL,
   joinUrl,
   postJson,
   requireRecord,
-} from './shared.js'
+} from './shared.ts'
 
 /**
  * An {@link LlmRuntime} over the OpenAI-compatible `/chat/completions`

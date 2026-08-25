@@ -6,7 +6,7 @@ import {
   CommandAgent,
   CommandAgentConfigSchema,
   CommandAgentError,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 // RemoteAgent and federation tests moved to apps/server/tests/federation.test.ts:
 // they need the server composition root, and a reverse devDep here created a

@@ -5,7 +5,7 @@ import {
   CALCULATOR_TOOL_ID,
   CalculatorPlugin,
   CalculatorTool,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 describe('calculator tool', () => {
   it('evaluates expressions from tool input', () => {

@@ -14,9 +14,9 @@ import type {
 import { vectorStoreService } from '@bee-agent/kernel'
 import type { Kernel } from '@bee-agent/kernel'
 import type { VectorStore } from '@bee-agent/vector-store'
-import { MockEmbedder } from './embedder.js'
-import type { Embedder } from './embedder.js'
-import { chunkDocument } from './memory-chunker.js'
+import { MockEmbedder } from './embedder.ts'
+import type { Embedder } from './embedder.ts'
+import { chunkDocument } from './memory-chunker.ts'
 
 /**
  * Reserved top-level key on embedding-record metadata: it carries the full

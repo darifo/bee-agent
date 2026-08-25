@@ -1,7 +1,7 @@
 import type { EventStore } from '@bee-agent/event-store'
 import type { StorageProvider } from '@bee-agent/storage'
 import type { VectorStore } from '@bee-agent/vector-store'
-import { defineServiceKey } from './types.js'
+import { defineServiceKey } from './types.ts'
 
 /**
  * Catalog of standard kernel service keys. Storage plugins publish their

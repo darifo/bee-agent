@@ -1,6 +1,6 @@
 import type { z } from 'zod'
-import type { ChronicleEvent, NewChronicleEvent } from './envelope.js'
-import { NewChronicleEventSchema } from './envelope.js'
+import type { ChronicleEvent, NewChronicleEvent } from './envelope.ts'
+import { NewChronicleEventSchema } from './envelope.ts'
 
 /**
  * The Chronicle event type registry (v1 refactor plan §4.5): every event type

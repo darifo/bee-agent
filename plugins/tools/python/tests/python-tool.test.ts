@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 import { describe, expect, it } from 'vitest'
-import { PythonTool, PythonToolError } from '../src/index.js'
+import { PythonTool, PythonToolError } from '../src/index.ts'
 
 // The suite needs a python3 interpreter on PATH; it skips otherwise.
 function hasPython(): boolean {

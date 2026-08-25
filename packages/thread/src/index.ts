@@ -17,7 +17,7 @@ import {
   ThreadEventSchema,
   TurnFailedEventSchema,
   TurnStartedEventSchema,
-} from './protocol.js'
+} from './protocol.ts'
 import type {
   Item,
   ItemId,
@@ -31,9 +31,9 @@ import type {
   Turn,
   TurnId,
   TypedItem,
-} from './protocol.js'
+} from './protocol.ts'
 
-export * from './protocol.js'
+export * from './protocol.ts'
 
 /**
  * Thread–Turn–Item over Chronicle (v1 refactor plan §5.2 P1-8): every

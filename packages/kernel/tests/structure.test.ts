@@ -7,8 +7,8 @@ import {
   resolveEffectiveStructure,
   structureVersionOf,
   traceStructure,
-} from '../src/index.js'
-import type { Bundle, StructureRef } from '../src/index.js'
+} from '../src/index.ts'
+import type { Bundle, StructureRef } from '../src/index.ts'
 
 /** A complete base bundle: every scalar slot of the bee profile pinned. */
 const baseBundle: Bundle = BundleSchema.parse({

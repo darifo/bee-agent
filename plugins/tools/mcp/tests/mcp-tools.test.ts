@@ -5,7 +5,7 @@ import {
   McpToolError,
   McpToolsPlugin,
   mcpToolId,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 const FIXTURE = new URL('./fixtures/echo-server.mjs', import.meta.url)
 

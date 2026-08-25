@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ModelProviderError } from '../src/index.js'
-import { OpenAIEmbedder } from '../src/index.js'
+import { ModelProviderError } from '../src/index.ts'
+import { OpenAIEmbedder } from '../src/index.ts'
 
 function fakeFetch(payload: unknown, status = 200): typeof fetch {
   return (async () =>

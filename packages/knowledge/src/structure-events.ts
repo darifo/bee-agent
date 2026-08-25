@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { BEE_PROFILE_ID, EffectiveStructureSchema } from '@bee-agent/kernel'
 import type { EffectiveStructure } from '@bee-agent/kernel'
-import { newChronicleEvent } from './envelope.js'
-import type { ChronicleEvent, NewChronicleEvent } from './envelope.js'
-import type { ChronicleSchemaRegistry } from './registry.js'
-import type { ChronicleStore } from './chronicle-store.js'
+import { newChronicleEvent } from './envelope.ts'
+import type { ChronicleEvent, NewChronicleEvent } from './envelope.ts'
+import type { ChronicleSchemaRegistry } from './registry.ts'
+import type { ChronicleStore } from './chronicle-store.ts'
 
 /** The single stream holding the resolved-structure lineage. */
 export const STRUCTURE_STREAM_ID = 'structure'

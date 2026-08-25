@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { EmbeddingSpace } from '@bee-agent/contracts'
 import { PgvectorStore } from '@bee-agent/plugin-vector-pgvector'
 import { vectorStoreService } from '@bee-agent/kernel'
-import { buildServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
 
 // Needs a real PostgreSQL with pgvector; without the URL the integration
 // part skips. The rejection test below runs everywhere.

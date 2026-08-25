@@ -8,7 +8,7 @@ import type {
   NewChronicleEvent,
 } from '@bee-agent/knowledge'
 import { ChronicleSequenceConflictError } from '@bee-agent/knowledge'
-import { chronicleMigration } from './chronicle-migration.js'
+import { chronicleMigration } from './chronicle-migration.ts'
 
 export interface SQLiteChronicleStoreOptions {
   readonly registry: ChronicleSchemaRegistry

@@ -5,7 +5,7 @@ export {
   assertTaskTransition,
   canTransitionTask,
   isTerminalTaskState,
-} from './task-state-machine.js'
+} from './task-state-machine.ts'
 export {
   AgentMessagePayloadSchema,
   ApprovalDecidedPayloadSchema,
@@ -24,7 +24,7 @@ export {
   applyTaskEvent,
   initialTaskSnapshot,
   reduceTaskSnapshot,
-} from './task-events.js'
+} from './task-events.ts'
 export type {
   AgentMessage,
   AgentMessagePayload,
@@ -41,13 +41,13 @@ export type {
   TaskSuspendedPayload,
   ToolCallPayload,
   ToolResultPayload,
-} from './task-events.js'
+} from './task-events.ts'
 export {
   ToolRegistry,
   UnknownToolError,
   failedToolResult,
   toolExecuteEvent,
-} from './tool.js'
+} from './tool.ts'
 export type {
   ApprovalRequestInput,
   Tool,
@@ -55,13 +55,13 @@ export type {
   ToolExecutionContext,
   ToolExecutionHooks,
   ToolInvokeContext,
-} from './tool.js'
+} from './tool.ts'
 export {
   PolicyEngine,
   createToolAllowlistPolicy,
   createToolApprovalPolicy,
   toolPolicyMiddleware,
-} from './policy.js'
+} from './policy.ts'
 export type {
   ApprovalRisk,
   PolicyCheckInput,
@@ -69,28 +69,28 @@ export type {
   ToolAllowlistOptions,
   ToolApprovalPolicyOptions,
   ToolPolicy,
-} from './policy.js'
-export type { Agent, AgentResult, AgentRunContext } from './agent.js'
-export { TaskCancelledError } from './agent.js'
-export { MockAgent } from './mock-agent.js'
+} from './policy.ts'
+export type { Agent, AgentResult, AgentRunContext } from './agent.ts'
+export { TaskCancelledError } from './agent.ts'
+export { MockAgent } from './mock-agent.ts'
 export type {
   MockAgentOptions,
   MockAgentOutput,
   MockAgentStep,
-} from './mock-agent.js'
-export { MockEmbedder } from './embedder.js'
-export type { Embedder, MockEmbedderOptions } from './embedder.js'
-export { chunkContent, chunkDocument } from './memory-chunker.js'
+} from './mock-agent.ts'
+export { MockEmbedder } from './embedder.ts'
+export type { Embedder, MockEmbedderOptions } from './embedder.ts'
+export { chunkContent, chunkDocument } from './memory-chunker.ts'
 export {
   MEMORY_CHUNK_METADATA_KEY,
   MemoryRuntime,
   MemoryRuntimeError,
-} from './memory-runtime.js'
+} from './memory-runtime.ts'
 export type {
   MemoryRecallQuery,
   MemoryRuntimeOptions,
   RememberedDocument,
-} from './memory-runtime.js'
+} from './memory-runtime.ts'
 export {
   InvalidTaskStateError,
   TaskAlreadyActiveError,
@@ -100,14 +100,14 @@ export {
   UnknownApprovalRequestError,
   UnknownTaskError,
   taskEventRecordedEvent,
-} from './task-runtime.js'
-export type { TaskRuntimeOptions } from './task-runtime.js'
+} from './task-runtime.ts'
+export type { TaskRuntimeOptions } from './task-runtime.ts'
 
 export {
   LlmRuntimeError,
   classifyLlmError,
   isLlmRuntimeError,
-} from './llm-runtime.js'
+} from './llm-runtime.ts'
 export type {
   ContextBundle,
   LlmCall,
@@ -123,8 +123,8 @@ export type {
   LlmToolCall,
   LlmToolSpec,
   LlmUsage,
-} from './llm-runtime.js'
-export { AgentLoop } from './agent-loop.js'
+} from './llm-runtime.ts'
+export { AgentLoop } from './agent-loop.ts'
 export type {
   AgentLoopHookInput,
   AgentLoopOptions,
@@ -137,4 +137,4 @@ export type {
   AgentLoopToolSlot,
   AgentLoopToolSlotCall,
   AgentLoopTurnResult,
-} from './agent-loop.js'
+} from './agent-loop.ts'

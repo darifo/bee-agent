@@ -1,4 +1,4 @@
-import { LlmRuntimeError } from './llm-runtime.js'
+import { LlmRuntimeError } from './llm-runtime.ts'
 import type {
   ContextBundle,
   LlmCall,
@@ -11,7 +11,7 @@ import type {
   LlmStreamEvent,
   LlmToolCall,
   LlmUsage,
-} from './llm-runtime.js'
+} from './llm-runtime.ts'
 
 /**
  * Deterministic fake LLMRuntime (v1 refactor plan §5.2 P1-9 acceptance).

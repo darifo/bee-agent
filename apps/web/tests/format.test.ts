@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent } from '@bee-agent/contracts'
-import { describeEvent } from '../src/format.js'
+import { describeEvent } from '../src/format.ts'
 
 function event(type: string, payload: Record<string, unknown>): AgentEvent {
   return {

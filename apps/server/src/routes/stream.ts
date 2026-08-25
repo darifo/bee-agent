@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { AgentEvent } from '@bee-agent/contracts'
 import { taskEventRecordedEvent } from '@bee-agent/runtime'
 import type { FastifyPluginAsync } from 'fastify'
-import { requireSnapshot } from './tasks.js'
+import { requireSnapshot } from './tasks.ts'
 
 const TaskIdParamsSchema = z.object({ taskId: z.uuid() })
 

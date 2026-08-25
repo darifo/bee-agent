@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CalculatorError, evaluateExpression } from '../src/index.js'
+import { CalculatorError, evaluateExpression } from '../src/index.ts'
 
 describe('evaluateExpression', () => {
   it.each([

@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
 import type { ChronicleEvent } from '@bee-agent/knowledge'
-import type { CorsOriginPolicy } from '../app.js'
-import { loopbackOrigins } from '../app.js'
+import type { CorsOriginPolicy } from '../app.ts'
+import { loopbackOrigins } from '../app.ts'
 import {
   appendThreadEvents,
   newThread,

@@ -1,14 +1,14 @@
 import { Context } from 'cordis'
 import type { Plugin } from 'cordis'
-import { KernelEmitter } from './emitter.js'
-import { EventBus } from './events.js'
+import { KernelEmitter } from './emitter.ts'
+import { EventBus } from './events.ts'
 import {
   CordisBeeAgentPluginHandle,
   prepareBeeAgentPluginMount,
-} from './plugin-adapter.js'
-import { CordisPluginHandle } from './plugin-handle.js'
-import { forkTaskScope } from './task-scope.js'
-import type { CordisTaskScope } from './task-scope.js'
+} from './plugin-adapter.ts'
+import { CordisPluginHandle } from './plugin-handle.ts'
+import { forkTaskScope } from './task-scope.ts'
+import type { CordisTaskScope } from './task-scope.ts'
 import type {
   BeeAgentPluginHandle,
   BeeAgentPluginMountOptions,
@@ -21,8 +21,8 @@ import type {
   PluginQuarantineEntry,
   ServiceKeyLike,
   TaskScope,
-} from './types.js'
-import { serviceName } from './types.js'
+} from './types.ts'
+import { serviceName } from './types.ts'
 
 interface ServiceWaiter {
   fail(error: Error): void

@@ -1,5 +1,5 @@
 import type { Tool } from '@bee-agent/runtime'
-import { CalculatorError, evaluateExpression } from './evaluate.js'
+import { CalculatorError, evaluateExpression } from './evaluate.ts'
 
 export const CALCULATOR_TOOL_ID = 'tools.calculator'
 

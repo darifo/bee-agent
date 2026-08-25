@@ -1,4 +1,4 @@
-export { initialMigration } from './migration.js'
-export { PgvectorPlugin } from './plugin.js'
-export type { PgvectorPluginConfig } from './plugin.js'
-export { PgvectorStore } from './pgvector-store.js'
+export { initialMigration } from './migration.ts'
+export { PgvectorPlugin } from './plugin.ts'
+export type { PgvectorPluginConfig } from './plugin.ts'
+export { PgvectorStore } from './pgvector-store.ts'

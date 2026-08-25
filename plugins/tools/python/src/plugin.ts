@@ -2,8 +2,8 @@ import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
 import type { Tool } from '@bee-agent/runtime'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
-import { PythonTool } from './python-tool.js'
-import type { PythonToolOptions } from './python-tool.js'
+import { PythonTool } from './python-tool.ts'
+import type { PythonToolOptions } from './python-tool.ts'
 
 /**
  * Python capability plugin. Composition roots opt in: the tool runs

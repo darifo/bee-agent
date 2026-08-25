@@ -4,9 +4,9 @@ import cors from '@fastify/cors'
 import type { ChronicleStore } from '@bee-agent/knowledge'
 import { AgentLoop } from '@bee-agent/runtime'
 import type { AgentLoopToolSlot, LlmRuntime } from '@bee-agent/runtime'
-import { BroadcastingChronicleStore } from './broadcasting-store.js'
-import { sendErrorResponse } from './errors.js'
-import { threadRoutes } from './routes/threads.js'
+import { BroadcastingChronicleStore } from './broadcasting-store.ts'
+import { sendErrorResponse } from './errors.ts'
+import { threadRoutes } from './routes/threads.ts'
 
 /**
  * CORS origin policy. `false` denies all cross-origin requests; a string

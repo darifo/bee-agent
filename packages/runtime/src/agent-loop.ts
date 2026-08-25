@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from '@bee-agent/kernel'
-import { isLlmRuntimeError } from './llm-runtime.js'
+import { isLlmRuntimeError } from './llm-runtime.ts'
 import type {
   LlmMessage,
   LlmRuntime,
   LlmToolCall,
   LlmToolSpec,
-} from './llm-runtime.js'
+} from './llm-runtime.ts'
 import {
   agentCheckpointEvent,
   appendThreadEvents,

@@ -5,7 +5,7 @@ import {
   EffectScope,
   createKernel,
   type LifecycleBeeAgentPlugin,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

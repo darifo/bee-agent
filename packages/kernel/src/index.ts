@@ -1,18 +1,18 @@
-export { Kernel, createKernel } from './kernel.js'
-export { EventBus, EventBusChild } from './events.js'
-export { EffectScope } from './effects.js'
+export { Kernel, createKernel } from './kernel.ts'
+export { EventBus, EventBusChild } from './events.ts'
+export { EffectScope } from './effects.ts'
 export type {
   EffectAddOptions,
   EffectDisposer,
   EffectReleaseFailure,
   EffectReleaseResult,
-} from './effects.js'
+} from './effects.ts'
 export {
   defineBroadcastEvent,
   defineParallelEvent,
   defineSerialEvent,
   defineWaterfallEvent,
-} from './events.js'
+} from './events.ts'
 export type {
   BroadcastEvent,
   ParallelEvent,
@@ -21,13 +21,13 @@ export type {
   SerialListener,
   WaterfallMiddleware,
   WaterfallTerminal,
-} from './events.js'
+} from './events.ts'
 export {
   eventStoreService,
   storageService,
   vectorStoreService,
-} from './service-keys.js'
-export { defineServiceKey, serviceName } from './types.js'
+} from './service-keys.ts'
+export { defineServiceKey, serviceName } from './types.ts'
 export {
   BEE_PROFILE_ID,
   BundleSchema,
@@ -41,7 +41,7 @@ export {
   resolveEffectiveStructure,
   structureVersionOf,
   traceStructure,
-} from './structure.js'
+} from './structure.ts'
 export type {
   Bundle,
   BundleLoader,
@@ -53,7 +53,7 @@ export type {
   StructureProvenanceEntry,
   StructureRef,
   StructureVersion,
-} from './structure.js'
+} from './structure.ts'
 export type {
   BeeAgentPluginHandle,
   BeeAgentPluginLifecycleHooks,
@@ -79,7 +79,7 @@ export type {
   TaskScope,
   TaskScopeEvent,
   PluginEvent,
-} from './types.js'
+} from './types.ts'
 
 export { Context } from 'cordis'
 export type { Plugin, ForkScope } from 'cordis'

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { PgvectorStore } from '@bee-agent/plugin-vector-pgvector'
-import { buildServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
 
 // Needs a real PostgreSQL with pgvector; without the URL the REST flow
 // skips. The 404 test below runs everywhere.

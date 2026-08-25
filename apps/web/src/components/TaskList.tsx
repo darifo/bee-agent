@@ -1,6 +1,6 @@
 import type { TaskSnapshot } from '@bee-agent/runtime'
-import { StateBadge } from './StateBadge.js'
-import { taskSummary } from '../format.js'
+import { StateBadge } from './StateBadge.tsx'
+import { taskSummary } from '../format.ts'
 
 export interface TaskListProps {
   tasks: readonly TaskSnapshot[]

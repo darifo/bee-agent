@@ -3,7 +3,7 @@ export {
   isLoopbackHost,
   loopbackOrigins,
   unsafeListenReason,
-} from './app.js'
-export type { BeeServer, BeeServerOptions, CorsOriginPolicy } from './app.js'
-export { BroadcastingChronicleStore } from './broadcasting-store.js'
-export type { ChronicleAppendBroadcast } from './broadcasting-store.js'
+} from './app.ts'
+export type { BeeServer, BeeServerOptions, CorsOriginPolicy } from './app.ts'
+export { BroadcastingChronicleStore } from './broadcasting-store.ts'
+export type { ChronicleAppendBroadcast } from './broadcasting-store.ts'

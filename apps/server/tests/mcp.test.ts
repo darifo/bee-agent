@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent } from '@bee-agent/contracts'
 import { MockAgent } from '@bee-agent/runtime'
-import { buildServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
 
 const FIXTURE = new URL(
   '../../../plugins/tools/mcp/tests/fixtures/echo-server.mjs',

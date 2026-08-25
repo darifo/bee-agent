@@ -13,8 +13,8 @@ import type {
 import type { EventStore } from '@bee-agent/event-store'
 import { defineSerialEvent, eventStoreService } from '@bee-agent/kernel'
 import type { Kernel, TaskScope } from '@bee-agent/kernel'
-import type { Agent, AgentRunContext } from './agent.js'
-import { TaskCancelledError } from './agent.js'
+import type { Agent, AgentRunContext } from './agent.ts'
+import { TaskCancelledError } from './agent.ts'
 import {
   AgentMessagePayloadSchema,
   ApprovalDecidedPayloadSchema,
@@ -31,16 +31,16 @@ import {
   ToolResultPayloadSchema,
   applyTaskEvent,
   reduceTaskSnapshot,
-} from './task-events.js'
-import type { TaskLifecycleEventType, TaskSnapshot } from './task-events.js'
+} from './task-events.ts'
+import type { TaskLifecycleEventType, TaskSnapshot } from './task-events.ts'
 import {
   assertTaskTransition,
   isTerminalTaskState,
-} from './task-state-machine.js'
-import { PolicyEngine, toolPolicyMiddleware } from './policy.js'
-import type { ToolPolicy } from './policy.js'
-import { ToolRegistry, toolExecuteEvent } from './tool.js'
-import type { ApprovalRequestInput, Tool, ToolExecutionHooks } from './tool.js'
+} from './task-state-machine.ts'
+import { PolicyEngine, toolPolicyMiddleware } from './policy.ts'
+import type { ToolPolicy } from './policy.ts'
+import { ToolRegistry, toolExecuteEvent } from './tool.ts'
+import type { ApprovalRequestInput, Tool, ToolExecutionHooks } from './tool.ts'
 
 /**
  * Serial kernel event dispatched after every task event the runtime appended

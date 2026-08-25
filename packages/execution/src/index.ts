@@ -8,5 +8,5 @@ export {
   InvalidArtifactDigestError,
   LocalArtifactStore,
   isValidArtifactDigest,
-} from './artifact-store.js'
-export type { ArtifactRef, ArtifactStore } from './artifact-store.js'
+} from './artifact-store.ts'
+export type { ArtifactRef, ArtifactStore } from './artifact-store.ts'

@@ -1,6 +1,6 @@
 import type { Context, ForkScope, Plugin } from 'cordis'
-import { drainWithTimeout } from './plugin-handle.js'
-import type { PluginHandleCallbacks } from './plugin-handle.js'
+import { drainWithTimeout } from './plugin-handle.ts'
+import type { PluginHandleCallbacks } from './plugin-handle.ts'
 import type {
   BeeAgentPluginHandle,
   BeeAgentPluginMountOptions,
@@ -9,7 +9,7 @@ import type {
   PluginDrainReport,
   PluginHandleStatus,
   PluginHealthReport,
-} from './types.js'
+} from './types.ts'
 
 /**
  * Shared mutable state between the cordis plugin body and the handle returned

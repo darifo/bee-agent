@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { AgentEventSchema, NewAgentEventSchema } from '@bee-agent/contracts'
 import type { AgentEvent, NewAgentEvent } from '@bee-agent/contracts'
 import type { EventStore } from '@bee-agent/event-store'
-import type { SQLiteStorage } from './sqlite-storage.js'
+import type { SQLiteStorage } from './sqlite-storage.ts'
 
 interface EventRow {
   id: string

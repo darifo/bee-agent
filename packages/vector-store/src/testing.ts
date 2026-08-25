@@ -5,7 +5,7 @@ import type {
   EmbeddingSpace,
   VectorSearchQuery,
 } from '@bee-agent/contracts'
-import type { VectorStore } from './index.js'
+import type { VectorStore } from './index.ts'
 
 /**
  * The consumer's vitest test APIs, injected at registration time so the

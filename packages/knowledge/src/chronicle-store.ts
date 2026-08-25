@@ -1,4 +1,4 @@
-import type { ChronicleEvent, NewChronicleEvent } from './envelope.js'
+import type { ChronicleEvent, NewChronicleEvent } from './envelope.ts'
 
 /**
  * The Chronicle stream store contract (v1 refactor plan §5.2 P1-6,

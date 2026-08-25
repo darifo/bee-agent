@@ -1,4 +1,4 @@
-import { ModelProviderError } from './errors.js'
+import { ModelProviderError } from './errors.ts'
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
 

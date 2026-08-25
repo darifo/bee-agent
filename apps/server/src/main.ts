@@ -6,7 +6,7 @@ import { OpenAIEmbedder } from '@bee-agent/model-providers'
 import { McpServerConfigSchema } from '@bee-agent/plugin-tool-mcp'
 import type { McpServerConfig } from '@bee-agent/plugin-tool-mcp'
 import type { Embedder } from '@bee-agent/runtime'
-import { buildServer } from './app.js'
+import { buildServer } from './app.ts'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3000

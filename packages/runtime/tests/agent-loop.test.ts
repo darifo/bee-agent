@@ -12,12 +12,12 @@ import {
   agentCheckpointEvent,
   turnStartedEvent,
 } from '@bee-agent/thread'
-import { AgentLoop } from '../src/agent-loop.js'
-import { createFakeLlmRuntime } from '../src/testing.js'
+import { AgentLoop } from '../src/agent-loop.ts'
+import { createFakeLlmRuntime } from '../src/testing.ts'
 import type {
   AgentLoopToolOutcome,
   AgentLoopToolSlot,
-} from '../src/agent-loop.js'
+} from '../src/agent-loop.ts'
 
 function createStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()

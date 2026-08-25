@@ -4,7 +4,7 @@ import type {
   PluginHandle,
   PluginHandleStatus,
   PluginHealthReport,
-} from './types.js'
+} from './types.ts'
 
 export interface PluginHandleCallbacks {
   onDisposed(id: string): void

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { AgentEventSchema, NewAgentEventSchema } from '@bee-agent/contracts'
 import type { AgentEvent, NewAgentEvent } from '@bee-agent/contracts'
 import type { EventStore } from '@bee-agent/event-store'
-import type { PostgresStorage } from './postgres-storage.js'
+import type { PostgresStorage } from './postgres-storage.ts'
 
 interface EventRow {
   id: string

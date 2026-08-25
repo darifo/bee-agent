@@ -1,4 +1,4 @@
-export { buildServer } from './app.js'
-export type { BeeServer, ServerOptions } from './app.js'
-export { errorToResponse } from './errors.js'
-export type { ErrorEnvelope } from './errors.js'
+export { buildServer } from './app.ts'
+export type { BeeServer, ServerOptions } from './app.ts'
+export { errorToResponse } from './errors.ts'
+export type { ErrorEnvelope } from './errors.ts'

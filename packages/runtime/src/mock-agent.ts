@@ -1,4 +1,4 @@
-import type { Agent, AgentResult, AgentRunContext } from './agent.js'
+import type { Agent, AgentResult, AgentRunContext } from './agent.ts'
 import type { ToolResult } from '@bee-agent/contracts'
 
 export type MockAgentStep =

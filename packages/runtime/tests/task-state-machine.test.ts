@@ -6,7 +6,7 @@ import {
   assertTaskTransition,
   canTransitionTask,
   isTerminalTaskState,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 describe('task state machine', () => {
   it('allows the documented transitions', () => {

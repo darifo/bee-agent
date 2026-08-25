@@ -1,7 +1,7 @@
 import type { Context, ForkScope } from 'cordis'
-import { EffectScope } from './effects.js'
-import type { EventBus, EventBusChild } from './events.js'
-import type { TaskScope } from './types.js'
+import { EffectScope } from './effects.ts'
+import type { EventBus, EventBusChild } from './events.ts'
+import type { TaskScope } from './types.ts'
 
 interface TaskScopePluginConfig {
   taskId: string

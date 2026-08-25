@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { MockAgent, ToolRegistry } from '../src/index.js'
-import type { AgentRunContext, Tool } from '../src/index.js'
+import { MockAgent, ToolRegistry } from '../src/index.ts'
+import type { AgentRunContext, Tool } from '../src/index.ts'
 import type { ToolResult } from '@bee-agent/contracts'
 
 const echoTool: Tool = {

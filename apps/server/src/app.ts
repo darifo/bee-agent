@@ -22,11 +22,11 @@ import { PythonTool } from '@bee-agent/plugin-tool-python'
 import type { PythonToolOptions } from '@bee-agent/plugin-tool-python'
 import { MemoryRuntime, MockAgent, TaskRuntime } from '@bee-agent/runtime'
 import type { Agent, Embedder, Tool, ToolPolicy } from '@bee-agent/runtime'
-import { approvalRoutes } from './routes/approvals.js'
-import { memoryRoutes } from './routes/memory.js'
-import { streamRoutes } from './routes/stream.js'
-import { taskRoutes } from './routes/tasks.js'
-import { sendErrorResponse } from './errors.js'
+import { approvalRoutes } from './routes/approvals.ts'
+import { memoryRoutes } from './routes/memory.ts'
+import { streamRoutes } from './routes/stream.ts'
+import { taskRoutes } from './routes/tasks.ts'
+import { sendErrorResponse } from './errors.ts'
 
 export interface ServerOptions {
   /** SQLite database file; `:memory:` keeps everything in RAM. */

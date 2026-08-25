@@ -5,7 +5,7 @@ import {
   defineBroadcastEvent,
   defineParallelEvent,
   defineSerialEvent,
-} from '../src/events.js'
+} from '../src/events.ts'
 
 describe('EventBus emit (broadcast)', () => {
   const pinged = defineBroadcastEvent<{ n: number }>('test/pinged')

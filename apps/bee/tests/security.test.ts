@@ -9,8 +9,8 @@ import {
   isLoopbackHost,
   loopbackOrigins,
   unsafeListenReason,
-} from '../src/index.js'
-import type { BeeServer } from '../src/index.js'
+} from '../src/index.ts'
+import type { BeeServer } from '../src/index.ts'
 
 function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()

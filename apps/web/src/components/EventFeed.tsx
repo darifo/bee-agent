@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { AgentEvent } from '@bee-agent/contracts'
-import { describeEvent } from '../format.js'
+import { describeEvent } from '../format.ts'
 
 export interface EventFeedProps {
   events: readonly AgentEvent[]

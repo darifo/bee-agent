@@ -12,7 +12,7 @@ import type {
   VectorSearchResult,
 } from '@bee-agent/contracts'
 import type { VectorStore } from '@bee-agent/vector-store'
-import { initialMigration } from './migration.js'
+import { initialMigration } from './migration.ts'
 
 // Whitelist mapping — the operator is interpolated into SQL, so it can
 // never come from caller input.

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { LlmRuntimeError } from '@bee-agent/runtime'
 import type { ContextBundle, LlmStreamEvent } from '@bee-agent/runtime'
-import { ModelProtocolError } from '../src/index.js'
-import { OpenAIChatRuntime } from '../src/index.js'
+import { ModelProtocolError } from '../src/index.ts'
+import { OpenAIChatRuntime } from '../src/index.ts'
 
 interface Call {
   readonly url: string

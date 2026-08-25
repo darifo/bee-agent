@@ -2,8 +2,8 @@ import type { EventStore } from '@bee-agent/event-store'
 import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
-import { PostgresEventStore } from './postgres-event-store.js'
-import { PostgresStorage } from './postgres-storage.js'
+import { PostgresEventStore } from './postgres-event-store.ts'
+import { PostgresStorage } from './postgres-storage.ts'
 
 export interface PostgresPluginConfig {
   /** Connection string, e.g. `postgres://user:pass@host:5432/database`. */

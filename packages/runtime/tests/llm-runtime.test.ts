@@ -3,10 +3,10 @@ import {
   LlmRuntimeError,
   classifyLlmError,
   isLlmRuntimeError,
-} from '../src/llm-runtime.js'
-import type { LlmStreamEvent } from '../src/llm-runtime.js'
-import { createFakeLlmRuntime } from '../src/testing.js'
-import type { ContextBundle } from '../src/index.js'
+} from '../src/llm-runtime.ts'
+import type { LlmStreamEvent } from '../src/llm-runtime.ts'
+import { createFakeLlmRuntime } from '../src/testing.ts'
+import type { ContextBundle } from '../src/index.ts'
 
 function bundle(overrides: Partial<ContextBundle> = {}): ContextBundle {
   return {

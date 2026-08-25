@@ -14,8 +14,8 @@ import type {
 import type { CreateTaskResponse } from '@bee-agent/contracts'
 import type { BeeAgentClient } from '@bee-agent/client'
 import type { TaskSnapshot } from '@bee-agent/runtime'
-import { App } from '../src/App.js'
-import { ApprovalPanel } from '../src/components/ApprovalPanel.js'
+import { App } from '../src/App.tsx'
+import { ApprovalPanel } from '../src/components/ApprovalPanel.tsx'
 
 afterEach(cleanup)
 

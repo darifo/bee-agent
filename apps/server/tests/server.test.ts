@@ -5,8 +5,8 @@ import type { BeeAgentClientError } from '@bee-agent/client'
 import type { AgentEvent } from '@bee-agent/contracts'
 import { MockAgent, createToolApprovalPolicy } from '@bee-agent/runtime'
 import type { MockAgentOptions, Tool } from '@bee-agent/runtime'
-import { buildServer } from '../src/index.js'
-import type { BeeServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
+import type { BeeServer } from '../src/index.ts'
 
 let server: BeeServer
 let api: BeeAgentClient

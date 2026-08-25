@@ -9,8 +9,8 @@ import type {
   AgentLoopToolSlotCall,
 } from '@bee-agent/runtime'
 import type { FakeLlmStep } from '@bee-agent/runtime/testing'
-import { buildBeeServer } from '../src/index.js'
-import type { BeeServer } from '../src/index.js'
+import { buildBeeServer } from '../src/index.ts'
+import type { BeeServer } from '../src/index.ts'
 
 function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()

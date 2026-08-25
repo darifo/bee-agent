@@ -1,7 +1,7 @@
 import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 import manifestJson from '../plugin.manifest.json' with { type: 'json' }
 import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
-import { PgvectorStore } from './pgvector-store.js'
+import { PgvectorStore } from './pgvector-store.ts'
 
 export interface PgvectorPluginConfig {
   /** Connection string, e.g. `postgres://user:pass@host:5432/database`. */

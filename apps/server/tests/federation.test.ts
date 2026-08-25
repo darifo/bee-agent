@@ -5,8 +5,8 @@ import { RemoteAgent } from '@bee-agent/agent-adapters'
 import type { AgentEvent } from '@bee-agent/contracts'
 import { MockAgent, TaskCancelledError, ToolRegistry } from '@bee-agent/runtime'
 import type { AgentRunContext } from '@bee-agent/runtime'
-import { buildServer } from '../src/index.js'
-import type { BeeServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
+import type { BeeServer } from '../src/index.ts'
 
 // These tests live on the server (not in adapters/agents) so the workspace
 // keeps a strict adapters -> apps dependency direction; the reverse devDep

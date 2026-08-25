@@ -8,9 +8,9 @@ import {
   TaskRuntime,
   TaskRuntimeError,
   taskEventRecordedEvent,
-} from '../src/index.js'
-import type { Agent, Tool, TaskRuntimeOptions } from '../src/index.js'
-import { MemoryEventStore } from './helpers/memory-event-store.js'
+} from '../src/index.ts'
+import type { Agent, Tool, TaskRuntimeOptions } from '../src/index.ts'
+import { MemoryEventStore } from './helpers/memory-event-store.ts'
 
 const echoTool: Tool = {
   manifest: {

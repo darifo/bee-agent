@@ -9,8 +9,8 @@ import {
   eventStoreService,
   storageService,
   vectorStoreService,
-} from '../src/index.js'
-import type { Context, KernelEvents } from '../src/index.js'
+} from '../src/index.ts'
+import type { Context, KernelEvents } from '../src/index.ts'
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))

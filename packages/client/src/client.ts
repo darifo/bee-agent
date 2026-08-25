@@ -10,8 +10,8 @@ import type {
   MemoryRecallResponse,
 } from '@bee-agent/contracts'
 import type { TaskSnapshot } from '@bee-agent/runtime'
-import { BeeAgentClientError, BeeAgentProtocolError } from './errors.js'
-import { parseSseStream } from './sse.js'
+import { BeeAgentClientError, BeeAgentProtocolError } from './errors.ts'
+import { parseSseStream } from './sse.ts'
 
 export interface BeeAgentClientOptions {
   /** Base URL of the Bee Agent server, for example `http://127.0.0.1:3000`. */

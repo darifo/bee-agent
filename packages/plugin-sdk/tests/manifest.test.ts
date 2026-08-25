@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PluginManifestSchema } from '../src/index.js'
+import { PluginManifestSchema } from '../src/index.ts'
 
 describe('PluginManifestSchema', () => {
   it('normalizes optional declaration lists', () => {

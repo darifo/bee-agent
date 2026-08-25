@@ -1,13 +1,13 @@
 import type { ExpectStatic, SuiteAPI, TestAPI } from 'vitest'
 import { z } from 'zod'
-import type { ChronicleEvent, NewChronicleEvent } from './envelope.js'
-import { newChronicleEvent } from './envelope.js'
+import type { ChronicleEvent, NewChronicleEvent } from './envelope.ts'
+import { newChronicleEvent } from './envelope.ts'
 import type {
   ChronicleAppendOptions,
   ChronicleStore,
-} from './chronicle-store.js'
-import { ChronicleSequenceConflictError } from './chronicle-store.js'
-import type { ChronicleSchemaRegistry } from './registry.js'
+} from './chronicle-store.ts'
+import { ChronicleSequenceConflictError } from './chronicle-store.ts'
+import type { ChronicleSchemaRegistry } from './registry.ts'
 
 /**
  * Test harness for the Chronicle contract suite. The vitest APIs are injected

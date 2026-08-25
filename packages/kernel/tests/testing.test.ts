@@ -4,7 +4,7 @@ import {
   FakeClock,
   createFakeTool,
   createScriptedModel,
-} from '../src/testing.js'
+} from '../src/testing.ts'
 
 describe('FakeClock', () => {
   it('starts at the injected epoch and never reads wall-clock time', () => {

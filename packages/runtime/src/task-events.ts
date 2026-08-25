@@ -15,7 +15,7 @@ import type {
   ToolCall,
   ToolResult,
 } from '@bee-agent/contracts'
-import { assertTaskTransition } from './task-state-machine.js'
+import { assertTaskTransition } from './task-state-machine.ts'
 
 /**
  * Canonical task lifecycle event types. Every lifecycle payload carries the

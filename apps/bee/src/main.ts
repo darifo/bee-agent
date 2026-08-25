@@ -4,7 +4,7 @@ import { SQLiteChronicleStore } from '@bee-agent/plugin-storage-sqlite'
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import type { AgentLoopToolSlot } from '@bee-agent/runtime'
-import { buildBeeServer, unsafeListenReason } from './app.js'
+import { buildBeeServer, unsafeListenReason } from './app.ts'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3000

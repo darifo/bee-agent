@@ -1,13 +1,13 @@
 import type { EmbeddingSpace } from '@bee-agent/contracts'
 import type { Embedder } from '@bee-agent/runtime'
-import { ModelProtocolError } from './errors.js'
-import type { HttpOptions } from './shared.js'
+import { ModelProtocolError } from './errors.ts'
+import type { HttpOptions } from './shared.ts'
 import {
   DEFAULT_OPENAI_BASE_URL,
   joinUrl,
   postJson,
   requireRecord,
-} from './shared.js'
+} from './shared.ts'
 
 export interface OpenAIEmbedderOptions extends HttpOptions {
   /**

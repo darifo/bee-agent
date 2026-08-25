@@ -1,6 +1,6 @@
 import type { Command } from 'commander'
-import { printError } from '../format.js'
-import { clientFrom } from './task.js'
+import { printError } from '../format.ts'
+import { clientFrom } from './task.ts'
 
 async function runCommand(action: () => Promise<number | void>): Promise<void> {
   try {

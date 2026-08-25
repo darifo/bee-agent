@@ -1,6 +1,6 @@
 import type { Context } from 'cordis'
-import type { EventBusChild } from './events.js'
-import type { EffectScope } from './effects.js'
+import type { EventBusChild } from './events.ts'
+import type { EffectScope } from './effects.ts'
 import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 
 export interface KernelConfig {

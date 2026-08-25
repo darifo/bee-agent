@@ -4,11 +4,11 @@ import {
   ChronicleEventSchema,
   NewChronicleEventSchema,
   newChronicleEvent,
-} from '../src/envelope.js'
+} from '../src/envelope.ts'
 import {
   ChronicleSchemaRegistry,
   UnknownChronicleEventTypeError,
-} from '../src/registry.js'
+} from '../src/registry.ts'
 
 const actor = { type: 'agent', id: 'bee' }
 

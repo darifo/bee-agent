@@ -6,7 +6,7 @@ import {
   ArtifactNotFoundError,
   InvalidArtifactDigestError,
   LocalArtifactStore,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 let root: string
 let store: LocalArtifactStore

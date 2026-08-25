@@ -6,7 +6,7 @@ import type {
   TransactionContext,
   TransactionManager,
 } from '@bee-agent/storage'
-import { initialMigration } from './migration.js'
+import { initialMigration } from './migration.ts'
 
 /**
  * Tracks the client owned by the innermost running transaction so

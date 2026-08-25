@@ -5,7 +5,7 @@ import {
   applyTaskEvent,
   initialTaskSnapshot,
   reduceTaskSnapshot,
-} from '../src/index.js'
+} from '../src/index.ts'
 
 const taskId = randomUUID()
 

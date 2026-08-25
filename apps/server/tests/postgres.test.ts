@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { PostgresStorage } from '@bee-agent/plugin-storage-postgres'
-import { buildServer } from '../src/index.js'
+import { buildServer } from '../src/index.ts'
 
 // Needs a real PostgreSQL; without the URL the integration part skips.
 //   BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent

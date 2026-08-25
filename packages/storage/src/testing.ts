@@ -1,6 +1,6 @@
 import type { ExpectStatic, SuiteAPI, TestAPI } from 'vitest'
 import type { EventStore } from '@bee-agent/event-store'
-import type { TransactionManager } from './index.js'
+import type { TransactionManager } from './index.ts'
 
 /**
  * The consumer's vitest test APIs, injected at registration time. The suite

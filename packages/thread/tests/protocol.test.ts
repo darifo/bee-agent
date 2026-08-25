@@ -7,11 +7,11 @@ import {
   ThreadEventSchema,
   ThreadSchema,
   TurnSchema,
-} from '../src/protocol.js'
-import type { Item } from '../src/protocol.js'
+} from '../src/protocol.ts'
+import type { Item } from '../src/protocol.ts'
 
 /**
- * Protocol contract tests. This file imports ONLY `../src/protocol.js` —
+ * Protocol contract tests. This file imports ONLY `../src/protocol.ts` —
  * the same module clients consume via `@bee-agent/thread/protocol` — so the
  * suite itself proves the protocol surface needs nothing but zod.
  */

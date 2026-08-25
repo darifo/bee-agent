@@ -1,4 +1,4 @@
-import type { KernelEventName, KernelEvents } from './types.js'
+import type { KernelEventName, KernelEvents } from './types.ts'
 
 type AnyListener = (payload: unknown) => void
 
