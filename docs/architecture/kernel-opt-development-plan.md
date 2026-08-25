@@ -56,7 +56,8 @@ packages/kernel/
     ├── kernel.test.ts
     └── structure.test.ts
 
-packages/runtime/src/plugin.ts   # AgentLoop 的标准 RuntimePlugin
+packages/runtime/src/model-request-service.ts # 模型调用、manifest、生命周期事实与重建
+packages/runtime/src/plugin.ts   # ModelRequestService / AgentLoop 标准 RuntimePlugin
 apps/bee/src/kernel-runtime.ts   # Host 插件图与 Turn generation pinning
 ```
 
@@ -251,13 +252,35 @@ Host 提供两个本地管理入口：`GET /structure` 查看 active generation�
 
 内核测试覆盖：Proxy 服务解析、inject 等待、依赖出现后激活、effects LIFO 清理、未声明访问失败、缺失依赖、provider 冲突、依赖环、candidate 回滚、generation pinning、tier C、结构版本碰撞和 ContextPolicy 单调收紧。
 
-## 9. 后续开发边界
+## 9. ModelRequest 与恢复确定性（已完成）
+
+模型 Provider 不再由 `AgentLoop` 直接调用。标准链路为：
+
+```text
+AgentLoop
+  └─ modelRequest.generate()
+       ├─ atomically append: context.manifest + model.requested
+       ├─ LlmRuntime.generate()
+       └─ append: model.completed | model.failed
+```
+
+每个 request 使用独立 `model-request:<requestId>` Chronicle stream。`model.requested` 保存按 section 切分的 canonical source snapshot 和整个 `ContextBundle` 的摘要；`ContextManifest` 保存 rendererVersion、priority、tokens 和 section digest。`rebuildModelRequest()` 必须先逐 section 复算 digest，再复算 bundle digest，任何漂移都显式失败。
+
+`AgentLoop` 的 checkpoint 恢复遵守以下不变量：
+
+1. checkpoint 的 `stepIndex` 就是下一次调用的索引，恢复时不得再次 `+1`；
+2. assistant tool calls 与工具结果的 exact `content` / `isError` 必须进入 Thread Item；
+3. 从 committed Item 重建 history 后必须复算 `stateDigest`；
+4. 不匹配时追加 `agent.recovery_failed` 并抛出 `CheckpointDigestMismatchError`，禁止带着漂移状态继续执行；
+5. ModelRequestService、Model、Tools、AgentLoop 都是 tier B 插件，结构变化通过新 generation 接管新 Turn。
+
+## 10. 后续开发边界
 
 本次内核 clean break 已完成。以下是建立在新内核上的后续产品工作，不应重新引入第二套内核抽象：
 
 - 将 Turn/Subagent/ToolCall 的 lineage 和权限快照持久化；
-- 所有模型调用统一经过 `ModelRequestService`，持久化 `ContextManifest`；
-- 完成多 tool-call batch、审批跨重启和 checkpoint digest 校验；
+- 把 ContextBudget 的压缩决策直接接入 ModelRequestService，而非只记录最终 bundle；
+- 完成多 tool-call 的并行调度、失败隔离和 batch 级 checkpoint；
 - 为 generation/Fiber 增加 doctor 输出、故障注入和长时泄漏测试。
 
 这些能力应作为 runtime/protocol/observability 层继续演进，而不是修改 Context–Registry–Fiber 的基本所有权模型。

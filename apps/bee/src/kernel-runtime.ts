@@ -24,6 +24,7 @@ import {
   PluginFactoryRegistry,
   StructureReconciler,
   createAgentLoopPlugin,
+  createModelRequestPlugin,
 } from '@bee-agent/runtime'
 
 export interface AgentLoopService {
@@ -233,6 +234,21 @@ function createHostPluginFactories(
           },
         ),
       ]
+    },
+  })
+  factories.register({
+    id: 'bee.model-request',
+    create(structure) {
+      const contextBudget = structure.budgets.find(
+        (budget) => budget.name === 'model.contextTokens',
+      )?.value
+      return createModelRequestPlugin({
+        promptVersion: `${structure.prompt.ref.id}@${structure.prompt.ref.version}`,
+        structureVersion: structure.digest,
+        ...(typeof contextBudget === 'number'
+          ? { tokenBudget: contextBudget }
+          : {}),
+      })
     },
   })
   factories.register({

@@ -5,6 +5,7 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
+import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
 import {
   ChronicleKanbanStore,
   KanbanDispatcher,
@@ -23,6 +24,7 @@ function createRegistry(): ChronicleSchemaRegistry {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
+  registerModelRequestChronicleEvents(registry)
   registerKanbanChronicleEvents(registry)
   return registry
 }

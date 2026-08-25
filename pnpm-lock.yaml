@@ -221,6 +221,9 @@ importers:
 
   packages/runtime:
     dependencies:
+      '@bee-agent/context':
+        specifier: workspace:*
+        version: link:../context
       '@bee-agent/kernel':
         specifier: workspace:*
         version: link:../kernel

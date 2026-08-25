@@ -10,7 +10,10 @@ import {
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import type { AgentLoopToolSlot } from '@bee-agent/runtime'
+import {
+  registerModelRequestChronicleEvents,
+  type AgentLoopToolSlot,
+} from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 
 const DEFAULT_HOST = '127.0.0.1'
@@ -70,6 +73,7 @@ const tools: AgentLoopToolSlot = {
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
+registerModelRequestChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
 const filename =
   process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'

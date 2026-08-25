@@ -406,11 +406,11 @@ DeepSeek Harness/Cordis 的核心做法是：配置添加、删除或修改插�
 - 统计 token、费用、延迟和 provider metadata；
 - 支持取消、重试分类和能力发现。
 
-`AgentLoop` 负责状态转换、工具调度、审批等待、上下文重建、计划修订、checkpoint 和 terminal decision。Provider 不再持有唯一的 messages 数组。
+`AgentLoop` 负责状态转换、工具调度、审批等待、计划修订、checkpoint 和 terminal decision，但不直接调用 Provider。所有调用统一经过插件化 `ModelRequestService`：它在调用前持久化 `context.manifest` 与 `model.requested`，调用后持久化 `model.completed` 或 `model.failed`。Provider 不持有唯一的 messages 数组，AgentLoop 也不再是模型审计边界。
 
 ### 10.3 Context Manifest
 
-模型每次调用都持久化一份 manifest，而不是重复保存完整 prompt：
+模型每次调用都持久化一份 manifest，并在对应 request stream 保存 canonical source snapshot，而不是保存一个无法解释来源的扁平 prompt：
 
 ```ts
 interface ContextManifest {
@@ -437,7 +437,7 @@ interface ContextManifest {
 }
 ```
 
-这样可以用 source + renderer 重建模型输入，同时让 token 成本、遗漏原因和压缩损失可审计。
+这样可以用 source + renderer 精确重建模型输入，同时让 token 成本、遗漏原因和压缩损失可审计。重建必须同时验证 section digest 和完整 `ContextBundle` digest；任一级不一致都禁止 replay。request stream 固定为 `context.manifest → model.requested → model.completed|model.failed`。
 
 ### 10.4 上下文预算顺序
 
@@ -829,7 +829,7 @@ RemoteAgent 是可选插件，不是核心依赖；它转发标准 Item/Event �
 - job claim + heartbeat；远程 Worker 模式再启用 fencing token；
 - Step 完成后写 checkpoint；
 - 外部副作用要求 idempotency key 或 reconciliation handler；
-- 崩溃后从 Chronicle 和 checkpoint 重建 Context，不复用内存 messages；
+- 崩溃后从 Chronicle 和 checkpoint 重建 Context，不复用内存 messages；重建摘要不匹配时记录 `agent.recovery_failed` 并停止恢复；
 - 等待审批、时间、用户输入、依赖或资源时进入 durable suspended 状态；
 - 所有进程和远程调用接受 `AbortSignal` 并能回收后代资源。
 

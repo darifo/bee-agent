@@ -79,6 +79,15 @@ export type ItemStatus = z.infer<typeof ItemStatusSchema>
 export const MessageItemPayloadSchema = z.object({
   role: z.enum(['user', 'assistant', 'system', 'tool']),
   content: z.string(),
+  toolCalls: z
+    .array(
+      z.object({
+        callId: z.string().min(1),
+        toolId: z.string().min(1),
+        input: z.unknown(),
+      }),
+    )
+    .optional(),
 })
 export type MessageItemPayload = z.infer<typeof MessageItemPayloadSchema>
 
@@ -93,6 +102,9 @@ export const ToolCallItemPayloadSchema = z.object({
   callId: z.string().min(1),
   input: z.unknown(),
   output: z.unknown().optional(),
+  /** Exact model-visible tool result, retained for deterministic recovery. */
+  content: z.string().optional(),
+  isError: z.boolean().optional(),
 })
 export type ToolCallItemPayload = z.infer<typeof ToolCallItemPayloadSchema>
 
@@ -305,6 +317,17 @@ export const AgentCheckpointEventSchema = TurnEventPositionSchema.extend({
 })
 export type AgentCheckpointEvent = z.infer<typeof AgentCheckpointEventSchema>
 
+/** A checkpoint whose durable history no longer reproduces its digest. */
+export const AgentRecoveryFailedEventSchema = TurnEventPositionSchema.extend({
+  event: z.literal('agent.recovery_failed'),
+  checkpointSequence: z.number().int().positive(),
+  expectedDigest: z.string().min(1),
+  actualDigest: z.string().min(1),
+})
+export type AgentRecoveryFailedEvent = z.infer<
+  typeof AgentRecoveryFailedEventSchema
+>
+
 export const ThreadEventSchema = z.discriminatedUnion('event', [
   ThreadCreatedEventSchema,
   TurnStartedEventSchema,
@@ -316,6 +339,7 @@ export const ThreadEventSchema = z.discriminatedUnion('event', [
   ItemCompletedEventSchema,
   ItemFailedEventSchema,
   AgentCheckpointEventSchema,
+  AgentRecoveryFailedEventSchema,
 ])
 export type ThreadEvent = z.infer<typeof ThreadEventSchema>
 

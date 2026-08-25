@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
+import { canonicalJson } from '@bee-agent/kernel'
+import { registerContextManifestChronicleEvents } from '@bee-agent/context'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import {
@@ -12,8 +15,13 @@ import {
   agentCheckpointEvent,
   turnStartedEvent,
 } from '@bee-agent/thread'
-import { AgentLoop } from '../src/agent-loop.ts'
+import { AgentLoop, CheckpointDigestMismatchError } from '../src/agent-loop.ts'
+import {
+  ModelRequestService,
+  registerModelRequestChronicleEvents,
+} from '../src/model-request-service.ts'
 import { createFakeLlmRuntime } from '../src/testing.ts'
+import type { LlmRuntime } from '../src/llm-runtime.ts'
 import type {
   AgentLoopToolOutcome,
   AgentLoopToolSlot,
@@ -22,7 +30,24 @@ import type {
 function createStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerThreadChronicleEvents(registry)
+  registerContextManifestChronicleEvents(registry)
+  registerModelRequestChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
+}
+
+function modelRequests(store: MemoryChronicleStore, llm: LlmRuntime) {
+  return new ModelRequestService({
+    store,
+    llm,
+    promptVersion: 'test-prompt@1',
+    structureVersion: 'sha256:test-structure',
+  })
+}
+
+function historyDigest(history: unknown): string {
+  return `sha256:${createHash('sha256')
+    .update(canonicalJson(history))
+    .digest('hex')}`
 }
 
 /** A tool slot whose behavior is scripted per (toolId, callId). */
@@ -57,7 +82,7 @@ describe('AgentLoop happy path', () => {
       script: [{ type: 'respond', deltas: ['The answer is 42.'] }],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -102,7 +127,7 @@ describe('AgentLoop happy path', () => {
     })
     const calls: Array<{ toolId: string; input: unknown }> = []
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({
         calculator: (input) => {
@@ -143,7 +168,7 @@ describe('AgentLoop happy path', () => {
       ],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -176,7 +201,7 @@ describe('AgentLoop tool approval', () => {
     })
     let approved = false
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({
         deploy: () => {
@@ -248,7 +273,7 @@ describe('AgentLoop tool approval', () => {
     })
     let executed = false
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({
         deploy: () => {
@@ -286,7 +311,7 @@ describe('AgentLoop failure and cancellation', () => {
       ],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       maxRetries: 2,
@@ -311,7 +336,7 @@ describe('AgentLoop failure and cancellation', () => {
       ],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       maxRetries: 2,
@@ -336,7 +361,7 @@ describe('AgentLoop failure and cancellation', () => {
       ],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -359,7 +384,7 @@ describe('AgentLoop failure and cancellation', () => {
       stepDelayMs: 30,
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -380,6 +405,41 @@ describe('AgentLoop failure and cancellation', () => {
 })
 
 describe('AgentLoop crash recovery', () => {
+  it('fails explicitly and records an event when a checkpoint digest drifts', async () => {
+    const store = createStore()
+    const threadId = crypto.randomUUID()
+    const turn = newTurn({ threadId, trigger: 'user', input: 'go', now: NOW })
+    const userItem = newItem({
+      threadId,
+      turnId: turn.id,
+      type: 'message',
+      payload: { role: 'user', content: 'go' },
+      now: NOW,
+    })
+    await appendThreadEvents(store, threadId, [
+      turnStartedEvent(turn),
+      itemStartedEvent(userItem),
+      itemCompletedEvent(userItem),
+      agentCheckpointEvent(
+        { threadId, turnId: turn.id },
+        { stepIndex: 1, stateDigest: 'sha256:corrupt' },
+      ),
+    ])
+    const llm = createFakeLlmRuntime({ script: [] })
+    const loop = new AgentLoop({
+      modelRequests: modelRequests(store, llm),
+      store,
+      tools: scriptedTools({}),
+      now: () => NOW,
+    })
+
+    await expect(
+      loop.recoverTurn({ threadId, turnId: turn.id }),
+    ).rejects.toBeInstanceOf(CheckpointDigestMismatchError)
+    const events = await collectEvents(store, threadId)
+    expect(events.at(-1)?.event).toBe('agent.recovery_failed')
+  })
+
   it('resumes from Chronicle and the last checkpoint after a crash', async () => {
     const store = createStore()
     const threadId = crypto.randomUUID()
@@ -407,7 +467,13 @@ describe('AgentLoop crash recovery', () => {
       itemCompletedEvent(assistantItem),
       agentCheckpointEvent(
         { threadId, turnId: turn.id },
-        { stepIndex: 1, stateDigest: 'sha256:unused-for-recovery' },
+        {
+          stepIndex: 1,
+          stateDigest: historyDigest([
+            { role: 'user', content: 'go' },
+            { role: 'assistant', content: 'Working…' },
+          ]),
+        },
       ),
     ])
 
@@ -416,7 +482,7 @@ describe('AgentLoop crash recovery', () => {
       script: [{ type: 'respond', deltas: ['Recovered answer.'] }],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -443,7 +509,7 @@ describe('AgentLoop crash recovery', () => {
       script: [{ type: 'respond', deltas: ['done'] }],
     })
     const loop = new AgentLoop({
-      llm,
+      modelRequests: modelRequests(store, llm),
       store,
       tools: scriptedTools({}),
       now: () => NOW,
@@ -473,7 +539,7 @@ describe('AgentLoop recovery of suspended turns', () => {
       ],
     })
     const firstLoop = new AgentLoop({
-      llm: firstLlm,
+      modelRequests: modelRequests(store, firstLlm),
       store,
       tools: scriptedTools({
         deploy: () => ({
@@ -494,7 +560,7 @@ describe('AgentLoop recovery of suspended turns', () => {
     })
     let approved = false
     const secondLoop = new AgentLoop({
-      llm: secondLlm,
+      modelRequests: modelRequests(store, secondLlm),
       store,
       tools: scriptedTools({
         deploy: () => {

@@ -1,14 +1,11 @@
 import { createHash } from 'node:crypto'
 import { canonicalJson } from '@bee-agent/kernel'
 import { isLlmRuntimeError } from './llm-runtime.ts'
-import type {
-  LlmMessage,
-  LlmRuntime,
-  LlmToolCall,
-  LlmToolSpec,
-} from './llm-runtime.ts'
+import type { LlmMessage, LlmToolCall, LlmToolSpec } from './llm-runtime.ts'
+import type { ModelRequestService } from './model-request-service.ts'
 import {
   agentCheckpointEvent,
+  agentRecoveryFailedEvent,
   appendThreadEvents,
   itemCompletedEvent,
   itemDeltaEvent,
@@ -100,7 +97,7 @@ export interface AgentLoopPlanHook {
 // ---------------------------------------------------------------------------
 
 export interface AgentLoopOptions {
-  readonly llm: LlmRuntime
+  readonly modelRequests: ModelRequestService
   readonly store: ChronicleStore
   readonly tools: AgentLoopToolSlot
   /** Tool declarations passed to the model; empty until tool specs land. */
@@ -196,6 +193,19 @@ interface RebuiltState {
 }
 
 type TurnScopedEvent = Extract<ThreadEvent, { turnId: string }>
+
+export class CheckpointDigestMismatchError extends Error {
+  constructor(
+    readonly checkpointSequence: number,
+    readonly expectedDigest: string,
+    readonly actualDigest: string,
+  ) {
+    super(
+      `Checkpoint ${checkpointSequence} rebuilt to ${actualDigest}, expected ${expectedDigest}`,
+    )
+    this.name = 'CheckpointDigestMismatchError'
+  }
+}
 
 export class AgentLoop {
   readonly #options: AgentLoopOptions
@@ -422,7 +432,7 @@ export class AgentLoop {
     let lastError: unknown
     for (let retry = 0; retry <= maxRetries; retry += 1) {
       try {
-        return await this.#attempt(state, messages, signal)
+        return await this.#attempt(state, messages, signal, retry)
       } catch (error) {
         lastError = error
         if (signal?.aborted) return { ok: false, reason: 'cancelled' }
@@ -453,6 +463,7 @@ export class AgentLoop {
     state: LoopState,
     messages: readonly LlmMessage[],
     signal: AbortSignal | undefined,
+    attempt: number,
   ): Promise<GenerationResult> {
     if (signal?.aborted) return { ok: false, reason: 'cancelled' }
 
@@ -467,10 +478,15 @@ export class AgentLoop {
     })
     await this.#append(threadId, itemStartedEvent(assistantItem))
 
-    const call = this.#options.llm.generate(
-      { messages: [...messages], tools: this.#options.toolSpecs ?? [] },
-      { signal },
-    )
+    const call = await this.#options.modelRequests.generate({
+      threadId,
+      turnId,
+      stepIndex: state.stepIndex,
+      attempt,
+      structureVersion: state.turn.structureVersion,
+      bundle: { messages: [...messages], tools: this.#options.toolSpecs ?? [] },
+      options: { signal },
+    })
 
     const deltas: string[] = []
     const intents: GenerationIntent[] = []
@@ -556,7 +572,13 @@ export class AgentLoop {
       ...assistantItem,
       status: 'completed',
       endedAt: this.#now(),
-      payload: { role: 'assistant', content },
+      payload: {
+        role: 'assistant',
+        content,
+        ...(intents.length > 0
+          ? { toolCalls: intents.map((intent) => intent.call) }
+          : {}),
+      },
     }
     await this.#append(threadId, itemCompletedEvent(completedItem))
 
@@ -672,7 +694,12 @@ export class AgentLoop {
       ...toolItem,
       status: 'completed',
       endedAt: now,
-      payload: { ...toolItem.payload, output: result.output },
+      payload: {
+        ...toolItem.payload,
+        output: result.output,
+        content: result.content,
+        ...(result.isError === undefined ? {} : { isError: result.isError }),
+      },
     }
     await this.#append(threadId, itemCompletedEvent(completed))
     return {
@@ -704,10 +731,31 @@ export class AgentLoop {
       (event) => event.event === 'agent.checkpoint',
     )
     const last = checkpoints.at(-1)
-    const stepIndex = last !== undefined ? last.stepIndex + 1 : 0
+    const stepIndex = last?.stepIndex ?? 0
     const commitSequence = last?.sequence ?? 0
 
     const history = this.#rebuildHistory(events, commitSequence)
+    if (last !== undefined) {
+      const actualDigest = this.#digest(history)
+      if (actualDigest !== last.stateDigest) {
+        await this.#append(
+          threadId,
+          agentRecoveryFailedEvent(
+            { threadId, turnId },
+            {
+              checkpointSequence: last.sequence,
+              expectedDigest: last.stateDigest,
+              actualDigest,
+            },
+          ),
+        )
+        throw new CheckpointDigestMismatchError(
+          last.sequence,
+          last.stateDigest,
+          actualDigest,
+        )
+      }
+    }
     const pendingApproval = this.#findPendingApproval(events)
 
     return {
@@ -726,10 +774,19 @@ export class AgentLoop {
       if (event.event !== 'item.completed') continue
       const item = event.item
       if (item.type === 'message') {
-        if (item.payload.role === 'user') {
-          history.push({ role: 'user', content: item.payload.content })
+        if (item.payload.role === 'user' || item.payload.role === 'system') {
+          history.push({
+            role: item.payload.role,
+            content: item.payload.content,
+          })
         } else if (item.payload.role === 'assistant') {
-          history.push({ role: 'assistant', content: item.payload.content })
+          history.push({
+            role: 'assistant',
+            content: item.payload.content,
+            ...(item.payload.toolCalls === undefined
+              ? {}
+              : { toolCalls: item.payload.toolCalls }),
+          })
         }
       } else if (item.type === 'tool_call') {
         const output = item.payload.output
@@ -737,7 +794,12 @@ export class AgentLoop {
           role: 'tool',
           callId: item.payload.callId,
           toolId: item.payload.toolId,
-          content: typeof output === 'string' ? output : JSON.stringify(output),
+          content:
+            item.payload.content ??
+            (typeof output === 'string' ? output : JSON.stringify(output)),
+          ...(item.payload.isError === undefined
+            ? {}
+            : { isError: item.payload.isError }),
         })
       }
     }

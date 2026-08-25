@@ -11,6 +11,7 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
+import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
@@ -43,6 +44,7 @@ function chronicle(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
+  registerModelRequestChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
 }
 

@@ -9,6 +9,7 @@ import type {
 import type { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import {
   AgentCheckpointEventSchema,
+  AgentRecoveryFailedEventSchema,
   TurnCancelledEventSchema,
   ItemDeltaEventSchema,
   ItemFailedEventSchema,
@@ -62,6 +63,7 @@ export const THREAD_EVENT_TYPES = [
   'item.completed',
   'item.failed',
   'agent.checkpoint',
+  'agent.recovery_failed',
 ] as const
 export type ThreadEventType = (typeof THREAD_EVENT_TYPES)[number]
 
@@ -109,6 +111,12 @@ const AgentCheckpointPayloadSchema = AgentCheckpointEventSchema.omit({
   turnId: true,
   event: true,
 })
+const AgentRecoveryFailedPayloadSchema = AgentRecoveryFailedEventSchema.omit({
+  sequence: true,
+  threadId: true,
+  turnId: true,
+  event: true,
+})
 
 const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'thread.created': ThreadCreatedPayloadSchema,
@@ -121,6 +129,7 @@ const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'item.completed': ItemPayloadSchema,
   'item.failed': ItemFailedPayloadSchema,
   'agent.checkpoint': AgentCheckpointPayloadSchema,
+  'agent.recovery_failed': AgentRecoveryFailedPayloadSchema,
 }
 
 /** Registers every thread event type on a Chronicle registry. */
@@ -342,6 +351,18 @@ export function agentCheckpointEvent(
     checkpoint,
     options,
   )
+}
+
+export function agentRecoveryFailedEvent(
+  ids: { threadId: ThreadId; turnId: TurnId },
+  failure: {
+    checkpointSequence: number
+    expectedDigest: string
+    actualDigest: string
+  },
+  options: ThreadEventBuildOptions = {},
+): NewChronicleEvent {
+  return baseEvent('agent.recovery_failed', ids, failure, options)
 }
 
 export function itemFailedEvent(

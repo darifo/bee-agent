@@ -22,6 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bee-agent/context": "workspace:*",
     "@bee-agent/kernel": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
     "@bee-agent/thread": "workspace:*",

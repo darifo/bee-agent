@@ -33,11 +33,33 @@ export type {
   AgentLoopToolSlotCall,
   AgentLoopTurnResult,
 } from './agent-loop.ts'
+export { CheckpointDigestMismatchError } from './agent-loop.ts'
+export {
+  MODEL_REQUEST_EVENT_TYPES,
+  MODEL_REQUEST_SERVICE,
+  ModelRequestService,
+  modelRequestStreamId,
+  rebuildModelRequest,
+  registerModelRequestChronicleEvents,
+} from './model-request-service.ts'
+export type {
+  ModelRequestInput,
+  ModelRequestServiceOptions,
+  RebuiltModelRequest,
+  TrackedLlmCall,
+} from './model-request-service.ts'
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'
-export { AGENT_LOOP_SERVICE, createAgentLoopPlugin } from './plugin.ts'
-export type { AgentLoopPluginOptions } from './plugin.ts'
+export {
+  AGENT_LOOP_SERVICE,
+  createAgentLoopPlugin,
+  createModelRequestPlugin,
+} from './plugin.ts'
+export type {
+  AgentLoopPluginOptions,
+  ModelRequestPluginOptions,
+} from './plugin.ts'
 export {
   PluginFactoryRegistry,
   StructureReconciler,
