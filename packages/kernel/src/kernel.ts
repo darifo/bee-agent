@@ -1,353 +1,654 @@
-import { Context } from './context.ts'
-import type { Plugin, PluginFunction, PluginObject } from './context.ts'
-import { KernelEmitter } from './emitter.ts'
-import { EventBus } from './events.ts'
-import {
-  CordisBeeAgentPluginHandle,
-  prepareBeeAgentPluginMount,
-} from './plugin-adapter.ts'
-import { CordisPluginHandle } from './plugin-handle.ts'
-import { forkTaskScope } from './task-scope.ts'
-import type { CordisTaskScope } from './task-scope.ts'
-import type {
-  BeeAgentPluginHandle,
-  BeeAgentPluginMountOptions,
-  KernelConfig,
-  KernelEventName,
-  KernelEvents,
-  KernelState,
-  LifecycleBeeAgentPlugin,
-  PluginHandle,
-  PluginQuarantineEntry,
-  ServiceKeyLike,
-  TaskScope,
-} from './types.ts'
-import { serviceName } from './types.ts'
+import { createHash, randomUUID } from 'node:crypto'
+import { Context } from './cordis/context.ts'
+import type { Effect, Fiber } from './cordis/fiber.ts'
+import type { Inject, Plugin } from './cordis/registry.ts'
+import { canonicalJson } from './structure.ts'
 
-interface ServiceWaiter {
-  fail(error: Error): void
+export const REPLACEMENT_TIERS = ['a', 'b', 'c'] as const
+export type ReplacementTier = (typeof REPLACEMENT_TIERS)[number]
+
+/** A plugin in the desired runtime graph. */
+export interface RuntimePlugin<T = unknown> {
+  readonly id: string
+  readonly version: string
+  readonly config?: T | undefined
+  readonly inject?: readonly string[] | undefined
+  readonly provides?: readonly string[] | undefined
+  readonly replacementTier?: ReplacementTier | undefined
+  apply(ctx: Context, config: T): Effect | void
+  healthCheck?(ctx: Context): Promise<PluginHealth> | PluginHealth
 }
 
-export class Kernel {
-  readonly context: Context
+export interface PluginHealth {
+  readonly status: 'healthy' | 'degraded' | 'unhealthy'
+  readonly detail?: string | undefined
+}
 
-  readonly #events = new KernelEmitter()
-  readonly #bus = new EventBus()
-  readonly #taskScopes = new Map<string, CordisTaskScope>()
-  readonly #plugins = new Map<string, PluginHandle>()
-  readonly #quarantine = new Map<string, PluginQuarantineEntry>()
-  readonly #waiters = new Set<ServiceWaiter>()
-  #state: KernelState = 'created'
-  #pluginCounter = 0
+export type FiberStatus =
+  'pending' | 'loading' | 'active' | 'failed' | 'unloading' | 'disposed'
 
-  constructor(config: KernelConfig = {}) {
-    this.context = new Context(config.config)
-    if (config.baseDir !== undefined) this.context.baseDir = config.baseDir
-    // Single source of truth for service events, no matter which context in
-    // the tree registered the service.
-    this.context.on('internal/service', (name: string) => {
-      const service = this.context.get(name)
-      if (service !== undefined) {
-        this.#events.emit('service-registered', { name, service })
-      } else {
-        this.#events.emit('service-unregistered', { name })
-      }
-    })
+export interface FiberSnapshot {
+  readonly pluginId: string
+  readonly pluginVersion: string
+  readonly fiberId: number | null
+  readonly status: FiberStatus
+  readonly injectedServices: readonly string[]
+  readonly providedServices: readonly string[]
+  readonly effectLabels: readonly string[]
+}
+
+export interface RuntimeGraphSnapshot {
+  readonly generationId: string
+  readonly structureVersion: string
+  readonly state: StructureGenerationState
+  readonly references: number
+  readonly fibers: readonly FiberSnapshot[]
+}
+
+export interface PluginGraph {
+  readonly structureVersion: string
+  readonly plugins: readonly RuntimePlugin[]
+}
+
+export class MissingPluginDependencyError extends Error {
+  constructor(
+    readonly pluginId: string,
+    readonly serviceName: string,
+  ) {
+    super(`Plugin '${pluginId}' requires missing service '${serviceName}'`)
+    this.name = 'MissingPluginDependencyError'
+  }
+}
+
+export class PluginDependencyCycleError extends Error {
+  constructor(readonly pluginIds: readonly string[]) {
+    super(`Plugin dependency cycle: ${pluginIds.join(' -> ')}`)
+    this.name = 'PluginDependencyCycleError'
+  }
+}
+
+export class DuplicateServiceProviderError extends Error {
+  constructor(
+    readonly serviceName: string,
+    readonly providers: readonly string[],
+  ) {
+    super(
+      `Service '${serviceName}' has multiple providers: ${providers.join(', ')}`,
+    )
+    this.name = 'DuplicateServiceProviderError'
+  }
+}
+
+export class StructureVersionCollisionError extends Error {
+  constructor(readonly structureVersion: string) {
+    super(
+      `Structure version '${structureVersion}' was reused for a different plugin graph`,
+    )
+    this.name = 'StructureVersionCollisionError'
+  }
+}
+
+export class PluginActivationError extends Error {
+  constructor(
+    readonly pluginId: string,
+    options: { cause: unknown },
+  ) {
+    const detail =
+      options.cause instanceof Error ? `: ${options.cause.message}` : ''
+    super(`Plugin '${pluginId}' failed to activate${detail}`, options)
+    this.name = 'PluginActivationError'
+  }
+}
+
+export class NoActiveStructureGenerationError extends Error {
+  constructor() {
+    super('No active structure generation')
+    this.name = 'NoActiveStructureGenerationError'
+  }
+}
+
+export class RestrictedServiceAccessError extends Error {
+  constructor(readonly serviceName: string) {
+    super(`Service '${serviceName}' is not visible in this context scope`)
+    this.name = 'RestrictedServiceAccessError'
+  }
+}
+
+/**
+ * Monotonic service-visibility policy for derived Turn/Subagent/Tool scopes.
+ * A child policy may only remove services that its parent allowed.
+ */
+export class ContextPolicy {
+  readonly #allowed: ReadonlySet<string> | undefined
+
+  constructor(allowed?: Iterable<string>) {
+    this.#allowed = allowed === undefined ? undefined : new Set(allowed)
   }
 
-  get state(): KernelState {
+  static unrestricted(): ContextPolicy {
+    return new ContextPolicy()
+  }
+
+  canResolve(serviceName: string): boolean {
+    return this.#allowed?.has(serviceName) ?? true
+  }
+
+  restrict(allowed: Iterable<string>): ContextPolicy {
+    const requested = new Set(allowed)
+    if (this.#allowed === undefined) return new ContextPolicy(requested)
+    return new ContextPolicy(
+      [...requested].filter((name) => this.#allowed?.has(name)),
+    )
+  }
+}
+
+/** A scoped, policy-checked view of a Cordis Context. */
+export class ContextScope {
+  constructor(
+    readonly context: Context,
+    readonly policy: ContextPolicy = ContextPolicy.unrestricted(),
+  ) {}
+
+  service<T>(name: string): T {
+    if (!this.policy.canResolve(name)) {
+      throw new RestrictedServiceAccessError(name)
+    }
+    const service = this.context.get(name)
+    if (service === undefined) {
+      throw new MissingPluginDependencyError('context-scope', name)
+    }
+    return service as T
+  }
+
+  derive(allowedServices: Iterable<string>): ContextScope {
+    return new ContextScope(
+      this.context.extend(),
+      this.policy.restrict(allowedServices),
+    )
+  }
+
+  isolate(serviceName: string, label?: symbol): ContextScope {
+    if (!this.policy.canResolve(serviceName)) {
+      throw new RestrictedServiceAccessError(serviceName)
+    }
+    return new ContextScope(
+      this.context.isolate(serviceName, label),
+      this.policy,
+    )
+  }
+}
+
+interface MountedPlugin {
+  readonly spec: RuntimePlugin
+  readonly fiber: Fiber
+}
+
+function configDigest(config: unknown): string {
+  return `sha256:${createHash('sha256')
+    .update(canonicalJson(config ?? null))
+    .digest('hex')}`
+}
+
+function stateName(state: number, uid: number | null): FiberStatus {
+  if (uid === null) return 'disposed'
+  switch (state) {
+    case 0:
+      return 'pending'
+    case 1:
+      return 'loading'
+    case 2:
+      return 'active'
+    case 3:
+      return 'failed'
+    case 5:
+      return 'unloading'
+    default:
+      return 'disposed'
+  }
+}
+
+function effectLabels(fiber: Fiber): readonly string[] {
+  return fiber.getEffects().map((effect) => effect.label)
+}
+
+function validateAndOrder(
+  specs: readonly RuntimePlugin[],
+  bootstrapServices: ReadonlySet<string>,
+): readonly RuntimePlugin[] {
+  const byId = new Map<string, RuntimePlugin>()
+  const providers = new Map<string, string>()
+
+  for (const spec of specs) {
+    if (byId.has(spec.id)) {
+      throw new Error(`Plugin '${spec.id}' appears more than once`)
+    }
+    byId.set(spec.id, spec)
+    for (const service of spec.provides ?? []) {
+      const existing = providers.get(service)
+      if (existing !== undefined) {
+        throw new DuplicateServiceProviderError(service, [existing, spec.id])
+      }
+      providers.set(service, spec.id)
+    }
+  }
+
+  const dependencies = new Map<string, Set<string>>()
+  for (const spec of specs) {
+    const edges = new Set<string>()
+    for (const service of spec.inject ?? []) {
+      const provider = providers.get(service)
+      if (provider !== undefined) edges.add(provider)
+      else if (!bootstrapServices.has(service)) {
+        throw new MissingPluginDependencyError(spec.id, service)
+      }
+    }
+    dependencies.set(spec.id, edges)
+  }
+
+  const ordered: RuntimePlugin[] = []
+  const temporary = new Set<string>()
+  const permanent = new Set<string>()
+  const visit = (id: string, path: readonly string[]): void => {
+    if (permanent.has(id)) return
+    if (temporary.has(id)) {
+      const start = path.indexOf(id)
+      throw new PluginDependencyCycleError([...path.slice(start), id])
+    }
+    temporary.add(id)
+    for (const dependency of dependencies.get(id) ?? []) {
+      visit(dependency, [...path, id])
+    }
+    temporary.delete(id)
+    permanent.add(id)
+    ordered.push(byId.get(id) as RuntimePlugin)
+  }
+  for (const spec of specs) visit(spec.id, [])
+  return ordered
+}
+
+export type StructureGenerationState =
+  'preparing' | 'active' | 'draining' | 'disposed' | 'failed'
+
+/**
+ * One immutable, reference-counted runtime graph. New generations are built
+ * and health-checked before activation; old generations remain alive while
+ * Turns still reference them.
+ */
+export class StructureGeneration {
+  readonly id = randomUUID()
+  readonly context = new Context()
+  readonly structureVersion: string
+  readonly graphDigest: string
+  readonly #plugins: readonly RuntimePlugin[]
+  readonly #bootstrap: ReadonlyMap<string, unknown>
+  readonly #mounted: MountedPlugin[] = []
+  readonly #onDisposed:
+    ((generation: StructureGeneration) => void | Promise<void>) | undefined
+  #references = 0
+  #state: StructureGenerationState = 'preparing'
+  #disposeTask: Promise<void> | undefined
+
+  constructor(
+    graph: PluginGraph,
+    bootstrap: ReadonlyMap<string, unknown> = new Map(),
+    onDisposed?: (generation: StructureGeneration) => void | Promise<void>,
+  ) {
+    this.structureVersion = graph.structureVersion
+    this.graphDigest = pluginGraphDigest(graph.plugins)
+    this.#bootstrap = bootstrap
+    this.#onDisposed = onDisposed
+    this.#plugins = validateAndOrder(graph.plugins, new Set(bootstrap.keys()))
+  }
+
+  get state(): StructureGenerationState {
     return this.#state
   }
 
-  get started(): boolean {
-    return this.#state === 'started'
+  get references(): number {
+    return this.#references
   }
 
-  /** Application configuration forwarded to the Cordis root context. */
-  get config(): Record<string, unknown> | undefined {
-    return this.context.config as Record<string, unknown> | undefined
-  }
-
-  /** Domain event bus for serial and waterfall events across plugins. */
-  get events(): EventBus {
-    return this.#bus
-  }
-
-  get taskScopes(): readonly TaskScope[] {
-    return [...this.#taskScopes.values()]
-  }
-
-  /** Plugins that failed to unload and were quarantined, oldest first. */
-  get quarantinedPlugins(): readonly PluginQuarantineEntry[] {
-    return [...this.#quarantine.values()]
-  }
-
-  /**
-   * True once any plugin is quarantined: the process cannot clean up fully
-   * and must be restarted before the affected plugin is touched again.
-   */
-  get restartRequired(): boolean {
-    return this.#quarantine.size > 0
-  }
-
-  on<K extends KernelEventName>(
-    event: K,
-    listener: (payload: KernelEvents[K]) => void,
-  ): () => void {
-    return this.#events.on(event, listener)
-  }
-
-  async start(): Promise<void> {
-    if (this.#state === 'started' || this.#state === 'starting') return
-    if (this.#state !== 'created') {
-      throw new Error(
-        `Cannot start kernel in state '${this.#state}'; create a new kernel instead`,
-      )
-    }
-    this.#setState('starting')
+  async prepare(): Promise<void> {
+    if (this.#state !== 'preparing') return
     try {
-      await this.context.start()
-      this.#setState('started')
+      for (const [name, service] of this.#bootstrap) {
+        this.context.provide(name, service)
+      }
+      for (const spec of this.#plugins) {
+        const callback: Plugin.Function<unknown> = (ctx, config) =>
+          spec.apply(ctx, config)
+        Object.defineProperty(callback, 'name', {
+          configurable: true,
+          value: spec.id,
+        })
+        callback.inject = [...(spec.inject ?? [])] satisfies Inject
+        if (spec.provides !== undefined) {
+          callback.provide = [...spec.provides]
+        }
+        const fiber = this.context.plugin(callback, spec.config)
+        try {
+          await fiber
+        } catch (error) {
+          throw new PluginActivationError(spec.id, { cause: error })
+        }
+        const health = await spec.healthCheck?.(fiber.ctx)
+        if (health?.status === 'unhealthy') {
+          throw new PluginActivationError(spec.id, {
+            cause: new Error(health.detail ?? 'unhealthy'),
+          })
+        }
+        this.#mounted.push({ spec, fiber })
+      }
     } catch (error) {
-      this.#state = 'stopped'
+      this.#state = 'failed'
+      await this.dispose()
       throw error
     }
   }
 
-  async stop(): Promise<void> {
-    if (this.#state !== 'started') return
-    this.#setState('stopping')
-    this.#failWaiters(
-      new Error('Kernel stopped while waiting for services to register'),
-    )
-    const errors: unknown[] = []
-    // Reverse creation/mount order: what was set up last is torn down first,
-    // so dependencies are still alive while their users release resources.
-    for (const scope of [...this.#taskScopes.values()].reverse()) {
+  activate(): void {
+    if (this.#state !== 'preparing') {
+      throw new Error(
+        `Cannot activate generation '${this.id}' in state '${this.#state}'`,
+      )
+    }
+    this.#state = 'active'
+  }
+
+  acquire(policy = ContextPolicy.unrestricted()): GenerationLease {
+    if (this.#state !== 'active' && this.#state !== 'draining') {
+      throw new Error(
+        `Cannot acquire generation '${this.id}' in state '${this.#state}'`,
+      )
+    }
+    this.#references += 1
+    return new GenerationLease(this, new ContextScope(this.context, policy))
+  }
+
+  async drain(): Promise<void> {
+    if (this.#state === 'disposed') return
+    if (this.#state === 'active') this.#state = 'draining'
+    if (this.#references === 0) await this.dispose()
+  }
+
+  release(): void {
+    if (this.#references === 0) return
+    this.#references -= 1
+    if (this.#references === 0 && this.#state === 'draining') {
+      void this.dispose().catch((error) => this.context.logger.error(error))
+    }
+  }
+
+  dispose(): Promise<void> {
+    this.#disposeTask ??= this.#dispose()
+    return this.#disposeTask
+  }
+
+  inspect(): RuntimeGraphSnapshot {
+    return {
+      generationId: this.id,
+      structureVersion: this.structureVersion,
+      state: this.#state,
+      references: this.#references,
+      fibers: this.#mounted.map(({ spec, fiber }) => ({
+        pluginId: spec.id,
+        pluginVersion: spec.version,
+        fiberId: fiber.uid,
+        status: stateName(fiber.state, fiber.uid),
+        injectedServices: [...(spec.inject ?? [])],
+        providedServices: [...(spec.provides ?? [])],
+        effectLabels: effectLabels(fiber),
+      })),
+    }
+  }
+
+  digest(): string {
+    return this.graphDigest
+  }
+
+  async #dispose(): Promise<void> {
+    const failures: unknown[] = []
+    for (const { fiber } of [...this.#mounted].reverse()) {
       try {
-        await scope.dispose()
+        await fiber.dispose()
       } catch (error) {
-        errors.push(error)
+        failures.push(error)
       }
     }
-    for (const handle of [...this.#plugins.values()].reverse()) {
-      try {
-        await handle.dispose()
-      } catch (error) {
-        errors.push(error)
-      }
-    }
+    this.#mounted.length = 0
+    this.#state = 'disposed'
     try {
-      await this.context.stop()
+      await this.#onDisposed?.(this)
     } catch (error) {
-      errors.push(error)
+      failures.push(error)
     }
-    this.#setState('stopped')
-    if (errors.length === 1) throw errors[0]
-    if (errors.length > 1) {
-      throw new AggregateError(errors, 'Kernel stop encountered errors')
-    }
-  }
-
-  registerService<T>(key: ServiceKeyLike<T>, service: T): () => void {
-    const name = serviceName(key)
-    this.#assertMutable(`Cannot register service '${name}'`)
-    if (this.context.get(name) !== undefined) {
-      throw new Error(`Service '${name}' is already registered`)
-    }
-    return this.context.set(name, service)
-  }
-
-  getService<T>(key: ServiceKeyLike<T>): T | undefined {
-    return this.context.get(serviceName(key)) as T | undefined
-  }
-
-  hasService(key: ServiceKeyLike<unknown>): boolean {
-    return this.context.get(serviceName(key)) !== undefined
-  }
-
-  waitForService<T>(
-    key: ServiceKeyLike<T>,
-    options?: { timeoutMs?: number },
-  ): Promise<T> {
-    const name = serviceName(key)
-    const existing = this.context.get(name)
-    if (existing !== undefined) return Promise.resolve(existing as T)
-    if (this.#state === 'stopping' || this.#state === 'stopped') {
-      return Promise.reject(
-        new Error(
-          `Cannot wait for service '${name}' because the kernel is '${this.#state}'`,
-        ),
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures,
+        `Generation '${this.id}' failed to dispose cleanly`,
       )
     }
-    return new Promise<T>((resolve, reject) => {
-      let settled = false
-      let timer: ReturnType<typeof setTimeout> | undefined
-      let unsubscribe: () => void = () => undefined
-      const settle = (error?: Error, value?: T): void => {
-        if (settled) return
-        settled = true
-        this.#waiters.delete(waiter)
-        unsubscribe()
-        if (timer !== undefined) clearTimeout(timer)
-        if (error !== undefined) reject(error)
-        else resolve(value as T)
+  }
+}
+
+export class GenerationLease implements AsyncDisposable {
+  #released = false
+
+  constructor(
+    readonly generation: StructureGeneration,
+    readonly scope: ContextScope,
+  ) {}
+
+  get structureVersion(): string {
+    return this.generation.structureVersion
+  }
+
+  service<T>(name: string): T {
+    return this.scope.service<T>(name)
+  }
+
+  release(): void {
+    if (this.#released) return
+    this.#released = true
+    this.generation.release()
+  }
+
+  async [Symbol.asyncDispose](): Promise<void> {
+    this.release()
+  }
+}
+
+export type KernelLifecycleEvent =
+  | {
+      readonly type: 'generation.prepared' | 'generation.activated'
+      readonly generationId: string
+      readonly structureVersion: string
+    }
+  | {
+      readonly type: 'generation.failed'
+      readonly generationId: string
+      readonly structureVersion: string
+      readonly error: unknown
+    }
+  | {
+      readonly type: 'generation.draining' | 'generation.disposed'
+      readonly generationId: string
+      readonly structureVersion: string
+    }
+
+export interface KernelOptions {
+  readonly bootstrapServices?: ReadonlyMap<string, unknown> | undefined
+  readonly onLifecycleEvent?:
+    ((event: KernelLifecycleEvent) => void | Promise<void>) | undefined
+}
+
+export type ReconcileResult =
+  | {
+      readonly kind: 'activated'
+      readonly generation: StructureGeneration
+      readonly previous?: StructureGeneration | undefined
+    }
+  | {
+      readonly kind: 'unchanged'
+      readonly generation: StructureGeneration
+    }
+  | {
+      readonly kind: 'restart-required'
+      readonly pluginIds: readonly string[]
+    }
+
+/**
+ * Bee's canonical Cordis-backed kernel. Cordis manages live fibers and
+ * reactive services; this wrapper adds immutable, reference-counted runtime
+ * generations so configuration changes never mutate an executing Turn.
+ */
+export class Kernel {
+  readonly #options: KernelOptions
+  readonly #generations = new Map<string, StructureGeneration>()
+  #active: StructureGeneration | undefined
+  #restartRequiredPlugins: readonly string[] = []
+
+  constructor(options: KernelOptions = {}) {
+    this.#options = options
+  }
+
+  get activeGeneration(): StructureGeneration | undefined {
+    return this.#active
+  }
+
+  get restartRequired(): boolean {
+    return this.#restartRequiredPlugins.length > 0
+  }
+
+  get restartRequiredPlugins(): readonly string[] {
+    return this.#restartRequiredPlugins
+  }
+
+  async reconcile(graph: PluginGraph): Promise<ReconcileResult> {
+    if (this.#active?.structureVersion === graph.structureVersion) {
+      if (this.#active.graphDigest !== pluginGraphDigest(graph.plugins)) {
+        throw new StructureVersionCollisionError(graph.structureVersion)
       }
-      const waiter: ServiceWaiter = {
-        fail: (error) => settle(error),
+      return { kind: 'unchanged', generation: this.#active }
+    }
+    if (this.#active !== undefined) {
+      const tierC = graph.plugins
+        .filter((plugin) => plugin.replacementTier === 'c')
+        .map((plugin) => plugin.id)
+      if (tierC.length > 0) {
+        this.#restartRequiredPlugins = tierC
+        return { kind: 'restart-required', pluginIds: tierC }
       }
-      this.#waiters.add(waiter)
-      unsubscribe = this.context.on('internal/service', (changed: string) => {
-        if (changed !== name) return
-        const value = this.context.get(name)
-        if (value !== undefined) settle(undefined, value as T)
+    }
+
+    const candidate = new StructureGeneration(
+      graph,
+      this.#options.bootstrapServices,
+      async (generation) => {
+        this.#generations.delete(generation.id)
+        await this.#emit({
+          type: 'generation.disposed',
+          generationId: generation.id,
+          structureVersion: generation.structureVersion,
+        })
+      },
+    )
+    this.#generations.set(candidate.id, candidate)
+    try {
+      await candidate.prepare()
+      await this.#emit({
+        type: 'generation.prepared',
+        generationId: candidate.id,
+        structureVersion: candidate.structureVersion,
       })
-      if (options?.timeoutMs !== undefined) {
-        timer = setTimeout(() => {
-          settle(new Error(`Timed out waiting for service '${name}'`))
-        }, options.timeoutMs)
+      candidate.activate()
+      const previous = this.#active
+      this.#active = candidate
+      this.#restartRequiredPlugins = []
+      await this.#emit({
+        type: 'generation.activated',
+        generationId: candidate.id,
+        structureVersion: candidate.structureVersion,
+      })
+      if (previous !== undefined) {
+        await this.#emit({
+          type: 'generation.draining',
+          generationId: previous.id,
+          structureVersion: previous.structureVersion,
+        })
+        await previous.drain()
       }
-    })
-  }
-
-  createTaskScope(taskId: string): TaskScope {
-    if (this.#state !== 'started') {
-      throw new Error(
-        `Kernel must be started before creating a task scope (current state: '${this.#state}')`,
-      )
+      return { kind: 'activated', generation: candidate, previous }
+    } catch (error) {
+      await this.#emit({
+        type: 'generation.failed',
+        generationId: candidate.id,
+        structureVersion: candidate.structureVersion,
+        error,
+      })
+      this.#generations.delete(candidate.id)
+      throw error
     }
-    if (this.#taskScopes.has(taskId)) {
-      throw new Error(`Task scope '${taskId}' already exists`)
+  }
+
+  beginTurn(policy?: ContextPolicy): GenerationLease {
+    if (this.#active === undefined) {
+      throw new NoActiveStructureGenerationError()
     }
-    const scope = forkTaskScope(this.context, taskId, this.#bus, (id) => {
-      this.#handleTaskScopeDisposed(id)
-    })
-    this.#taskScopes.set(taskId, scope)
-    this.#events.emit('task-scope-created', { taskId })
-    return scope
+    return this.#active.acquire(policy)
   }
 
-  getTaskScope(taskId: string): TaskScope | undefined {
-    return this.#taskScopes.get(taskId)
+  service<T>(name: string): T {
+    const lease = this.beginTurn()
+    try {
+      return lease.service<T>(name)
+    } finally {
+      lease.release()
+    }
   }
 
-  async disposeTaskScope(taskId: string): Promise<boolean> {
-    const scope = this.#taskScopes.get(taskId)
-    if (!scope) return false
-    await scope.dispose()
-    return true
-  }
-
-  use(plugin: Plugin, config?: unknown): PluginHandle {
-    this.#assertMutable('Cannot mount a plugin')
-    const scope = this.context.plugin(plugin as PluginFunction<Context>, config)
-    const handle = new CordisPluginHandle(
-      this.#nextPluginId(pluginLabel(plugin)),
-      scope,
-      {
-        onDisposed: (id) => this.#handlePluginDisposed(id),
-        onQuarantined: (id, error) => this.#handlePluginQuarantined(id, error),
-      },
+  inspect(): readonly RuntimeGraphSnapshot[] {
+    return [...this.#generations.values()].map((generation) =>
+      generation.inspect(),
     )
-    this.#plugins.set(handle.id, handle)
-    this.#events.emit('plugin-mounted', { id: handle.id })
-    return handle
   }
 
-  useBeeAgentPlugin(
-    plugin: LifecycleBeeAgentPlugin,
-    options: BeeAgentPluginMountOptions = {},
-  ): BeeAgentPluginHandle {
-    this.#assertMutable('Cannot mount a Bee Agent plugin')
-    const manifestId = plugin.manifest.id
-    for (const entry of this.#quarantine.values()) {
-      if (entry.pluginId !== manifestId) continue
-      throw new Error(
-        `Plugin '${manifestId}' is quarantined after a failed unload and requires a kernel restart before it can be mounted again`,
-      )
+  async stop(): Promise<void> {
+    const failures: unknown[] = []
+    for (const generation of [...this.#generations.values()].reverse()) {
+      try {
+        await generation.drain()
+        await generation.dispose()
+      } catch (error) {
+        failures.push(error)
+      }
     }
-    const controller = prepareBeeAgentPluginMount(plugin, options)
-    const scope = this.context.plugin(controller.plugin, {})
-    const handle = new CordisBeeAgentPluginHandle(
-      this.#nextPluginId(manifestId),
-      scope,
-      plugin,
-      controller,
-      {
-        onDisposed: (id) => this.#handlePluginDisposed(id),
-        onQuarantined: (id, error) =>
-          this.#handlePluginQuarantined(id, error, manifestId),
-      },
-      options.replacementTier ?? 'a',
-    )
-    this.#plugins.set(handle.id, handle)
-    this.#events.emit('plugin-mounted', { id: handle.id })
-    return handle
-  }
-
-  #setState(to: KernelState): void {
-    const from = this.#state
-    if (from === to) return
-    this.#state = to
-    this.#events.emit('state-changed', { from, to })
-  }
-
-  #assertMutable(action: string): void {
-    if (this.#state === 'stopping' || this.#state === 'stopped') {
-      throw new Error(`${action} while the kernel is '${this.#state}'`)
+    this.#generations.clear()
+    this.#active = undefined
+    this.#restartRequiredPlugins = []
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'Kernel stop failed')
     }
   }
 
-  #failWaiters(error: Error): void {
-    for (const waiter of [...this.#waiters]) {
-      waiter.fail(error)
-    }
-  }
-
-  #handleTaskScopeDisposed(taskId: string): void {
-    const scope = this.#taskScopes.get(taskId)
-    if (!scope) return
-    this.#taskScopes.delete(taskId)
-    scope.markDisposed()
-    this.#events.emit('task-scope-disposed', { taskId })
-  }
-
-  #handlePluginDisposed(id: string): void {
-    if (this.#plugins.delete(id)) {
-      this.#events.emit('plugin-unmounted', { id })
-    }
-  }
-
-  #handlePluginQuarantined(
-    id: string,
-    error: unknown,
-    pluginId?: string,
-  ): void {
-    this.#quarantine.set(id, { id, pluginId, error })
-    this.#events.emit('plugin-quarantined', { id, pluginId, error })
-  }
-
-  #nextPluginId(label: string): string {
-    const clean = label.replaceAll(/[^a-zA-Z0-9-_]/g, '') || 'plugin'
-    let id = `${clean}-${++this.#pluginCounter}`
-    while (this.#plugins.has(id)) {
-      id = `${clean}-${++this.#pluginCounter}`
-    }
-    return id
+  async #emit(event: KernelLifecycleEvent): Promise<void> {
+    await this.#options.onLifecycleEvent?.(event)
   }
 }
 
-function pluginLabel(plugin: Plugin): string {
-  if (typeof plugin === 'function') return plugin.name || 'plugin'
-  if (typeof plugin === 'object' && plugin !== null) {
-    const object = plugin as PluginObject<Context>
-    if (typeof object.apply === 'function' && object.apply.name) {
-      return object.apply.name
-    }
-  }
-  return 'plugin'
+function pluginGraphDigest(plugins: readonly RuntimePlugin[]): string {
+  return configDigest(
+    plugins.map((plugin) => ({
+      id: plugin.id,
+      version: plugin.version,
+      config: plugin.config,
+      inject: plugin.inject,
+      provides: plugin.provides,
+      replacementTier: plugin.replacementTier,
+    })),
+  )
 }
 
-export function createKernel(config: KernelConfig = {}): Kernel {
-  return new Kernel(config)
+export function createKernel(options: KernelOptions = {}): Kernel {
+  return new Kernel(options)
 }

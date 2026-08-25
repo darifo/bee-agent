@@ -3,3 +3,5 @@ dist/
 coverage/
 pnpm-lock.yaml
 .zcode/
+# Vendored cordis source (kept in upstream formatting for easy diffing).
+packages/kernel/src/cordis/

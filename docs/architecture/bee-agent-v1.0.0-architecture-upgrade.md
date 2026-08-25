@@ -6,6 +6,8 @@
 > 日期：2026-08-24  
 > 迁移策略：允许破坏性重构，不承诺 v0 API、事件、存储或插件兼容
 
+> 2026-08-25 实施校正：内核不再采用“最小自有 Context”折中方案。ADR 0030 已落地 Cordis 派生的 Context–Registry–Fiber 源码移植，并由 Bee `StructureGeneration`、`GenerationLease`、`ContextPolicy` 和 B/C 替换治理包裹；旧内核与兼容出口已删除。实现细节与开发模板见 `kernel-opt-development-plan.md`。
+
 ## 1. 技术结论
 
 Bee Agent v1.0.0 的准确定位是一个 **简单、聪明、好用、会长期成长的个人超级智能体（Personal Super Agent）**。它不是企业级智能体平台，也不是只面向编码的 Agent，而是一个由个人拥有、在个人设备或私有环境中持续工作的统一智能体：能理解目标、调用多种能力、记住长期关系与经验，并在不增加日常使用负担的前提下逐步改善自己。

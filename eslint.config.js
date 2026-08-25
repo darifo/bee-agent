@@ -11,6 +11,9 @@ export default tseslint.config(
       '**/coverage/**',
       '**/node_modules/**',
       '.zcode/**',
+      // Vendored cordis source (MIT, from deepseek-harness): compiled under
+      // its own relaxed tsconfig; not linted to Bee's stricter rules.
+      'packages/kernel/src/cordis/**',
     ],
   },
   eslint.configs.recommended,

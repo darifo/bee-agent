@@ -57,8 +57,8 @@ paused, resumed, and extended.
 - **Modular by design** — runtime capabilities live behind package and plugin
   boundaries instead of accumulating in a single core.
 - **Traceable execution** — task events are append-only, ordered, and replayable.
-- **Lifecycle safety** — Cordis contexts and scopes manage services, effects, and
-  task-scoped resource cleanup.
+- **Lifecycle safety** — Cordis-derived Context/Registry/Fiber ownership manages
+  services and effects; reference-counted structure generations keep live Turns stable.
 - **Storage portability** — domain contracts keep SQLite and PostgreSQL details
   out of runtime code.
 - **Schema-first contracts** — Zod schemas provide runtime validation and strict
@@ -73,10 +73,10 @@ paused, resumed, and extended.
 ```mermaid
 flowchart TB
   clients["Clients<br/>Web · CLI · Desktop"]
-  server["Agent Server<br/>HTTP · SSE · Composition Root"]
-  kernel["Cordis Kernel<br/>Context · Scope · Services · Lifecycle"]
-  runtime["Core Runtimes<br/>Task · Agent · Policy · Memory"]
-  storage["Storage Contracts<br/>Event Store · Vector Store"]
+  server["Bee Host<br/>HTTP · SSE · Plugin Graph"]
+  kernel["Bee Kernel<br/>Context · Registry · Fiber · Generations"]
+  runtime["Agent Runtime<br/>Thread · Turn · Item · AgentLoop"]
+  storage["Chronicle + Storage<br/>Facts · Projections"]
   plugins["Capability Plugins<br/>Tools · Models · Policies"]
   adapters["External Adapters<br/>MCP · Python · Agent Harnesses"]
 
@@ -94,23 +94,23 @@ abstractions, and SQLite Event Store.
 
 ## Current capabilities
 
-| Area               | Status    | Details                                                                                                                                                                                                                                                                                                                                                 |
-| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo toolchain | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                                                                                                                                                        |
-| Shared contracts   | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                                                                                                                                                                     |
-| Cordis kernel      | Available | Lifecycle state machine, service keys, catalog, and waiters, domain events with waterfall middleware, task scopes with service isolation, Cordis and Bee Agent plugin mounting                                                                                                                                                                          |
-| Core runtimes      | Available | Task state machine with replayable lifecycle events and snapshots, agent contract with mock agent, tool registry and `tools/execute` pipeline, policy engine with approval suspension, expiry, and cancellation                                                                                                                                         |
-| SQLite storage     | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                                                                                                                                                                 |
-| Server             | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses                                                                                                                                                 |
-| Client SDK and CLI | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                                                                                                                                                           |
-| Web UI             | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                                                                                                                                                                  |
-| PostgreSQL storage | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                                                                                                    |
-| pgvector store     | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage                                                                                    |
-| Memory runtime     | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                                                                                                         |
-| Model providers    | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted                                                                                          |
-| MCP tools          | Available | Zero-dependency MCP stdio client (ADR 0014): each configured server runs as its own child process, tools register as `mcp.<server>.<tool>` and flow through the policy pipeline; server death surfaces as tool errors with the stderr tail; children stop with the kernel                                                                               |
-| Python tool        | Available | Opt-in `tools.python` (ADR 0015, env `BEE_AGENT_ENABLE_PYTHON`): one-shot interpreter per call with `args` injection, stdout-as-output contract (JSON parsed), timeouts, output caps, and stderr-mapped tool errors — crash isolation, not a security sandbox                                                                                           |
-| External agents    | Available | Adapters behind the `Agent` contract (ADR 0016): `RemoteAgent` federates a run to another Bee Agent server over the Client SDK with message mirroring and cancellation propagation; `CommandAgent` wraps any executable (`{input}` argv or stdin, stdout is the reply, timeouts); registered via `buildServer({ agents })` / `BEE_AGENT_COMMAND_AGENTS` |
+| Area                  | Status    | Details                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo toolchain    | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                                                                                                                                                        |
+| Shared contracts      | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                                                                                                                                                                     |
+| Cordis-derived kernel | Available | Proxy Context, inject-driven Registry/Fiber activation, Fiber-owned effects, scoped service isolation, immutable StructureGeneration switching, Turn leases, monotonic ContextPolicy, and restart-required governance                                                                                                                                   |
+| Core runtime          | Available | Chronicle-backed Thread–Turn–Item AgentLoop, tool execution and approval suspension/recovery seams, plus Goal/Plan support; AgentLoop is exposed as a Kernel-managed plugin service                                                                                                                                                                     |
+| SQLite storage        | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                                                                                                                                                                 |
+| Server                | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses                                                                                                                                                 |
+| Client SDK and CLI    | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                                                                                                                                                           |
+| Web UI                | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                                                                                                                                                                  |
+| PostgreSQL storage    | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                                                                                                    |
+| pgvector store        | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage                                                                                    |
+| Memory runtime        | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                                                                                                         |
+| Model providers       | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted                                                                                          |
+| MCP tools             | Available | Zero-dependency MCP stdio client (ADR 0014): each configured server runs as its own child process, tools register as `mcp.<server>.<tool>` and flow through the policy pipeline; server death surfaces as tool errors with the stderr tail; children stop with the kernel                                                                               |
+| Python tool           | Available | Opt-in `tools.python` (ADR 0015, env `BEE_AGENT_ENABLE_PYTHON`): one-shot interpreter per call with `args` injection, stdout-as-output contract (JSON parsed), timeouts, output caps, and stderr-mapped tool errors — crash isolation, not a security sandbox                                                                                           |
+| External agents       | Available | Adapters behind the `Agent` contract (ADR 0016): `RemoteAgent` federates a run to another Bee Agent server over the Client SDK with message mirroring and cancellation propagation; `CommandAgent` wraps any executable (`{input}` argv or stdin, stdout is the reply, timeouts); registered via `buildServer({ agents })` / `BEE_AGENT_COMMAND_AGENTS` |
 
 ## Requirements
 
@@ -251,28 +251,19 @@ BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_a
 ```text
 bee-agent/
 ├── apps/
-│   ├── server/              # Fastify HTTP + SSE composition root
-│   ├── cli/                 # Commander-based `bee` client
-│   └── web/                 # React 19 + Vite task console
+│   ├── bee/                 # Fastify Host; composes core services as a Kernel plugin graph
+│   └── web/                 # React client
 ├── packages/
-│   ├── contracts/           # Zod schemas and shared domain/transport types
-│   ├── plugin-sdk/          # Public plugin manifest and lifecycle contract
-│   ├── kernel/              # Cordis foundation: lifecycle, services, scopes, plugins
-│   ├── runtime/             # Core runtimes: task loop, state machine, agents, policies, tools
-│   ├── client/              # Client SDK: REST commands + SSE event streaming
-│   ├── model-providers/     # OpenAI-compatible Agent and Embedder providers
-│   ├── storage/             # Storage and transaction boundaries
-│   ├── event-store/         # Append-only Event Store contract
-│   └── vector-store/        # Vector Store and embedding-space boundary
-├── plugins/
-│   ├── storage/sqlite/      # Working SQLite storage and Event Store
-│   ├── storage/postgres/    # Working PostgreSQL storage and Event Store
-│   ├── tools/calculator/    # Working calculator tool plugin
-│   ├── tools/mcp/           # Working MCP stdio tool bridge
-│   ├── tools/python/        # Opt-in one-shot Python worker tool
-│   └── vector/pgvector/     # Working pgvector Vector Store
-├── adapters/                # External agent adapters (remote federation, commands)
-├── python/                  # Future Python worker projects
+│   ├── kernel/              # Cordis-derived runtime + Bee StructureGeneration governance
+│   ├── knowledge/           # Chronicle contracts and structure events
+│   ├── thread/              # Thread–Turn–Item protocol
+│   ├── runtime/             # AgentLoop and runtime plugins
+│   ├── context/             # ContextManifest, budgets, lazy Skills/Tools
+│   ├── kanban/              # Durable task plane
+│   ├── execution/           # Execution boundary contracts
+│   └── model-providers/     # OpenAI-compatible LLM providers
+├── adapters/
+│   └── storage/sqlite/      # SQLite Chronicle and Kanban stores
 ├── tests/                   # Shared integration and E2E suites
 └── docs/                    # ADRs and the v1 architecture/refactor plans
 ```
@@ -324,9 +315,10 @@ dedicated Vector Store contract.
 - [x] Add MCP tool servers over the stdio bridge
 - [x] Add the opt-in Python worker tool
 - [x] Add external agents behind the Agent contract
-- [ ] v1 Phase 0: freeze v0, core ADRs, new package skeletons, and CI gates
-- [ ] v1 Phase 1: Cordis base and the Thread–Turn–Item protocol
-- [ ] v1 Phase 2: Kanban, context budgets, and lazy Skills/Tools
+- [x] v1 Phase 0: freeze v0, core ADRs, new package skeletons, and CI gates
+- [x] v1 Phase 1: Cordis-derived base and the Thread–Turn–Item protocol
+- [x] v1 Phase 2: Kanban, context budgets, and lazy Skills/Tools
+- [x] Kernel optimization: Registry/Fiber single source, StructureGeneration, Turn pinning, Host plugin graph
 - [ ] v1 Phase 3: unified ExecutionWorld and sandbox boundaries
 - [ ] v1 Phase 4: personal memory, world model, and the long-running host
 - [ ] v1 Phase 5: background learning and governed improvement

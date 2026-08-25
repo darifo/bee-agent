@@ -6,6 +6,7 @@ import {
   allowedInternalImports,
   checkSource,
   extractInternalSpecifiers,
+  extractImportSpecifiers,
   internalPackageName,
   knownInternalPackages,
 } from './check-package-boundaries.mjs'
@@ -18,6 +19,13 @@ test('internalPackageName maps specifiers and subpaths to package names', () => 
   assert.equal(internalPackageName('node:fs'), undefined)
   assert.equal(internalPackageName('./relative.js'), undefined)
   assert.equal(internalPackageName('@types/node'), undefined)
+})
+
+test('extractImportSpecifiers includes external runtime imports', () => {
+  assert.deepEqual(
+    extractImportSpecifiers("import { Context } from 'cordis'"),
+    ['cordis'],
+  )
 })
 
 test('extractInternalSpecifiers finds static, type-only, side-effect, and dynamic imports', () => {
@@ -92,6 +100,15 @@ test('checkSource flags self-imports and unknown workspace names', () => {
   assert.equal(violations.length, 2)
   assert.ok(violations.some((violation) => violation.imported === 'kernel'))
   assert.ok(violations.some((violation) => violation.unknown))
+})
+
+test('checkSource forbids bypassing the Bee kernel runtime', () => {
+  const violations = checkSource({
+    packageName: 'runtime',
+    code: "import { Context } from 'cordis'",
+  })
+  assert.equal(violations.length, 1)
+  assert.equal(violations[0].forbidden, true)
 })
 
 test('allowedInternalImports reflects the v1 dependency DAG', () => {

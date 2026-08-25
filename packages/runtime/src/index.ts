@@ -36,3 +36,5 @@ export type {
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'
+export { AGENT_LOOP_SERVICE, createAgentLoopPlugin } from './plugin.ts'
+export type { AgentLoopPluginOptions } from './plugin.ts'

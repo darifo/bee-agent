@@ -1,34 +1,12 @@
-export { Kernel, createKernel } from './kernel.ts'
-export { EventBus, EventBusChild } from './events.ts'
-export { EffectScope } from './effects.ts'
-export { REPLACEMENT_TIERS, ReplacementCoordinator } from './replacement.ts'
-export type {
-  ReplacementOutcome,
-  ReplacementRequest,
-  ReplacementTier,
-} from './replacement.ts'
-export type {
-  EffectAddOptions,
-  EffectDisposer,
-  EffectReleaseFailure,
-  EffectReleaseResult,
-} from './effects.ts'
-export {
-  defineBroadcastEvent,
-  defineParallelEvent,
-  defineSerialEvent,
-  defineWaterfallEvent,
-} from './events.ts'
-export type {
-  BroadcastEvent,
-  ParallelEvent,
-  SerialEvent,
-  WaterfallEvent,
-  SerialListener,
-  WaterfallMiddleware,
-  WaterfallTerminal,
-} from './events.ts'
-export { defineServiceKey, serviceName } from './types.ts'
+/**
+ * Bee kernel public surface.
+ *
+ * Cordis owns Context/Registry/Fiber and effect lifecycles. Bee adds immutable
+ * StructureGeneration snapshots, Turn pinning, policy-scoped service access,
+ * and deterministic structure resolution.
+ */
+export * from './cordis/index.ts'
+
 export {
   BEE_PROFILE_ID,
   BundleSchema,
@@ -55,41 +33,36 @@ export type {
   StructureRef,
   StructureVersion,
 } from './structure.ts'
-export type {
-  BeeAgentPluginHandle,
-  BeeAgentPluginLifecycleHooks,
-  BeeAgentPluginMountOptions,
-  KernelConfig,
-  KernelEvents,
-  KernelEventName,
-  KernelState,
-  LifecycleBeeAgentPlugin,
-  PluginHandle,
-  PluginHandleStatus,
-  PluginDrainOptions,
-  PluginDrainReport,
-  PluginHealthReport,
-  PluginHealthStatus,
-  PluginQuarantineEntry,
-  PluginQuarantinedEvent,
-  ServiceKey,
-  ServiceKeyLike,
-  StateChangedEvent,
-  ServiceRegisteredEvent,
-  ServiceUnregisteredEvent,
-  TaskScope,
-  TaskScopeEvent,
-  PluginEvent,
-} from './types.ts'
 
-export { Context } from './context.ts'
-export type {
-  Disposer,
-  ForkScope,
-  Plugin,
-  PluginFunction,
-  PluginLike,
-  PluginObject,
-} from './context.ts'
 export { PluginManifestSchema } from './plugin.ts'
-export type { BeeAgentPlugin, PluginManifest } from './plugin.ts'
+export type { PluginManifest } from './plugin.ts'
+
+export {
+  ContextScope,
+  ContextPolicy,
+  DuplicateServiceProviderError,
+  GenerationLease,
+  Kernel,
+  MissingPluginDependencyError,
+  NoActiveStructureGenerationError,
+  PluginActivationError,
+  PluginDependencyCycleError,
+  REPLACEMENT_TIERS,
+  RestrictedServiceAccessError,
+  StructureVersionCollisionError,
+  StructureGeneration,
+  createKernel,
+} from './kernel.ts'
+export type {
+  FiberSnapshot,
+  FiberStatus,
+  KernelLifecycleEvent,
+  KernelOptions,
+  PluginGraph,
+  PluginHealth,
+  ReconcileResult,
+  ReplacementTier,
+  RuntimePlugin,
+  RuntimeGraphSnapshot,
+  StructureGenerationState,
+} from './kernel.ts'

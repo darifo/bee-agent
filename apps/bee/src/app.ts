@@ -2,12 +2,12 @@ import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
 import type { ChronicleStore } from '@bee-agent/knowledge'
+import type { Kernel } from '@bee-agent/kernel'
 import {
   KANBAN_TOOL_DEFINITIONS,
   createKanbanToolExecutor,
 } from '@bee-agent/kanban'
 import type { KanbanStore } from '@bee-agent/kanban'
-import { AgentLoop } from '@bee-agent/runtime'
 import type {
   AgentLoopToolSlot,
   LlmRuntime,
@@ -15,6 +15,10 @@ import type {
 } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
+import {
+  createBeeKernelRuntime,
+  type AgentLoopService,
+} from './kernel-runtime.ts'
 import { kanbanRoutes } from './routes/kanban.ts'
 import { threadRoutes } from './routes/threads.ts'
 
@@ -48,12 +52,7 @@ export function loopbackOrigins(origin: string | undefined): boolean {
 
 /** True when a listening address is loopback-only (the safe default). */
 export function isLoopbackHost(host: string): boolean {
-  return (
-    host === '127.0.0.1' ||
-    host === 'localhost' ||
-    host === '::1' ||
-    host === '::'
-  )
+  return host === '127.0.0.1' || host === 'localhost' || host === '::1'
 }
 
 /**
@@ -97,7 +96,8 @@ export interface BeeServer {
   readonly app: FastifyInstance
   readonly store: BroadcastingChronicleStore
   readonly kanban: KanbanStore
-  readonly loop: AgentLoop
+  readonly loop: AgentLoopService
+  readonly kernel: Kernel
 }
 
 function toFastifyCorsOrigin(
@@ -169,24 +169,28 @@ export async function buildBeeServer(
   options: BeeServerOptions,
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
-  const loop = new AgentLoop({
-    llm: options.llm,
+  const tools = compositeToolSlot(options.kanban, options.tools)
+  const toolSpecs = [
+    ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
+      id: definition.id,
+      description: definition.description,
+      inputSchema: definition.inputSchema,
+    })),
+    ...(options.toolSpecs ?? []),
+  ]
+  const runtime = await createBeeKernelRuntime({
     store,
-    tools: compositeToolSlot(options.kanban, options.tools),
-    toolSpecs: [
-      ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
-        id: definition.id,
-        description: definition.description,
-        inputSchema: definition.inputSchema,
-      })),
-      ...(options.toolSpecs ?? []),
-    ],
+    kanban: options.kanban,
+    llm: options.llm,
+    tools,
+    toolSpecs,
   })
+  const { kernel, loop } = runtime
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
-  app.decorate('bee', { store, kanban: options.kanban, loop })
+  app.decorate('bee', { store, kanban: options.kanban, loop, kernel })
 
   if (options.sessionToken !== undefined) {
     app.addHook('onRequest', async (request, reply) => {
@@ -212,9 +216,10 @@ export async function buildBeeServer(
   await app.register(threadRoutes, { corsOrigin })
   await app.register(kanbanRoutes)
   app.addHook('onClose', async () => {
+    await runtime.stop()
     await store.close()
   })
-  return { app, store, kanban: options.kanban, loop }
+  return { app, store, kanban: options.kanban, loop, kernel }
 }
 
 async function denyUnauthorized(

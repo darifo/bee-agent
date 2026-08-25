@@ -1,11 +1,7 @@
 import { z } from 'zod'
 
-/**
- * The Bee Agent plugin contract (formerly `@bee-agent/plugin-sdk`, absorbed
- * into the kernel per the v1 plan §3.1). A plugin declares a stable manifest
- * and implements start/stop; the kernel manages its reversible lifecycle and
- * enforces the manifest's declared tier at mount time.
- */
+/** Static package metadata. Runtime activation is expressed by
+ * `RuntimePlugin.apply(ctx, config)` and owned by its Fiber. */
 
 export const PluginManifestSchema = z.object({
   id: z.string().min(1),
@@ -20,9 +16,3 @@ export const PluginManifestSchema = z.object({
   entry: z.string().min(1),
 })
 export type PluginManifest = z.infer<typeof PluginManifestSchema>
-
-export interface BeeAgentPlugin {
-  readonly manifest: PluginManifest
-  start(): void | Promise<void>
-  stop(): void | Promise<void>
-}

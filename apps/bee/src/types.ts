@@ -1,6 +1,7 @@
-import type { AgentLoop } from '@bee-agent/runtime'
+import type { Kernel } from '@bee-agent/kernel'
 import type { KanbanStore } from '@bee-agent/kanban'
 import type { BroadcastingChronicleStore } from './broadcasting-store.ts'
+import type { AgentLoopService } from './kernel-runtime.ts'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -8,7 +9,8 @@ declare module 'fastify' {
     bee: {
       readonly store: BroadcastingChronicleStore
       readonly kanban: KanbanStore
-      readonly loop: AgentLoop
+      readonly loop: AgentLoopService
+      readonly kernel: Kernel
     }
   }
 }

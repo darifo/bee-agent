@@ -63,6 +63,9 @@ importers:
 
   apps/bee:
     dependencies:
+      '@bee-agent/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@bee-agent/kanban':
         specifier: workspace:*
         version: link:../../packages/kanban

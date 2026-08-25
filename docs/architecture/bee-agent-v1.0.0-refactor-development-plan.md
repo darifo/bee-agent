@@ -7,6 +7,8 @@
 > 日期：2026-08-24
 > 排期约定：本计划不含日历排期；任务只标注依赖关系与相对规模（S/M/L），S 为单次专注会话可完成，M 为数个工作日，L 为需要多次会话且应再拆分
 
+> 2026-08-25 内核实施覆盖：本文件 Phase 1 中关于最小 Context、EffectScope、PluginHandle 和 ReplacementCoordinator 的完成描述已由 ADR 0030 取代。当前实现是 Cordis 派生 Context–Registry–Fiber + Bee StructureGeneration；旧近似层已删除。内核的现行开发规则以 `kernel-opt-development-plan.md` 为准。
+
 ## 1. 计划定位与使用方式
 
 ### 1.1 与架构方案的关系

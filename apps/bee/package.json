@@ -19,6 +19,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@bee-agent/kernel": "workspace:*",
     "@bee-agent/kanban": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
     "@bee-agent/model-providers": "workspace:*",

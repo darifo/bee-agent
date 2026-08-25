@@ -16,12 +16,28 @@ export const V1_PACKAGE_DEPENDENCIES = {
   learning: ['kernel', 'knowledge', 'runtime', 'context'],
   'model-providers': ['runtime'],
   client: ['thread'],
+  'storage-sqlite': ['kanban', 'knowledge'],
+  bee: [
+    'kernel',
+    'kanban',
+    'knowledge',
+    'model-providers',
+    'runtime',
+    'storage-sqlite',
+    'thread',
+  ],
 }
 
 const INTERNAL_PREFIX = '@bee-agent/'
 
 const SPECIFIER_PATTERN =
   /(?:\bfrom\s+|\bimport\s*\(?\s*|\brequire\s*\(?\s*)['"]([^'"]+)['"]/g
+
+const FORBIDDEN_RUNTIME_PACKAGES = new Set(['cordis', 'cosmokit'])
+
+export function extractImportSpecifiers(source) {
+  return [...source.matchAll(SPECIFIER_PATTERN)].map((match) => match[1])
+}
 
 export function internalPackageName(specifier) {
   if (!specifier.startsWith(INTERNAL_PREFIX)) return undefined
@@ -31,8 +47,8 @@ export function internalPackageName(specifier) {
 /** Every internal import specifier referenced by a source file. */
 export function extractInternalSpecifiers(source) {
   const found = []
-  for (const match of source.matchAll(SPECIFIER_PATTERN)) {
-    const name = internalPackageName(match[1])
+  for (const specifier of extractImportSpecifiers(source)) {
+    const name = internalPackageName(specifier)
     if (name !== undefined) found.push(name)
   }
   return found
@@ -56,6 +72,17 @@ export function checkSource(source) {
   const allowed = allowedInternalImports(packageName)
   const known = new Set(knownInternalPackages())
   const offenders = new Map()
+
+  for (const specifier of extractImportSpecifiers(source.code)) {
+    const root = specifier.split('/')[0]
+    if (FORBIDDEN_RUNTIME_PACKAGES.has(root)) {
+      offenders.set(`forbidden:${root}`, {
+        packageName,
+        imported: root,
+        forbidden: true,
+      })
+    }
+  }
 
   for (const imported of extractInternalSpecifiers(source.code)) {
     const isSelf = imported === packageName
@@ -84,9 +111,21 @@ async function scanWorkspace(rootDir) {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
 
-  for (const packageName of packageDirs) {
+  const targets = [
+    ...packageDirs.map((packageName) => ({
+      packageName,
+      directory: join(rootDir, 'packages', packageName),
+    })),
+    { packageName: 'bee', directory: join(rootDir, 'apps', 'bee') },
+    {
+      packageName: 'storage-sqlite',
+      directory: join(rootDir, 'adapters', 'storage', 'sqlite'),
+    },
+  ]
+
+  for (const { packageName, directory } of targets) {
     for (const area of ['src', 'tests']) {
-      const areaDir = join(rootDir, 'packages', packageName, area)
+      const areaDir = join(directory, area)
       let files
       try {
         files = await readdir(areaDir, { recursive: true, withFileTypes: true })
@@ -107,6 +146,9 @@ async function scanWorkspace(rootDir) {
 }
 
 function formatViolation(violation) {
+  if (violation.forbidden) {
+    return `${violation.file}: imports forbidden runtime package '${violation.imported}'; use @bee-agent/kernel`
+  }
   const rule = violation.unknown
     ? 'not a known workspace package'
     : 'outside its allowed dependencies'
