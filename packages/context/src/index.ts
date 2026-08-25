@@ -28,3 +28,19 @@ export {
   registerContextManifestChronicleEvents,
 } from './manifest-events.ts'
 export type { ContextManifestScope } from './manifest-events.ts'
+
+export {
+  PROTECTED_CONTENT,
+  SECTION_PRIORITIES,
+  allocateContextBudget,
+  compileContextManifest,
+  truncatingCompression,
+} from './context-budget.ts'
+export type {
+  CompileContextInput,
+  CompressionPolicy,
+  ContextAllocation,
+  PromptSection,
+  ProtectedContent,
+  SectionPriority,
+} from './context-budget.ts'
