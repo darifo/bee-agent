@@ -1,12 +1,17 @@
-import type { KanbanTask, KanbanTaskStatus } from './protocol.ts'
+import type {
+  KanbanClaimLease,
+  KanbanTask,
+  KanbanTaskStatus,
+} from './protocol.ts'
 
 /**
  * The Kanban state machine (architecture §15.2). The active flow is
  * `inbox → triaged → ready → running → blocked/review → done`; every active
  * state can also be `failed`, `cancelled`, or `archived`, and terminal
  * states can be archived. Retry re-enters `ready`/`running` from `failed`,
- * and a blocked or failed task resumes into `running`. Only a task in
- * `running` may hold a claim lease.
+ * a blocked or failed task resumes into `running`, and `running → ready`
+ * releases a task back to the queue (lease expiry or a worker giving it
+ * back). Only a task in `running` may hold a claim lease.
  */
 export const KANBAN_TRANSITIONS: Readonly<
   Record<KanbanTaskStatus, readonly KanbanTaskStatus[]>
@@ -14,7 +19,15 @@ export const KANBAN_TRANSITIONS: Readonly<
   inbox: ['triaged', 'cancelled', 'failed', 'archived'],
   triaged: ['ready', 'cancelled', 'failed', 'archived'],
   ready: ['running', 'cancelled', 'failed', 'archived'],
-  running: ['blocked', 'review', 'done', 'cancelled', 'failed', 'archived'],
+  running: [
+    'ready',
+    'blocked',
+    'review',
+    'done',
+    'cancelled',
+    'failed',
+    'archived',
+  ],
   blocked: ['running', 'ready', 'cancelled', 'failed', 'archived'],
   review: ['done', 'running', 'cancelled', 'failed', 'archived'],
   done: ['archived'],
@@ -88,6 +101,8 @@ export interface KanbanTransitionCommand {
   readonly reason?: string | undefined
   /** Transition time; defaults to now, injectable for deterministic tests. */
   readonly at?: string | undefined
+  /** Claim lease to attach when entering `running`; ignored otherwise. */
+  readonly claim?: KanbanClaimLease | undefined
 }
 
 /**
@@ -120,8 +135,8 @@ export function applyTransition(
     version: task.version + 1,
     updatedAt: at,
     endedAt: terminal ? at : task.endedAt,
-    // A lease is only meaningful while executing; leaving `running`
-    // releases it. Attaching/renewing a lease is the dispatcher's job (P2-2).
-    claim: command.to === 'running' ? task.claim : undefined,
+    // A lease is only meaningful while executing: entering `running` attaches
+    // the command's claim (when given), leaving `running` releases it.
+    claim: command.to === 'running' ? (command.claim ?? task.claim) : undefined,
   }
 }

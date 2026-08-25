@@ -28,6 +28,7 @@ export function kanbanStreamId(taskId: KanbanTaskId): string {
 export const KANBAN_TASK_EVENT_TYPES = [
   'kanban.task.created',
   'kanban.task.status_changed',
+  'kanban.task.lease_renewed',
 ] as const
 export type KanbanTaskEventType = (typeof KANBAN_TASK_EVENT_TYPES)[number]
 
@@ -47,12 +48,23 @@ const KanbanTaskStatusChangedPayloadSchema = z.object({
   task: KanbanTaskSchema,
 })
 
+/**
+ * A lease renewal (heartbeat): extends a running task's claim without a
+ * status change. `leaseId` is the fencing token; `expiresAt` is the new
+ * deadline.
+ */
+const KanbanTaskLeaseRenewedPayloadSchema = z.object({
+  leaseId: z.uuid(),
+  expiresAt: z.iso.datetime(),
+})
+
 const KANBAN_TASK_EVENT_PAYLOADS: Record<
   KanbanTaskEventType,
   z.ZodType<unknown>
 > = {
   'kanban.task.created': KanbanTaskCreatedPayloadSchema,
   'kanban.task.status_changed': KanbanTaskStatusChangedPayloadSchema,
+  'kanban.task.lease_renewed': KanbanTaskLeaseRenewedPayloadSchema,
 }
 
 /** Registers every kanban task event type on a Chronicle registry. */
@@ -112,6 +124,24 @@ export function kanbanTaskStatusChangedEvent(
       reason: input.reason,
       task: input.task,
     },
+  })
+}
+
+export interface KanbanTaskLeaseRenewedInput {
+  readonly taskId: KanbanTaskId
+  readonly leaseId: string
+  readonly expiresAt: string
+}
+
+export function kanbanTaskLeaseRenewedEvent(
+  input: KanbanTaskLeaseRenewedInput,
+  options: KanbanEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'kanban.task.lease_renewed',
+    actor: options.actor ?? DEFAULT_ACTOR,
+    taskId: input.taskId,
+    payload: { leaseId: input.leaseId, expiresAt: input.expiresAt },
   })
 }
 
