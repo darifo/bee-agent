@@ -1,7 +1,30 @@
-/**
- * Context assembly: prompt sections, context budgets, compression, the Skill registry, and the tool index/resolver.
- *
- * Skeleton package scaffolded in v1 Phase 0; public surface lands with the
- * Phase 1+ tasks in docs/architecture/bee-agent-v1.0.0-refactor-development-plan.md.
- */
-export {}
+export {
+  ContextManifestSchema,
+  ContextOmissionSchema,
+  ContextReconstructionError,
+  ContextSectionSchema,
+  SECTION_KINDS,
+  buildContextManifest,
+  computeSectionDigest,
+  estimateTokens,
+  rebuildContextInput,
+} from './context-manifest.ts'
+export type {
+  BuildContextManifestInput,
+  ContextManifest,
+  ContextOmission,
+  ContextRenderer,
+  ContextSection,
+  ContextSectionDraft,
+  RebuiltSection,
+  SectionKind,
+} from './context-manifest.ts'
+
+export {
+  CONTEXT_MANIFEST_EVENT_TYPE,
+  ContextManifestPayloadSchema,
+  appendContextManifest,
+  contextManifestEvent,
+  registerContextManifestChronicleEvents,
+} from './manifest-events.ts'
+export type { ContextManifestScope } from './manifest-events.ts'
