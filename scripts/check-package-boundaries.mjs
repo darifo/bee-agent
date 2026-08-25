@@ -28,8 +28,8 @@ export const LEGACY_PACKAGE_ALLOWANCES = {
   'plugin-sdk': [],
   // Rewritten as the LLMRuntime adapter in Phase 1.
   'model-providers': ['contracts', 'runtime'],
-  // Rewritten against /threads in Phase 1 (runtime is a test-only import).
-  client: ['contracts', 'runtime'],
+  // Rewritten against /threads in Phase 1.
+  client: ['thread'],
   // Legacy kernel seams (service keys + plugin mounting) until Phase 1.
   kernel: ['event-store', 'plugin-sdk', 'storage', 'vector-store'],
   // storage/testing.ts still types the v0 EventStore contract until Phase 1.

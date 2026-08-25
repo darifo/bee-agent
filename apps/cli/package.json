@@ -14,8 +14,7 @@
   },
   "dependencies": {
     "@bee-agent/client": "workspace:*",
-    "@bee-agent/contracts": "workspace:*",
-    "@bee-agent/runtime": "workspace:*",
+    "@bee-agent/thread": "workspace:*",
     "commander": "^14.0.2"
   }
 }

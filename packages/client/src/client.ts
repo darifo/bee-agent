@@ -1,38 +1,65 @@
-import { AgentEventSchema } from '@bee-agent/contracts'
+import { ThreadEventSchema, ThreadSchema } from '@bee-agent/thread/protocol'
 import type {
-  AgentEvent,
-  ApprovalDecision,
-  ApprovalRequest,
-  CreateMemoryDocumentRequest,
-  CreateTaskRequest,
-  CreateTaskResponse,
-  MemoryDocumentResponse,
-  MemoryRecallResponse,
-} from '@bee-agent/contracts'
-import type { TaskSnapshot } from '@bee-agent/runtime'
+  Thread,
+  ThreadEvent,
+  ThreadId,
+  Turn,
+  TurnId,
+} from '@bee-agent/thread/protocol'
 import { BeeAgentClientError, BeeAgentProtocolError } from './errors.ts'
 import { parseSseStream } from './sse.ts'
 
+export type ApprovalDecision = 'approved' | 'rejected'
+
+/** The result of creating or resuming a turn, mirroring the server loop. */
+export type TurnResult =
+  | {
+      readonly status: 'completed'
+      readonly output: string
+      readonly turn: Turn
+    }
+  | { readonly status: 'failed'; readonly error: string; readonly turn: Turn }
+  | { readonly status: 'cancelled'; readonly turn: Turn }
+  | {
+      readonly status: 'suspended'
+      readonly approval: { readonly approvalId: string; readonly title: string }
+      readonly turn: Turn
+    }
+
+export interface CreateThreadInput {
+  readonly title?: string | undefined
+  readonly workspaceId?: string | undefined
+  readonly memoryView?:
+    { readonly id: string; readonly version: string } | undefined
+}
+
+export interface CreateTurnInput {
+  readonly input: string
+  readonly structureVersion?: string | undefined
+}
+
+export interface StreamItemsOptions {
+  /** Resume after this event sequence; sent as `Last-Event-ID`. */
+  readonly after?: number | undefined
+  /** Aborts the stream; the generator then finishes. */
+  readonly signal?: AbortSignal | undefined
+}
+
 export interface BeeAgentClientOptions {
-  /** Base URL of the Bee Agent server, for example `http://127.0.0.1:3000`. */
+  /** Base URL of the host, for example `http://127.0.0.1:3000`. */
   readonly baseUrl: string | URL
   /** Fetch implementation; defaults to the global `fetch`. */
   readonly fetch?: typeof fetch
-  /** Extra headers sent with every request, then every stream. */
+  /** Extra headers sent with every request and stream. */
   readonly headers?: Readonly<Record<string, string>>
-}
-
-export interface StreamEventsOptions {
-  /** Resume after this event sequence; sent as `Last-Event-ID`. */
-  readonly after?: number
-  /** Aborts the stream; the generator then finishes. */
-  readonly signal?: AbortSignal
+  /** One-time session token; sent as `Authorization: Bearer <token>`. */
+  readonly sessionToken?: string | undefined
 }
 
 /**
- * Client SDK for the Bee Agent server — the only supported way for CLI and
- * Web clients to reach runtime behavior (ADR 0003). Commands go over REST;
- * task events stream over Server-Sent Events.
+ * Client SDK for the Personal Bee Host. Threads and turns go over REST; the
+ * turn's item events stream over Server-Sent Events with `Last-Event-ID`
+ * recovery (architecture §9.1, §16.4).
  */
 export class BeeAgentClient {
   readonly #baseUrl: URL
@@ -47,123 +74,78 @@ export class BeeAgentClient {
     // Bound so the default works in browsers, where calling the detached
     // global fetch throws "Illegal invocation".
     this.#fetch = options.fetch ?? fetch.bind(globalThis)
-    this.#headers = { ...(options.headers ?? {}) }
+    this.#headers = {
+      ...(options.headers ?? {}),
+      ...(options.sessionToken !== undefined
+        ? { authorization: `Bearer ${options.sessionToken}` }
+        : {}),
+    }
   }
 
   get baseUrl(): URL {
     return this.#baseUrl
   }
 
-  /** Creates a pending task. */
-  async createTask(request: CreateTaskRequest): Promise<CreateTaskResponse> {
-    return this.#request('POST', 'tasks', { body: request })
-  }
-
-  /** Rebuilds the task snapshot by replaying its events. */
-  async getTask(taskId: string): Promise<TaskSnapshot> {
-    return this.#request('GET', `tasks/${encodeURIComponent(taskId)}`)
-  }
-
-  /** Snapshots of every task, oldest first. */
-  async listTasks(): Promise<TaskSnapshot[]> {
-    const payload = await this.#request<{ tasks: TaskSnapshot[] }>(
-      'GET',
-      'tasks',
-    )
-    return payload.tasks
-  }
-
-  /**
-   * Starts a pending task and returns the snapshot after the run began; the
-   * task keeps executing on the server. Follow progress with
-   * {@link streamEvents} or {@link getTask}.
-   */
-  async runTask(taskId: string): Promise<TaskSnapshot> {
-    return this.#request('POST', `tasks/${encodeURIComponent(taskId)}/run`)
-  }
-
-  /** Cancels a pending, running, or suspended task. */
-  async cancelTask(taskId: string, reason?: string): Promise<TaskSnapshot> {
-    return this.#request('POST', `tasks/${encodeURIComponent(taskId)}/cancel`, {
-      body: reason === undefined ? {} : { reason },
+  /** Creates a thread and returns the server-stored record. */
+  async createThread(input: CreateThreadInput = {}): Promise<Thread> {
+    const payload = await this.#request<Thread>('POST', 'threads', {
+      body: {
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.workspaceId !== undefined
+          ? { workspaceId: input.workspaceId }
+          : {}),
+        ...(input.memoryView !== undefined
+          ? { memoryView: input.memoryView }
+          : {}),
+      },
     })
+    return ThreadSchema.parse(payload)
   }
 
-  /** Lists recorded task events, optionally after a sequence. */
-  async listEvents(taskId: string, after = 0): Promise<AgentEvent[]> {
-    const payload = await this.#request<{ events: AgentEvent[] }>(
-      'GET',
-      `tasks/${encodeURIComponent(taskId)}/events`,
-      { query: after > 0 ? { after: String(after) } : undefined },
-    )
-    return payload.events.map((event) => AgentEventSchema.parse(event))
-  }
-
-  /** Lists pending approval requests, optionally scoped to one task. */
-  async listPendingApprovals(taskId?: string): Promise<ApprovalRequest[]> {
-    const payload = await this.#request<{ approvals: ApprovalRequest[] }>(
-      'GET',
-      'approvals',
-      { query: taskId === undefined ? undefined : { taskId } },
-    )
-    return payload.approvals
-  }
-
-  /** Decides a pending approval request. */
-  async resolveApproval(
-    requestId: string,
-    approved: boolean,
-    reason?: string,
-  ): Promise<ApprovalDecision> {
-    return this.#request(
+  /** Starts a turn on a thread; the server keeps running it to completion. */
+  async createTurn(
+    threadId: ThreadId,
+    input: CreateTurnInput,
+  ): Promise<TurnResult> {
+    return this.#request<TurnResult>(
       'POST',
-      `approvals/${encodeURIComponent(requestId)}/decision`,
+      `threads/${encodeURIComponent(threadId)}/turns`,
       {
-        body: reason === undefined ? { approved } : { approved, reason },
+        body: {
+          input: input.input,
+          ...(input.structureVersion !== undefined
+            ? { structureVersion: input.structureVersion }
+            : {}),
+        },
       },
     )
   }
 
-  /**
-   * Stores a document as embedded memory chunks. Requires a server with a
-   * Vector Store mounted (`BEE_AGENT_VECTOR_STORE=pgvector`).
-   */
-  async rememberDocument(
-    request: CreateMemoryDocumentRequest,
-  ): Promise<MemoryDocumentResponse> {
-    return this.#request('POST', 'memory/documents', { body: request })
-  }
-
-  /** Semantic recall of the nearest memory chunks, best first. */
-  async recallMemory(request: {
-    workspaceId: string
-    text: string
-    limit?: number | undefined
-    metadata?: Record<string, unknown> | undefined
-  }): Promise<MemoryRecallResponse> {
-    return this.#request('POST', 'memory/recall', { body: request })
-  }
-
-  /** Drops one memory chunk from its workspace. */
-  async forgetMemoryChunk(chunkId: string, workspaceId: string): Promise<void> {
-    await this.#request(
-      'DELETE',
-      `memory/chunks/${encodeURIComponent(chunkId)}`,
-      { query: { workspaceId } },
+  /** Decides a suspended turn's approval and resumes it. */
+  async resolveApproval(
+    threadId: ThreadId,
+    turnId: TurnId,
+    approvalId: string,
+    decision: ApprovalDecision,
+  ): Promise<TurnResult> {
+    return this.#request<TurnResult>(
+      'POST',
+      `threads/${encodeURIComponent(threadId)}/turns/${encodeURIComponent(turnId)}/approvals/${encodeURIComponent(approvalId)}`,
+      { body: { decision } },
     )
   }
 
   /**
-   * Streams task events over SSE: recorded events after `after` are replayed
-   * first, then live events follow. The generator finishes when the stream
-   * ends (the server closes it once the task reaches a terminal state) or
-   * when `signal` aborts.
+   * Streams a thread's wire events over SSE. Recorded events after `after`
+   * are replayed first, then live events follow; the generator finishes when
+   * the stream ends or `signal` aborts. Every frame is validated against the
+   * ThreadEvent protocol before it is yielded.
    */
-  async *streamEvents(
-    taskId: string,
-    options: StreamEventsOptions = {},
-  ): AsyncGenerator<AgentEvent, void, unknown> {
-    const url = this.#url(`tasks/${encodeURIComponent(taskId)}/events/stream`)
+  async *streamItems(
+    threadId: ThreadId,
+    options: StreamItemsOptions = {},
+  ): AsyncGenerator<ThreadEvent, void, unknown> {
+    const url = this.#url(`threads/${encodeURIComponent(threadId)}/items`)
     const headers: Record<string, string> = {
       ...this.#headers,
       accept: 'text/event-stream',
@@ -196,7 +178,7 @@ export class BeeAgentClient {
             `SSE data is not valid JSON: ${frame.data.slice(0, 120)}`,
           )
         }
-        yield AgentEventSchema.parse(parsed)
+        yield ThreadEventSchema.parse(parsed)
       }
     } catch (error) {
       if (isAbortError(error, options.signal)) {

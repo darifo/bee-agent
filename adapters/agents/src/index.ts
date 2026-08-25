@@ -7,5 +7,3 @@ export type {
   CommandAgentConfig,
   CommandAgentConfigInput,
 } from './command-agent.ts'
-export { RemoteAgent } from './remote-agent.ts'
-export type { RemoteAgentOptions } from './remote-agent.ts'

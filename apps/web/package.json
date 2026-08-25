@@ -12,8 +12,7 @@
   },
   "dependencies": {
     "@bee-agent/client": "workspace:*",
-    "@bee-agent/contracts": "workspace:*",
-    "@bee-agent/runtime": "workspace:*",
+    "@bee-agent/thread": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

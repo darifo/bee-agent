@@ -18,8 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@bee-agent/contracts": "workspace:*",
-    "@bee-agent/runtime": "workspace:*",
+    "@bee-agent/thread": "workspace:*",
     "zod": "^4.1.13"
   }
 }

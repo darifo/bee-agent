@@ -41,9 +41,6 @@ importers:
 
   adapters/agents:
     dependencies:
-      '@bee-agent/client':
-        specifier: workspace:*
-        version: link:../../packages/client
       '@bee-agent/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -94,12 +91,9 @@ importers:
       '@bee-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@bee-agent/contracts':
+      '@bee-agent/thread':
         specifier: workspace:*
-        version: link:../../packages/contracts
-      '@bee-agent/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
+        version: link:../../packages/thread
       commander:
         specifier: ^14.0.2
         version: 14.0.3
@@ -151,22 +145,15 @@ importers:
       zod:
         specifier: ^4.1.13
         version: 4.4.3
-    devDependencies:
-      '@bee-agent/client':
-        specifier: workspace:*
-        version: link:../../packages/client
 
   apps/web:
     dependencies:
       '@bee-agent/client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@bee-agent/contracts':
+      '@bee-agent/thread':
         specifier: workspace:*
-        version: link:../../packages/contracts
-      '@bee-agent/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
+        version: link:../../packages/thread
       react:
         specifier: ^19.1.0
         version: 19.2.8
@@ -195,12 +182,9 @@ importers:
 
   packages/client:
     dependencies:
-      '@bee-agent/contracts':
+      '@bee-agent/thread':
         specifier: workspace:*
-        version: link:../contracts
-      '@bee-agent/runtime':
-        specifier: workspace:*
-        version: link:../runtime
+        version: link:../thread
       zod:
         specifier: ^4.1.13
         version: 4.4.3
