@@ -1,9 +1,10 @@
+import { randomBytes } from 'node:crypto'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import { SQLiteChronicleStore } from '@bee-agent/plugin-storage-sqlite'
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import type { AgentLoopToolSlot } from '@bee-agent/runtime'
-import { buildBeeServer } from './app.js'
+import { buildBeeServer, unsafeListenReason } from './app.js'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3000
@@ -17,6 +18,17 @@ function envNumber(name: string, fallback: number): number {
 
 const host = process.env.BEE_AGENT_HOST ?? DEFAULT_HOST
 const port = envNumber('BEE_AGENT_PORT', DEFAULT_PORT)
+
+// Remote exposure fails closed (architecture §16.4): binding a non-loopback
+// address requires an explicit session token, so a stray `BEE_AGENT_HOST` or
+// a plugin cannot silently open the host to the network.
+const sessionToken = process.env.BEE_AGENT_SESSION_TOKEN
+const listenRefusal = unsafeListenReason(host, sessionToken)
+if (listenRefusal !== undefined) {
+  console.error(listenRefusal)
+  process.exit(1)
+}
+const effectiveToken = sessionToken ?? randomBytes(24).toString('hex')
 
 // The model is configured through the v1 LLMRuntime; keys arrive via
 // environment only and are never persisted.
@@ -55,7 +67,16 @@ const store = new SQLiteChronicleStore({
   filename: process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
 })
 
-const server = await buildBeeServer({ store, llm, tools })
+const server = await buildBeeServer({
+  store,
+  llm,
+  tools,
+  sessionToken: effectiveToken,
+})
+server.app.log.info(
+  { sessionToken: effectiveToken },
+  'one-time session token for the local Web client',
+)
 try {
   await server.app.listen({ host, port })
 } catch (error) {

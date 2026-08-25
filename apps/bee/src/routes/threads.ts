@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
 import type { ChronicleEvent } from '@bee-agent/knowledge'
+import type { CorsOriginPolicy } from '../app.js'
+import { loopbackOrigins } from '../app.js'
 import {
   appendThreadEvents,
   newThread,
@@ -38,15 +40,18 @@ const DecideApprovalBodySchema = z.object({
 const HEARTBEAT_MS = 15_000
 
 export interface ThreadRoutesOptions {
-  readonly corsOrigin?: boolean | string[] | undefined
+  readonly corsOrigin?: CorsOriginPolicy | undefined
 }
 
 function allowOrigin(
   requestOrigin: string | undefined,
-  corsOrigin: boolean | string[],
+  corsOrigin: CorsOriginPolicy,
 ): string | undefined {
   if (corsOrigin === true) return requestOrigin ?? '*'
   if (corsOrigin === false) return undefined
+  if (typeof corsOrigin === 'function') {
+    return corsOrigin(requestOrigin) ? requestOrigin : undefined
+  }
   if (requestOrigin !== undefined && corsOrigin.includes(requestOrigin)) {
     return requestOrigin
   }
@@ -117,7 +122,7 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
       const raw = reply.raw
       const origin = allowOrigin(
         request.headers.origin,
-        options.corsOrigin ?? true,
+        options.corsOrigin ?? loopbackOrigins,
       )
       raw.writeHead(200, {
         'content-type': 'text/event-stream',
