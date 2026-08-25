@@ -75,3 +75,14 @@ export type {
 } from './tool.ts'
 export { ToolRegistry } from './tool-registry.ts'
 export type { ToolIndex, ToolResolver } from './tool-registry.ts'
+
+export {
+  GOLDEN_SCENARIOS,
+  measureTokenBaseline,
+  runTokenBaseline,
+} from './token-baseline.ts'
+export type {
+  TokenBaselineBreakdown,
+  TokenBaselineReport,
+  TokenBaselineScenario,
+} from './token-baseline.ts'
