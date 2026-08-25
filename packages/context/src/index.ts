@@ -60,3 +60,18 @@ export type {
 } from './skill.ts'
 export { SkillRegistry, evaluateSkill } from './skill-registry.ts'
 export type { SkillEvalResult, SkillEvaluator } from './skill-registry.ts'
+
+export {
+  estimateToolSummaryTokens,
+  estimateToolTokens,
+  measureToolContextCost,
+  toToolSummary,
+} from './tool.ts'
+export type {
+  ToolContextCost,
+  ToolDefinition,
+  ToolSpec,
+  ToolSummary,
+} from './tool.ts'
+export { ToolRegistry } from './tool-registry.ts'
+export type { ToolIndex, ToolResolver } from './tool-registry.ts'
