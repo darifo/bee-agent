@@ -1,6 +1,12 @@
 export { Kernel, createKernel } from './kernel.ts'
 export { EventBus, EventBusChild } from './events.ts'
 export { EffectScope } from './effects.ts'
+export { REPLACEMENT_TIERS, ReplacementCoordinator } from './replacement.ts'
+export type {
+  ReplacementOutcome,
+  ReplacementRequest,
+  ReplacementTier,
+} from './replacement.ts'
 export type {
   EffectAddOptions,
   EffectDisposer,

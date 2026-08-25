@@ -1,6 +1,7 @@
 import type { Context, ForkScope, Plugin } from 'cordis'
 import { drainWithTimeout } from './plugin-handle.ts'
 import type { PluginHandleCallbacks } from './plugin-handle.ts'
+import type { ReplacementTier } from './replacement.ts'
 import type {
   BeeAgentPluginHandle,
   BeeAgentPluginMountOptions,
@@ -75,6 +76,7 @@ export class CordisBeeAgentPluginHandle implements BeeAgentPluginHandle {
   readonly #scope: ForkScope<Context>
   readonly #controller: BeeAgentPluginMountController
   readonly #callbacks: PluginHandleCallbacks
+  readonly #replacementTier: ReplacementTier
   #status: PluginHandleStatus = 'mounted'
   #quarantineError: unknown
 
@@ -84,6 +86,7 @@ export class CordisBeeAgentPluginHandle implements BeeAgentPluginHandle {
     plugin: LifecycleBeeAgentPlugin,
     controller: BeeAgentPluginMountController,
     callbacks: PluginHandleCallbacks,
+    replacementTier: ReplacementTier = 'a',
   ) {
     this.id = id
     this.#scope = scope
@@ -91,6 +94,11 @@ export class CordisBeeAgentPluginHandle implements BeeAgentPluginHandle {
     this.plugin = plugin
     this.#controller = controller
     this.#callbacks = callbacks
+    this.#replacementTier = replacementTier
+  }
+
+  get replacementTier(): ReplacementTier {
+    return this.#replacementTier
   }
 
   get disposed(): boolean {

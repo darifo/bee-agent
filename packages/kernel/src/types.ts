@@ -1,6 +1,7 @@
 import type { Context } from 'cordis'
 import type { EventBusChild } from './events.ts'
 import type { EffectScope } from './effects.ts'
+import type { ReplacementTier } from './replacement.ts'
 import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
 
 export interface KernelConfig {
@@ -153,6 +154,8 @@ export interface PluginHandle {
   readonly status: PluginHandleStatus
   /** The error that quarantined this plugin, if any. */
   readonly quarantineError: unknown
+  /** Declared hot-replacement tier (architecture §9.3). */
+  readonly replacementTier: ReplacementTier
   /** Resolves when the mounted plugin finished starting; rejects on failure. */
   readonly ready: Promise<void>
   /**
@@ -182,6 +185,12 @@ export interface BeeAgentPluginMountOptions {
   services?:
     | Record<string, unknown>
     | ((plugin: BeeAgentPlugin) => Record<string, unknown>)
+  /**
+   * How safely this plugin can be hot-replaced (architecture §9.3):
+   * `a` swaps only with no call in flight, `b` defers to the Turn boundary,
+   * `c` refuses hot replacement and requires a restart. Defaults to `a`.
+   */
+  replacementTier?: ReplacementTier | undefined
 }
 
 /**

@@ -281,6 +281,7 @@ export class Kernel {
         onQuarantined: (id, error) =>
           this.#handlePluginQuarantined(id, error, manifestId),
       },
+      options.replacementTier ?? 'a',
     )
     this.#plugins.set(handle.id, handle)
     this.#events.emit('plugin-mounted', { id: handle.id })

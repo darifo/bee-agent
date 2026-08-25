@@ -1,4 +1,5 @@
 import type { Context, ForkScope } from 'cordis'
+import type { ReplacementTier } from './replacement.ts'
 import type {
   PluginDrainReport,
   PluginHandle,
@@ -68,6 +69,10 @@ export class CordisPluginHandle implements PluginHandle {
 
   get quarantineError(): unknown {
     return this.#quarantineError
+  }
+
+  get replacementTier(): ReplacementTier {
+    return 'a'
   }
 
   get ready(): Promise<void> {
