@@ -7,21 +7,24 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts --clean",
+    "build": "tsup src/index.ts src/testing.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@bee-agent/contracts": "workspace:*",
-    "@bee-agent/event-store": "workspace:*",
     "@bee-agent/kernel": "workspace:*",
-    "@bee-agent/vector-store": "workspace:*",
+    "@bee-agent/knowledge": "workspace:*",
+    "@bee-agent/thread": "workspace:*",
     "zod": "^4.1.13"
   }
 }

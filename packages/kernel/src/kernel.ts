@@ -1,14 +1,14 @@
 import { Context } from 'cordis'
 import type { Plugin } from 'cordis'
-import { KernelEmitter } from './emitter.js'
-import { EventBus } from './events.js'
+import { KernelEmitter } from './emitter.ts'
+import { EventBus } from './events.ts'
 import {
   CordisBeeAgentPluginHandle,
   prepareBeeAgentPluginMount,
-} from './plugin-adapter.js'
-import { CordisPluginHandle } from './plugin-handle.js'
-import { forkTaskScope } from './task-scope.js'
-import type { CordisTaskScope } from './task-scope.js'
+} from './plugin-adapter.ts'
+import { CordisPluginHandle } from './plugin-handle.ts'
+import { forkTaskScope } from './task-scope.ts'
+import type { CordisTaskScope } from './task-scope.ts'
 import type {
   BeeAgentPluginHandle,
   BeeAgentPluginMountOptions,
@@ -16,12 +16,13 @@ import type {
   KernelEventName,
   KernelEvents,
   KernelState,
+  LifecycleBeeAgentPlugin,
   PluginHandle,
+  PluginQuarantineEntry,
   ServiceKeyLike,
   TaskScope,
-} from './types.js'
-import { serviceName } from './types.js'
-import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
+} from './types.ts'
+import { serviceName } from './types.ts'
 
 interface ServiceWaiter {
   fail(error: Error): void
@@ -34,6 +35,7 @@ export class Kernel {
   readonly #bus = new EventBus()
   readonly #taskScopes = new Map<string, CordisTaskScope>()
   readonly #plugins = new Map<string, PluginHandle>()
+  readonly #quarantine = new Map<string, PluginQuarantineEntry>()
   readonly #waiters = new Set<ServiceWaiter>()
   #state: KernelState = 'created'
   #pluginCounter = 0
@@ -75,6 +77,19 @@ export class Kernel {
     return [...this.#taskScopes.values()]
   }
 
+  /** Plugins that failed to unload and were quarantined, oldest first. */
+  get quarantinedPlugins(): readonly PluginQuarantineEntry[] {
+    return [...this.#quarantine.values()]
+  }
+
+  /**
+   * True once any plugin is quarantined: the process cannot clean up fully
+   * and must be restarted before the affected plugin is touched again.
+   */
+  get restartRequired(): boolean {
+    return this.#quarantine.size > 0
+  }
+
   on<K extends KernelEventName>(
     event: K,
     listener: (payload: KernelEvents[K]) => void,
@@ -106,14 +121,16 @@ export class Kernel {
       new Error('Kernel stopped while waiting for services to register'),
     )
     const errors: unknown[] = []
-    for (const scope of [...this.#taskScopes.values()]) {
+    // Reverse creation/mount order: what was set up last is torn down first,
+    // so dependencies are still alive while their users release resources.
+    for (const scope of [...this.#taskScopes.values()].reverse()) {
       try {
-        scope.dispose()
+        await scope.dispose()
       } catch (error) {
         errors.push(error)
       }
     }
-    for (const handle of [...this.#plugins.values()]) {
+    for (const handle of [...this.#plugins.values()].reverse()) {
       try {
         await handle.dispose()
       } catch (error) {
@@ -214,10 +231,10 @@ export class Kernel {
     return this.#taskScopes.get(taskId)
   }
 
-  disposeTaskScope(taskId: string): boolean {
+  async disposeTaskScope(taskId: string): Promise<boolean> {
     const scope = this.#taskScopes.get(taskId)
     if (!scope) return false
-    scope.dispose()
+    await scope.dispose()
     return true
   }
 
@@ -230,7 +247,10 @@ export class Kernel {
     const handle = new CordisPluginHandle(
       this.#nextPluginId(pluginLabel(plugin)),
       scope,
-      (id) => this.#handlePluginDisposed(id),
+      {
+        onDisposed: (id) => this.#handlePluginDisposed(id),
+        onQuarantined: (id, error) => this.#handlePluginQuarantined(id, error),
+      },
     )
     this.#plugins.set(handle.id, handle)
     this.#events.emit('plugin-mounted', { id: handle.id })
@@ -238,18 +258,30 @@ export class Kernel {
   }
 
   useBeeAgentPlugin(
-    plugin: BeeAgentPlugin,
+    plugin: LifecycleBeeAgentPlugin,
     options: BeeAgentPluginMountOptions = {},
   ): BeeAgentPluginHandle {
     this.#assertMutable('Cannot mount a Bee Agent plugin')
+    const manifestId = plugin.manifest.id
+    for (const entry of this.#quarantine.values()) {
+      if (entry.pluginId !== manifestId) continue
+      throw new Error(
+        `Plugin '${manifestId}' is quarantined after a failed unload and requires a kernel restart before it can be mounted again`,
+      )
+    }
     const controller = prepareBeeAgentPluginMount(plugin, options)
     const scope = this.context.plugin(controller.plugin, {})
     const handle = new CordisBeeAgentPluginHandle(
-      this.#nextPluginId(plugin.manifest.id),
+      this.#nextPluginId(manifestId),
       scope,
       plugin,
       controller,
-      (id) => this.#handlePluginDisposed(id),
+      {
+        onDisposed: (id) => this.#handlePluginDisposed(id),
+        onQuarantined: (id, error) =>
+          this.#handlePluginQuarantined(id, error, manifestId),
+      },
+      options.replacementTier ?? 'a',
     )
     this.#plugins.set(handle.id, handle)
     this.#events.emit('plugin-mounted', { id: handle.id })
@@ -287,6 +319,15 @@ export class Kernel {
     if (this.#plugins.delete(id)) {
       this.#events.emit('plugin-unmounted', { id })
     }
+  }
+
+  #handlePluginQuarantined(
+    id: string,
+    error: unknown,
+    pluginId?: string,
+  ): void {
+    this.#quarantine.set(id, { id, pluginId, error })
+    this.#events.emit('plugin-quarantined', { id, pluginId, error })
   }
 
   #nextPluginId(label: string): string {

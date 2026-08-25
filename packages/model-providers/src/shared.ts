@@ -1,4 +1,4 @@
-import { ModelProviderError } from './errors.js'
+import { ModelProviderError } from './errors.ts'
 
 export const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1'
 
@@ -18,9 +18,15 @@ export async function postJson(
   apiKey: string,
   body: unknown,
   options: HttpOptions,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const fetchImpl = options.fetch ?? fetch.bind(globalThis)
   const timeoutMs = options.timeoutMs ?? 120_000
+  const timeoutSignal = AbortSignal.timeout(timeoutMs)
+  const requestSignal =
+    signal !== undefined
+      ? AbortSignal.any([signal, timeoutSignal])
+      : timeoutSignal
   let response: Response
   try {
     response = await fetchImpl(url, {
@@ -30,9 +36,10 @@ export async function postJson(
         authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: requestSignal,
     })
   } catch (error) {
+    if (signal?.aborted) throw error
     if (error instanceof Error && error.name === 'TimeoutError') {
       throw new ModelProviderError(
         `Request to ${url} timed out after ${timeoutMs}ms`,

@@ -1,6 +1,7 @@
 import type { Context, ForkScope } from 'cordis'
-import type { EventBus, EventBusChild } from './events.js'
-import type { TaskScope } from './types.js'
+import { EffectScope } from './effects.ts'
+import type { EventBus, EventBusChild } from './events.ts'
+import type { TaskScope } from './types.ts'
 
 interface TaskScopePluginConfig {
   taskId: string
@@ -17,6 +18,7 @@ taskScopePlugin.reusable = true
 
 export class CordisTaskScope implements TaskScope {
   readonly id: string
+  readonly effects = new EffectScope()
   readonly #scope: ForkScope<Context>
   readonly #bus: EventBus
   #ctx: Context
@@ -46,25 +48,38 @@ export class CordisTaskScope implements TaskScope {
     return this.#eventsBus
   }
 
-  /** Marks the scope as disposed without running cordis teardown. */
+  /**
+   * Marks the scope as disposed without running cordis teardown. Used when
+   * cordis itself tore the fork down (kernel root shutdown): the registered
+   * effects are released best-effort because this path is synchronous.
+   */
   markDisposed(): void {
     if (this.#disposed) return
     this.#disposed = true
     this.#eventsBus?.dispose()
+    void this.effects.release()
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     if (this.#disposed) return
     this.#disposed = true
     this.#eventsBus?.dispose()
+    const { failures } = await this.effects.release()
     this.#scope.dispose()
+    if (failures.length === 1) throw failures[0]?.error
+    if (failures.length > 1) {
+      throw new AggregateError(
+        failures.map((failure) => failure.error),
+        `Task scope '${this.id}' dispose encountered errors`,
+      )
+    }
   }
 
   onDispose(callback: () => void | Promise<void>): () => void {
     if (this.#disposed) {
       throw new Error(`Task scope '${this.id}' is already disposed`)
     }
-    return this.context.on('dispose', callback)
+    return this.effects.add(callback)
   }
 
   isolateService(name: string, realm?: symbol): void {

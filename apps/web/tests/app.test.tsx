@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   cleanup,
   fireEvent,
@@ -6,244 +6,150 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import type {
-  AgentEvent,
-  ApprovalRequest,
-  TaskState,
-} from '@bee-agent/contracts'
-import type { CreateTaskResponse } from '@bee-agent/contracts'
-import type { BeeAgentClient } from '@bee-agent/client'
-import type { TaskSnapshot } from '@bee-agent/runtime'
-import { App } from '../src/App.js'
-import { ApprovalPanel } from '../src/components/ApprovalPanel.js'
+import type { BeeAgentClient, TurnResult } from '@bee-agent/client'
+import type { ThreadEvent, Turn } from '@bee-agent/thread'
+import { App } from '../src/App.tsx'
 
 afterEach(cleanup)
 
-function snapshot(
-  taskId: string,
-  state: TaskState,
-  input: string,
-): TaskSnapshot {
+const threadId = '0b6c6a68-8c5f-4d8f-9b52-1f2b1a2c3d4e'
+const turnId = '1c7d7b79-9d6f-5e9f-ac63-2f3c2b3d4e5f'
+
+function turn(status: Turn['status']): Turn {
   return {
-    taskId,
-    state,
-    spec: {
-      id: taskId,
-      input,
-      agentId: 'agent.mock',
-      metadata: {},
-    },
-    createdAt: '2026-08-23T00:00:00.000Z',
-    updatedAt: '2026-08-23T00:00:00.000Z',
-    lastSequence: 1,
-    result: undefined,
-    error: undefined,
-    cancelReason: undefined,
-    pendingApprovalId: undefined,
-    messages: [],
-    toolCalls: [],
-    toolResults: [],
-    approvals: [],
-    decisions: [],
+    id: turnId,
+    threadId,
+    status,
+    trigger: 'user',
+    startedAt: '2026-08-25T10:00:00.000Z',
   }
 }
 
-function agentEvent(
-  taskId: string,
-  sequence: number,
-  type: string,
-  payload: Record<string, unknown> = {},
-): AgentEvent {
-  return {
-    id: `event-${taskId}-${sequence}`,
-    taskId,
-    sequence,
-    type,
-    payload,
-    createdAt: '2026-08-23T00:00:00.000Z',
-  }
+function threadFixture(): { id: string; title: string } {
+  return { id: threadId, title: 'Web conversation' }
 }
-
-const taskA = '11111111-1111-4111-8111-111111111111'
-const taskB = '22222222-2222-4222-8222-222222222222'
 
 interface ClientScript {
-  tasks?: TaskSnapshot[]
-  approvals?: ApprovalRequest[]
-  events?: readonly AgentEvent[]
+  results?: TurnResult[]
+  events?: readonly ThreadEvent[]
 }
 
 function fakeClient(script: ClientScript = {}) {
   const created: unknown[] = []
-  const run: string[] = []
-  const decisions: Array<{
-    requestId: string
-    approved: boolean
-    reason?: string
-  }> = []
+  const turns: Array<{ input: string }> = []
+  const decisions: Array<{ approvalId: string; decision: string }> = []
+  const resultQueue = [...(script.results ?? [])]
   const client = {
-    listTasks: async () => script.tasks ?? [],
-    createTask: async (request: unknown) => {
-      created.push(request)
-      const response: CreateTaskResponse = {
-        task: {
-          id: taskA,
-          input: 'typed input',
-          agentId: 'agent.mock',
-          metadata: {},
-        },
-        state: 'pending',
-      }
-      return response
+    createThread: async (input: unknown) => {
+      created.push(input)
+      return threadFixture()
     },
-    runTask: async (taskId: string) => {
-      run.push(taskId)
-      return snapshot(taskId, 'running', 'typed input')
+    createTurn: async (_threadId: string, input: { input: string }) => {
+      turns.push(input)
+      const next = resultQueue.shift()
+      return (
+        next ?? { status: 'completed', output: 'done', turn: turn('completed') }
+      )
     },
-    cancelTask: async (taskId: string) => snapshot(taskId, 'cancelled', 'x'),
-    getTask: async (taskId: string) =>
-      script.tasks?.find((task) => task.taskId === taskId) ??
-      snapshot(taskId, 'completed', 'typed input'),
-    listPendingApprovals: async () => script.approvals ?? [],
     resolveApproval: async (
-      requestId: string,
-      approved: boolean,
-      reason?: string,
+      _threadId: string,
+      _turnId: string,
+      approvalId: string,
+      decision: 'approved' | 'rejected',
     ) => {
-      decisions.push({
-        requestId,
-        approved,
-        ...(reason !== undefined ? { reason } : {}),
-      })
-      return {
-        requestId,
-        approved,
-        decidedAt: '2026-08-23T00:00:00.000Z',
-      }
+      decisions.push({ approvalId, decision })
+      const next = resultQueue.shift()
+      return (
+        next ?? {
+          status: 'completed',
+          output: 'deployed',
+          turn: turn('completed'),
+        }
+      )
     },
-    streamEvents: async function* (
-      taskId: string,
-    ): AsyncGenerator<AgentEvent, void, unknown> {
-      for (const item of script.events ?? []) {
-        yield item.taskId === taskId ? item : { ...item, taskId }
-      }
+    streamItems: async function* (): AsyncGenerator<
+      ThreadEvent,
+      void,
+      unknown
+    > {
+      for (const item of script.events ?? []) yield item
     },
   }
   return {
     client: client as unknown as BeeAgentClient,
     created,
-    run,
+    turns,
     decisions,
   }
 }
 
-function approvalFixture(taskId: string): ApprovalRequest {
-  return {
-    id: '33333333-3333-4333-8333-333333333333',
-    taskId,
-    toolCall: {
-      id: '44444444-4444-4444-8444-444444444444',
-      taskId,
-      toolId: 'tools.calculator',
-      arguments: { expression: '1+1' },
-    },
-    reason: 'calculator is risky',
-    risk: 'medium',
-    createdAt: '2026-08-23T00:00:00.000Z',
-  }
-}
-
 describe('App', () => {
-  it('lists tasks and shows the selected task detail', async () => {
-    const { client } = fakeClient({
-      tasks: [
-        snapshot(taskA, 'completed', 'first task'),
-        snapshot(taskB, 'pending', 'second task'),
+  it('starts a conversation and sends a message', async () => {
+    const { client, created, turns } = fakeClient()
+    render(<App client={client} />)
+    fireEvent.click(screen.getByText('New conversation'))
+    await waitFor(() => {
+      expect(created).toEqual([{ title: 'Web conversation' }])
+    })
+
+    const input = await screen.findByPlaceholderText('Message Bee…')
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.click(screen.getByText('Send'))
+    await waitFor(() => {
+      expect(turns).toEqual([{ input: 'hello' }])
+    })
+    // The completed turn's output is not echoed into the transcript until
+    // the stream emits it, so just assert the send went through.
+  })
+
+  it('surfaces a suspended turn as an approval prompt and decides it', async () => {
+    const { client, decisions } = fakeClient({
+      results: [
+        {
+          status: 'suspended',
+          approval: { approvalId: 'approval-1', title: 'Deploy to prod?' },
+          turn: turn('active'),
+        },
+        { status: 'completed', output: 'deployed', turn: turn('completed') },
       ],
     })
     render(<App client={client} />)
-    expect(await screen.findByText('first task')).toBeDefined()
-    expect(screen.getByText('second task')).toBeDefined()
-    fireEvent.click(screen.getByText('second task'))
-    // the detail header shows the selected task's agent and event count
-    expect(screen.getByText(/agent\.mock · event #1/)).toBeDefined()
-  })
+    fireEvent.click(screen.getByText('New conversation'))
+    const input = await screen.findByPlaceholderText('Message Bee…')
+    fireEvent.change(input, { target: { value: 'deploy' } })
+    fireEvent.click(screen.getByText('Send'))
 
-  it('creates a task, starts it, and streams its events', async () => {
-    const script = fakeClient({
-      events: [
-        agentEvent(taskA, 1, 'task.created', { state: 'pending' }),
-        agentEvent(taskA, 2, 'task.started', { state: 'running' }),
-        agentEvent(taskA, 3, 'agent.message', {
-          role: 'assistant',
-          content: 'streamed hello',
-        }),
-        agentEvent(taskA, 4, 'task.completed', { state: 'completed' }),
-      ],
-    })
-    render(<App client={script.client} />)
-    const textarea = await screen.findByPlaceholderText(
-      'What should the agent do?',
-    )
-    fireEvent.change(textarea, { target: { value: 'streamed input' } })
-    fireEvent.click(screen.getByText('Create task'))
+    expect(await screen.findByText(/Deploy to prod\?/)).toBeDefined()
+    fireEvent.click(screen.getByText('Approve'))
     await waitFor(() => {
-      expect(script.created).toEqual([
-        { input: 'streamed input', agentId: 'agent.mock', metadata: {} },
-      ])
-    })
-    expect(script.run).toEqual([taskA])
-    await waitFor(() => {
-      expect(screen.getByText(/streamed hello/)).toBeDefined()
-    })
-    await waitFor(() => {
-      expect(screen.getByText(/· closed/)).toBeDefined()
-    })
-    expect(screen.getAllByRole('listitem')).toHaveLength(4)
-  })
-
-  it('decides pending approvals from the detail pane', async () => {
-    const approval = approvalFixture(taskA)
-    const script = fakeClient({
-      tasks: [snapshot(taskA, 'waiting_approval', 'needs approval')],
-      approvals: [approval],
-      events: [
-        agentEvent(taskA, 1, 'task.created', { state: 'pending' }),
-        agentEvent(taskA, 2, 'task.suspended', {
-          state: 'waiting_approval',
-          approvalId: approval.id,
-        }),
-      ],
-    })
-    render(<App client={script.client} />)
-    fireEvent.click(await screen.findByText('needs approval'))
-    fireEvent.click(await screen.findByText('Approve'))
-    await waitFor(() => {
-      expect(script.decisions).toEqual([
-        { requestId: approval.id, approved: true },
+      expect(decisions).toEqual([
+        { approvalId: 'approval-1', decision: 'approved' },
       ])
     })
   })
-})
 
-describe('ApprovalPanel', () => {
-  it('passes the optional reason with the decision', async () => {
-    const onDecide = vi.fn()
-    render(
-      <ApprovalPanel
-        request={approvalFixture(taskA)}
-        deciding={false}
-        onDecide={onDecide}
-      />,
-    )
-    fireEvent.change(screen.getByPlaceholderText('optional reason'), {
-      target: { value: ' looks fine ' },
-    })
-    fireEvent.click(screen.getByText('Deny'))
-    expect(onDecide).toHaveBeenCalledWith(
-      '33333333-3333-4333-8333-333333333333',
-      false,
-      'looks fine',
-    )
+  it('renders transcript entries from the item stream', async () => {
+    const assistantItem = {
+      id: '2d8e8c8a-ae70-4f0a-bd74-3a4d3c4e5f6a',
+      threadId,
+      turnId,
+      status: 'completed',
+      createdAt: '2026-08-25T10:00:00.000Z',
+      type: 'message',
+      payload: { role: 'assistant', content: 'streamed hello' },
+    }
+    const events: ThreadEvent[] = [
+      {
+        sequence: 1,
+        threadId,
+        turnId,
+        event: 'item.completed',
+        item: assistantItem as never,
+      },
+    ]
+    const { client } = fakeClient({ events })
+    render(<App client={client} />)
+    fireEvent.click(screen.getByText('New conversation'))
+    expect(await screen.findByText(/streamed hello/)).toBeDefined()
   })
 })

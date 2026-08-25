@@ -2,9 +2,16 @@ import eslint from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import globals from 'globals'
 
+import { getEslintBoundaryConfigs } from './scripts/check-package-boundaries.mjs'
+
 export default tseslint.config(
   {
-    ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**'],
+    ignores: [
+      '**/dist/**',
+      '**/coverage/**',
+      '**/node_modules/**',
+      '.zcode/**',
+    ],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
@@ -32,4 +39,7 @@ export default tseslint.config(
       '@typescript-eslint/no-import-type-side-effects': 'error',
     },
   },
+  // Workspace dependency boundaries (refactor plan §3.3); the authoritative
+  // scanner runs alongside lint via `pnpm lint`.
+  ...getEslintBoundaryConfigs(),
 )

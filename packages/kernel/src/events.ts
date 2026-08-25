@@ -14,12 +14,32 @@ export interface WaterfallEvent<P, R> {
   readonly name: string
 }
 
+/** Broadcast key: `emit` runs every listener isolated from failures. */
+export interface BroadcastEvent<P> {
+  readonly __broadcastPayload: P
+  readonly name: string
+}
+
+/** Parallel key: `parallel` awaits all listeners and aggregates failures. */
+export interface ParallelEvent<P> {
+  readonly __parallelPayload: P
+  readonly name: string
+}
+
 export function defineSerialEvent<P>(name: string): SerialEvent<P> {
   return { name } as SerialEvent<P>
 }
 
 export function defineWaterfallEvent<P, R>(name: string): WaterfallEvent<P, R> {
   return { name } as WaterfallEvent<P, R>
+}
+
+export function defineBroadcastEvent<P>(name: string): BroadcastEvent<P> {
+  return { name } as BroadcastEvent<P>
+}
+
+export function defineParallelEvent<P>(name: string): ParallelEvent<P> {
+  return { name } as ParallelEvent<P>
 }
 
 export type SerialListener<P> = (payload: P) => void | Promise<void>
@@ -49,16 +69,22 @@ function eventKeyName(key: EventKeyLike): string {
 }
 
 /**
- * A framework-free domain event bus on the kernel. Serial events are awaited
- * listener-by-listener; waterfall events run middleware outermost-first around
- * a terminal implementation. Use {@link EventBus.createChild} for scope-bound
- * registrations that are removed together with the scope.
+ * A framework-free domain event bus on the kernel. One registry of listeners
+ * per event name, four execution semantics at the call site: `dispatch` runs
+ * listeners serially in registration order, `emit` broadcasts with every
+ * listener isolated from the others' failures, `parallel` awaits all
+ * listeners concurrently and aggregates failures, and `waterfall` folds
+ * middleware around a terminal implementation. Use {@link EventBus.createChild}
+ * for scope-bound registrations that are removed together with the scope.
  */
 export class EventBus {
   readonly #serial = new Map<string, Set<AnySerialListener>>()
   readonly #waterfall = new Map<string, AnyWaterfallMiddleware[]>()
 
-  on<P>(key: string | SerialEvent<P>, listener: SerialListener<P>): () => void {
+  on<P>(
+    key: string | SerialEvent<P> | BroadcastEvent<P> | ParallelEvent<P>,
+    listener: SerialListener<P>,
+  ): () => void {
     const name = eventKeyName(key)
     let listeners = this.#serial.get(name)
     if (!listeners) {
@@ -89,6 +115,52 @@ export class EventBus {
       }
     }
     if (failed) throw error
+  }
+
+  /**
+   * Broadcasts an event: every listener runs, a failing listener never
+   * prevents the others from running, and the returned promise settles only
+   * once all listeners have settled. Failures are passed to `onError` (one
+   * call per failed listener, in registration order) and are otherwise
+   * swallowed — `emit` itself never rejects.
+   */
+  async emit<P>(
+    key: string | BroadcastEvent<P>,
+    payload: P,
+    options: { onError?: (error: unknown) => void } = {},
+  ): Promise<void> {
+    const listeners = this.#serial.get(eventKeyName(key))
+    if (!listeners) return
+    const settled = await Promise.allSettled(
+      [...listeners].map((listener) =>
+        Promise.resolve().then(() => listener(payload)),
+      ),
+    )
+    for (const result of settled) {
+      if (result.status === 'rejected') options.onError?.(result.reason)
+    }
+  }
+
+  /**
+   * Dispatches a parallel event: all listeners start concurrently and are
+   * awaited together; any failure rejects with an `AggregateError` holding
+   * every failure in registration order.
+   */
+  async parallel<P>(key: string | ParallelEvent<P>, payload: P): Promise<void> {
+    const listeners = this.#serial.get(eventKeyName(key))
+    if (!listeners) return
+    const settled = await Promise.allSettled(
+      [...listeners].map((listener) =>
+        Promise.resolve().then(() => listener(payload)),
+      ),
+    )
+    const errors = settled
+      .filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === 'rejected',
+      )
+      .map((result) => result.reason)
+    if (errors.length > 0) throw new AggregateError(errors)
   }
 
   use<P, R>(
@@ -148,7 +220,10 @@ export class EventBusChild {
     this.#parent = parent
   }
 
-  on<P>(key: string | SerialEvent<P>, listener: SerialListener<P>): () => void {
+  on<P>(
+    key: string | SerialEvent<P> | BroadcastEvent<P> | ParallelEvent<P>,
+    listener: SerialListener<P>,
+  ): () => void {
     const off = this.#parent.on(key, listener)
     this.#disposers.push(off)
     return off
@@ -165,6 +240,18 @@ export class EventBusChild {
 
   dispatch<P>(key: string | SerialEvent<P>, payload: P): Promise<void> {
     return this.#parent.dispatch(key, payload)
+  }
+
+  emit<P>(
+    key: string | BroadcastEvent<P>,
+    payload: P,
+    options?: { onError?: (error: unknown) => void },
+  ): Promise<void> {
+    return this.#parent.emit(key, payload, options)
+  }
+
+  parallel<P>(key: string | ParallelEvent<P>, payload: P): Promise<void> {
+    return this.#parent.parallel(key, payload)
   }
 
   waterfall<P, R>(

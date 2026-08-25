@@ -3,12 +3,12 @@ import type { Server, ServerResponse } from 'node:http'
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
-import { AgentEventSchema } from '@bee-agent/contracts'
-import type { AgentEvent } from '@bee-agent/contracts'
-import { BeeAgentClient, BeeAgentClientError } from '../src/index.js'
-import { parseSseStream } from '../src/index.js'
+import type { ThreadEvent, Turn } from '@bee-agent/thread'
+import { BeeAgentClient, BeeAgentClientError } from '../src/index.ts'
+import { parseSseStream } from '../src/index.ts'
 
-const taskId = randomUUID()
+const threadId = randomUUID()
+const turnId = randomUUID()
 
 interface RecordedRequest {
   method: string
@@ -21,15 +21,38 @@ let server: Server
 let baseUrl: string
 const requests: RecordedRequest[] = []
 
-function eventFixture(sequence: number, type: string): AgentEvent {
-  return AgentEventSchema.parse({
-    taskId,
+function threadFixture(): Record<string, unknown> {
+  const now = new Date().toISOString()
+  return { id: threadId, title: 'My thread', createdAt: now, updatedAt: now }
+}
+
+function turnFixture(overrides: Partial<Turn> = {}): Turn {
+  return {
+    id: turnId,
+    threadId,
+    status: 'active',
+    trigger: 'user',
+    startedAt: new Date().toISOString(),
+    ...overrides,
+  } as Turn
+}
+
+function itemStartedEvent(sequence: number): ThreadEvent {
+  return {
     sequence,
-    type,
-    payload: { state: 'pending' },
-    id: randomUUID(),
-    createdAt: new Date().toISOString(),
-  })
+    threadId,
+    turnId,
+    event: 'item.started',
+    item: {
+      id: randomUUID(),
+      threadId,
+      turnId,
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      type: 'message',
+      payload: { role: 'assistant', content: 'hello' },
+    },
+  }
 }
 
 function respond(
@@ -56,116 +79,60 @@ beforeAll(async () => {
       requests.push(recorded)
       const url = new URL(recorded.url, 'http://localhost')
       const route = `${recorded.method} ${url.pathname}`
-      if (route === 'GET /tasks') {
+
+      if (route === 'POST /threads') {
+        respond(response, 201, threadFixture())
+        return
+      }
+      if (route === `POST /threads/${threadId}/turns`) {
         respond(response, 200, {
-          tasks: [{ taskId, state: 'pending', lastSequence: 1 }],
+          status: 'completed',
+          output: 'done',
+          turn: turnFixture({ status: 'completed' }),
         })
-        return
-      }
-      if (route === 'POST /tasks') {
-        respond(response, 201, {
-          task: { ...(recorded.body as Record<string, unknown>), id: taskId },
-          state: 'pending',
-        })
-        return
-      }
-      if (url.pathname === '/tasks/error') {
-        respond(response, 409, {
-          code: 'task-not-runnable',
-          message: 'only pending tasks',
-          details: { state: 'completed' },
-        })
-        return
-      }
-      if (route === `GET /tasks/${taskId}`) {
-        respond(response, 200, { taskId, state: 'pending', lastSequence: 1 })
-        return
-      }
-      if (route === `POST /tasks/${taskId}/run`) {
-        respond(response, 202, { taskId, state: 'running', lastSequence: 2 })
-        return
-      }
-      if (route === `POST /tasks/${taskId}/cancel`) {
-        respond(response, 200, { taskId, state: 'cancelled', lastSequence: 3 })
-        return
-      }
-      if (route === `GET /tasks/${taskId}/events`) {
-        const after = Number(url.searchParams.get('after') ?? '0')
-        respond(response, 200, {
-          events: [eventFixture(after + 1, 'task.created')],
-        })
-        return
-      }
-      if (route === 'GET /approvals') {
-        respond(response, 200, { approvals: [] })
-        return
-      }
-      if (route === 'POST /memory/documents') {
-        const body = recorded.body as {
-          workspaceId: string
-          content: string
-        }
-        respond(response, 201, {
-          document: {
-            id: randomUUID(),
-            workspaceId: body.workspaceId,
-            content: body.content,
-            metadata: {},
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-          chunks: [
-            {
-              id: randomUUID(),
-              documentId: randomUUID(),
-              workspaceId: body.workspaceId,
-              ordinal: 0,
-              content: body.content,
-              metadata: {},
-            },
-          ],
-        })
-        return
-      }
-      if (route === 'POST /memory/recall') {
-        respond(response, 200, { results: [] })
-        return
-      }
-      if (url.pathname.startsWith('/memory/chunks/')) {
-        response.writeHead(204)
-        response.end()
         return
       }
       if (
-        url.pathname.startsWith('/approvals/') &&
-        url.pathname.endsWith('/decision')
+        url.pathname ===
+        `/threads/${threadId}/turns/${turnId}/approvals/approval-1`
       ) {
         respond(response, 200, {
-          requestId: 'req-1',
-          approved: (recorded.body as { approved: boolean }).approved,
-          decidedAt: new Date().toISOString(),
+          status: 'suspended',
+          approval: { approvalId: 'approval-1', title: 'Deploy?' },
+          turn: turnFixture(),
         })
         return
       }
-      if (route === `GET /tasks/${taskId}/events/stream`) {
+      if (route === `GET /threads/${threadId}/items`) {
         response.writeHead(200, { 'content-type': 'text/event-stream' })
-        const first = eventFixture(1, 'task.created')
-        const second = eventFixture(2, 'task.started')
         response.write(': heartbeat\n\n')
         response.write(
-          `id: 1\nevent: task.created\ndata: ${JSON.stringify(first)}\n\n`,
+          `id: 1\nevent: thread.created\ndata: ${JSON.stringify({
+            sequence: 1,
+            threadId,
+            event: 'thread.created',
+            thread: threadFixture(),
+          })}\n\n`,
         )
         response.write(
-          `id: 2\nevent: task.started\ndata: ${JSON.stringify(second)}\n\n`,
+          `id: 2\nevent: item.started\ndata: ${JSON.stringify(itemStartedEvent(2))}\n\n`,
         )
         setTimeout(() => {
           response.write(
-            `id: 3\nevent: task.completed\ndata: ${JSON.stringify(
-              eventFixture(3, 'task.completed'),
-            )}\n\n`,
+            `id: 3\nevent: turn.completed\ndata: ${JSON.stringify({
+              sequence: 3,
+              threadId,
+              turnId,
+              event: 'turn.completed',
+              turn: turnFixture({ status: 'completed' }),
+            })}\n\n`,
           )
           response.end()
         }, 25)
+        return
+      }
+      if (url.pathname === `/threads/${randomUUID()}/items`) {
+        respond(response, 404, { code: 'not-found', message: 'no thread' })
         return
       }
       respond(response, 404, { code: 'not-found', message: 'no route' })
@@ -188,118 +155,84 @@ function lastRequest(): RecordedRequest {
   return requests.at(-1)!
 }
 
-describe('bee agent client', () => {
-  it('creates tasks over POST /tasks', async () => {
-    const response = await client().createTask({
-      input: 'hello',
-      agentId: 'agent.mock',
-      metadata: {},
-    })
-    expect(response.task.id).toBe(taskId)
-    expect(response.state).toBe('pending')
-    expect(lastRequest().body).toEqual({
-      input: 'hello',
-      agentId: 'agent.mock',
-      metadata: {},
-    })
+describe('bee agent client (threads)', () => {
+  it('creates a thread over POST /threads', async () => {
+    const thread = await client().createThread({ title: 'My thread' })
+    expect(thread.id).toBe(threadId)
+    expect(thread.title).toBe('My thread')
+    expect(lastRequest().method).toBe('POST')
+    expect(lastRequest().url).toBe('/threads')
+    expect(lastRequest().body).toEqual({ title: 'My thread' })
   })
 
-  it('reads snapshots, runs, and cancels tasks', async () => {
-    const api = client()
-    expect((await api.getTask(taskId)).state).toBe('pending')
-    expect((await api.runTask(taskId)).state).toBe('running')
-    expect((await api.cancelTask(taskId, 'stop')).state).toBe('cancelled')
-    expect(lastRequest().body).toEqual({ reason: 'stop' })
+  it('starts a turn and returns its result', async () => {
+    const result = await client().createTurn(threadId, { input: 'hi' })
+    expect(result.status).toBe('completed')
+    if (result.status === 'completed') {
+      expect(result.output).toBe('done')
+      expect(result.turn.id).toBe(turnId)
+    }
+    expect(lastRequest().body).toEqual({ input: 'hi' })
+    expect(lastRequest().url).toBe(`/threads/${threadId}/turns`)
   })
 
-  it('lists task snapshots', async () => {
-    const tasks = await client().listTasks()
-    expect(tasks).toEqual([{ taskId, state: 'pending', lastSequence: 1 }])
-    expect(lastRequest().url).toBe('/tasks')
-  })
-
-  it('lists events with an after query and validates them', async () => {
-    const events = await client().listEvents(taskId, 4)
-    expect(events).toHaveLength(1)
-    expect(events[0]!.sequence).toBe(5)
-    expect(lastRequest().url).toContain('after=4')
-  })
-
-  it('lists approvals and posts decisions', async () => {
-    const api = client()
-    await api.listPendingApprovals(taskId)
-    expect(lastRequest().url).toContain(`taskId=${taskId}`)
-    const decision = await api.resolveApproval('req-1', true, 'looks fine')
-    expect(decision.approved).toBe(true)
-    expect(lastRequest().body).toEqual({ approved: true, reason: 'looks fine' })
-  })
-
-  it('remembers, recalls, and forgets memory', async () => {
-    const api = client()
-    const remembered = await api.rememberDocument({
-      workspaceId: 'ws-1',
-      content: 'the cat sat',
-      metadata: { kind: 'pet' },
-    })
-    expect(remembered.document.workspaceId).toBe('ws-1')
-    expect(remembered.chunks[0]?.content).toBe('the cat sat')
-    expect(lastRequest().body).toEqual({
-      workspaceId: 'ws-1',
-      content: 'the cat sat',
-      metadata: { kind: 'pet' },
-    })
-
-    const recalled = await api.recallMemory({
-      workspaceId: 'ws-1',
-      text: 'cat',
-      limit: 3,
-    })
-    expect(recalled.results).toEqual([])
-
-    await api.forgetMemoryChunk(remembered.chunks[0]!.id, 'ws-1')
-    const last = lastRequest()
-    expect(last.method).toBe('DELETE')
-    expect(last.url).toContain(
-      `/memory/chunks/${remembered.chunks[0]!.id}?workspaceId=ws-1`,
+  it('resolves an approval for a suspended turn', async () => {
+    const result = await client().resolveApproval(
+      threadId,
+      turnId,
+      'approval-1',
+      'rejected',
     )
+    expect(result.status).toBe('suspended')
+    expect(lastRequest().body).toEqual({ decision: 'rejected' })
+    expect(lastRequest().url).toBe(
+      `/threads/${threadId}/turns/${turnId}/approvals/approval-1`,
+    )
+  })
+
+  it('sends the session token as a bearer header', async () => {
+    const api = new BeeAgentClient({ baseUrl, sessionToken: 'tok-123' })
+    await api.createThread()
+    expect(lastRequest().headers.authorization).toBe('Bearer tok-123')
   })
 
   it('maps error envelopes to BeeAgentClientError', async () => {
-    await expect(client().getTask('error')).rejects.toBeInstanceOf(
-      BeeAgentClientError,
-    )
     const error = (await client()
-      .getTask('error')
+      .createTurn(randomUUID(), { input: 'x' })
       .catch((reason: unknown) => reason)) as BeeAgentClientError
-    expect(error.status).toBe(409)
-    expect(error.code).toBe('task-not-runnable')
-    expect(error.details).toEqual({ state: 'completed' })
+    expect(error).toBeInstanceOf(BeeAgentClientError)
+    expect(error.status).toBe(404)
+    expect(error.code).toBe('not-found')
   })
+})
 
-  it('streams SSE events, resumes via Last-Event-ID, and finishes at stream end', async () => {
+describe('bee agent client (item stream)', () => {
+  it('streams item events, resumes via Last-Event-ID, and validates them', async () => {
     const api = client()
-    const streamed: AgentEvent[] = []
-    for await (const event of api.streamEvents(taskId)) {
+    const streamed: ThreadEvent[] = []
+    for await (const event of api.streamItems(threadId)) {
       streamed.push(event)
     }
-    expect(streamed.map((event) => event.type)).toEqual([
-      'task.created',
-      'task.started',
-      'task.completed',
+    expect(streamed.map((event) => event.event)).toEqual([
+      'thread.created',
+      'item.started',
+      'turn.completed',
     ])
+    expect(streamed[1]).toMatchObject({ event: 'item.started', sequence: 2 })
     expect(lastRequest().headers['last-event-id']).toBeUndefined()
-    for await (const event of api.streamEvents(taskId, { after: 2 })) {
+
+    for await (const event of api.streamItems(threadId, { after: 2 })) {
       streamed.push(event)
     }
     expect(lastRequest().headers['last-event-id']).toBe('2')
-    expect(streamed.at(-1)!.type).toBe('task.completed')
+    expect(streamed.at(-1)?.event).toBe('turn.completed')
   })
 
   it('stops streaming when the abort signal fires', async () => {
     const controller = new AbortController()
     const api = client()
-    const streamed: AgentEvent[] = []
-    for await (const event of api.streamEvents(taskId, {
+    const streamed: ThreadEvent[] = []
+    for await (const event of api.streamItems(threadId, {
       signal: controller.signal,
     })) {
       streamed.push(event)
@@ -317,7 +250,7 @@ describe('parseSseStream', () => {
       start(controller) {
         controller.enqueue(
           encoder.encode(
-            ': ping\n\nid: 7\nevent: task.created\ndata: {"a":1}\ndata: {"b":2}\n\n',
+            ': ping\n\nid: 7\nevent: item.started\ndata: {"a":1}\ndata: {"b":2}\n\n',
           ),
         )
         controller.close()
@@ -326,7 +259,7 @@ describe('parseSseStream', () => {
     const frames = []
     for await (const frame of parseSseStream(stream)) frames.push(frame)
     expect(frames).toEqual([
-      { id: '7', event: 'task.created', data: '{"a":1}\n{"b":2}' },
+      { id: '7', event: 'item.started', data: '{"a":1}\n{"b":2}' },
     ])
   })
 

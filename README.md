@@ -30,6 +30,16 @@
 
 ---
 
+## Project status
+
+**v0.11 is in maintenance mode.** Active development happens on the
+`feature/v1.0.0` branch, which rebuilds Bee Agent as a local-first personal
+super agent: the Thread–Turn–Item interaction protocol, durable Kanban tasks,
+Chronicle event sourcing, budgeted context, sandboxed execution, and governed
+background learning. `main` only receives critical v0 fixes, and the v0 line is
+frozen at the `v0.11.0-legacy` tag. The v1 architecture plan and refactor
+development plan live in [`docs/architecture`](./docs/architecture) (Chinese).
+
 ## Overview
 
 Bee Agent is an open-source, Cordis-based agent composed from plugins. It
@@ -263,10 +273,8 @@ bee-agent/
 │   └── vector/pgvector/     # Working pgvector Vector Store
 ├── adapters/                # External agent adapters (remote federation, commands)
 ├── python/                  # Future Python worker projects
-├── migrations/              # Dialect-specific database migrations
-├── configs/                 # Environment configuration examples
-├── tests/                   # Shared contract, integration, and E2E suites
-└── docs/adr/                # Architecture Decision Records
+├── tests/                   # Shared integration and E2E suites
+└── docs/                    # ADRs and the v1 architecture/refactor plans
 ```
 
 ## Development
@@ -316,9 +324,17 @@ dedicated Vector Store contract.
 - [x] Add MCP tool servers over the stdio bridge
 - [x] Add the opt-in Python worker tool
 - [x] Add external agents behind the Agent contract
+- [ ] v1 Phase 0: freeze v0, core ADRs, new package skeletons, and CI gates
+- [ ] v1 Phase 1: Cordis base and the Thread–Turn–Item protocol
+- [ ] v1 Phase 2: Kanban, context budgets, and lazy Skills/Tools
+- [ ] v1 Phase 3: unified ExecutionWorld and sandbox boundaries
+- [ ] v1 Phase 4: personal memory, world model, and the long-running host
+- [ ] v1 Phase 5: background learning and governed improvement
+- [ ] v1 Phase 6: experience convergence and the 1.0.0 release
 
 Architecture decisions and their constraints are recorded in
-[`docs/adr`](./docs/adr).
+[`docs/adr`](./docs/adr); the v1 plans are in
+[`docs/architecture`](./docs/architecture).
 
 ## Contributing
 

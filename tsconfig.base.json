@@ -9,6 +9,7 @@
     "useUnknownInCatchVariables": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "declaration": true,
     "declarationMap": true,

@@ -30,6 +30,15 @@
 
 ---
 
+## 项目状态
+
+**v0.11 处于维护模式。** 积极开发在 `feature/v1.0.0` 分支上进行，目标是把
+Bee Agent 重构为本地优先的个人超级智能体：Thread–Turn–Item 交互协议、持久
+Kanban 任务、Chronicle 事件溯源、预算化上下文、沙箱化执行与受治理的后台学
+习。`main` 只接收 v0 的关键缺陷修复，v0 线冻结于 `v0.11.0-legacy` tag。
+v1 架构方案与重构开发计划见
+[`docs/architecture`](./docs/architecture)。
+
 ## 项目总览
 
 Bee Agent 是一个开源的、基于 Cordis 的插件组合智能体。它将智能体运行时、
@@ -254,10 +263,8 @@ bee-agent/
 │   └── vector/pgvector/     # 可用的 pgvector 向量存储
 ├── adapters/                # 外部智能体适配器（远程联邦、命令包装）
 ├── python/                  # 未来的 Python worker 项目
-├── migrations/              # 方言相关的数据库迁移
-├── configs/                 # 环境配置示例
-├── tests/                   # 共享契约、集成与端到端测试套件
-└── docs/adr/                # 架构决策记录（ADR）
+├── tests/                   # 共享集成与端到端测试套件
+└── docs/                    # ADR 与 v1 架构/重构计划
 ```
 
 ## 开发
@@ -305,8 +312,16 @@ SQLite 与 PostgreSQL 是两种独立的运行模式：Bee Agent 绝不会同时
 - [x] 基于 stdio 桥接增加 MCP 工具服务器
 - [x] 增加选择性启用的 Python worker 工具
 - [x] 在 Agent 契约之下增加外部智能体
+- [ ] v1 Phase 0：冻结 v0、核心 ADR、新包骨架与 CI 门禁
+- [ ] v1 Phase 1：Cordis 基座与 Thread–Turn–Item 协议
+- [ ] v1 Phase 2：Kanban、上下文预算与 Skill/Tool 延迟加载
+- [ ] v1 Phase 3：统一 ExecutionWorld 与沙箱边界
+- [ ] v1 Phase 4：个人记忆、世界模型与长时运行 Host
+- [ ] v1 Phase 5：后台学习与受治理的改进
+- [ ] v1 Phase 6：体验收敛与 1.0.0 发布
 
-架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中。
+架构决策及其约束记录在 [`docs/adr`](./docs/adr) 中；v1 计划见
+[`docs/architecture`](./docs/architecture)。
 
 ## 参与贡献
 
