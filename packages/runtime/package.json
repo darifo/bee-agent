@@ -25,6 +25,8 @@
     "@bee-agent/contracts": "workspace:*",
     "@bee-agent/event-store": "workspace:*",
     "@bee-agent/kernel": "workspace:*",
+    "@bee-agent/knowledge": "workspace:*",
+    "@bee-agent/thread": "workspace:*",
     "@bee-agent/vector-store": "workspace:*",
     "zod": "^4.1.13"
   }

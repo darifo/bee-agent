@@ -102,6 +102,11 @@ export const ApprovalItemPayloadSchema = z.object({
   title: z.string().min(1),
   detail: z.string().optional(),
   status: ApprovalStatusSchema,
+  /** The tool-slot approval id, for resuming a suspended turn. */
+  approvalId: z.string().min(1).optional(),
+  /** Identifies the tool call awaiting this approval. */
+  callId: z.string().min(1).optional(),
+  toolId: z.string().min(1).optional(),
 })
 export type ApprovalItemPayload = z.infer<typeof ApprovalItemPayloadSchema>
 
@@ -255,6 +260,12 @@ export const TurnFailedEventSchema = TurnEventPositionSchema.extend({
 })
 export type TurnFailedEvent = z.infer<typeof TurnFailedEventSchema>
 
+export const TurnCancelledEventSchema = TurnEventPositionSchema.extend({
+  event: z.literal('turn.cancelled'),
+  turn: TurnSchema,
+})
+export type TurnCancelledEvent = z.infer<typeof TurnCancelledEventSchema>
+
 export const ItemStartedEventSchema = TurnEventPositionSchema.extend({
   event: z.literal('item.started'),
   item: ItemSchema,
@@ -282,15 +293,29 @@ export const ItemFailedEventSchema = TurnEventPositionSchema.extend({
 })
 export type ItemFailedEvent = z.infer<typeof ItemFailedEventSchema>
 
+/**
+ * A loop checkpoint (architecture §10.1 Record). Runtime-authored history
+ * clients may ignore: it marks that every step effect before it is durable
+ * and carries a digest of the rebuilt message history for crash recovery.
+ */
+export const AgentCheckpointEventSchema = TurnEventPositionSchema.extend({
+  event: z.literal('agent.checkpoint'),
+  stepIndex: z.number().int().nonnegative(),
+  stateDigest: z.string().min(1),
+})
+export type AgentCheckpointEvent = z.infer<typeof AgentCheckpointEventSchema>
+
 export const ThreadEventSchema = z.discriminatedUnion('event', [
   ThreadCreatedEventSchema,
   TurnStartedEventSchema,
   TurnCompletedEventSchema,
   TurnFailedEventSchema,
+  TurnCancelledEventSchema,
   ItemStartedEventSchema,
   ItemDeltaEventSchema,
   ItemCompletedEventSchema,
   ItemFailedEventSchema,
+  AgentCheckpointEventSchema,
 ])
 export type ThreadEvent = z.infer<typeof ThreadEventSchema>
 

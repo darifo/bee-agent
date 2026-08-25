@@ -262,6 +262,12 @@ importers:
       '@bee-agent/kernel':
         specifier: workspace:*
         version: link:../kernel
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@bee-agent/thread':
+        specifier: workspace:*
+        version: link:../thread
       '@bee-agent/vector-store':
         specifier: workspace:*
         version: link:../vector-store

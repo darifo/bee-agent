@@ -8,6 +8,8 @@ import type {
 } from '@bee-agent/knowledge'
 import type { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import {
+  AgentCheckpointEventSchema,
+  TurnCancelledEventSchema,
   ItemDeltaEventSchema,
   ItemFailedEventSchema,
   ItemStartedEventSchema,
@@ -54,10 +56,12 @@ export const THREAD_EVENT_TYPES = [
   'turn.started',
   'turn.completed',
   'turn.failed',
+  'turn.cancelled',
   'item.started',
   'item.delta',
   'item.completed',
   'item.failed',
+  'agent.checkpoint',
 ] as const
 export type ThreadEventType = (typeof THREAD_EVENT_TYPES)[number]
 
@@ -78,6 +82,12 @@ const TurnFailedPayloadSchema = TurnFailedEventSchema.omit({
   turnId: true,
   event: true,
 })
+const TurnCancelledPayloadSchema = TurnCancelledEventSchema.omit({
+  sequence: true,
+  threadId: true,
+  turnId: true,
+  event: true,
+})
 const ItemPayloadSchema = z.object({
   item: ItemStartedEventSchema.shape.item,
 })
@@ -93,16 +103,24 @@ const ItemFailedPayloadSchema = ItemFailedEventSchema.omit({
   turnId: true,
   event: true,
 })
+const AgentCheckpointPayloadSchema = AgentCheckpointEventSchema.omit({
+  sequence: true,
+  threadId: true,
+  turnId: true,
+  event: true,
+})
 
 const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'thread.created': ThreadCreatedPayloadSchema,
   'turn.started': TurnPayloadSchema,
   'turn.completed': TurnPayloadSchema,
   'turn.failed': TurnFailedPayloadSchema,
+  'turn.cancelled': TurnCancelledPayloadSchema,
   'item.started': ItemPayloadSchema,
   'item.delta': ItemDeltaPayloadSchema,
   'item.completed': ItemPayloadSchema,
   'item.failed': ItemFailedPayloadSchema,
+  'agent.checkpoint': AgentCheckpointPayloadSchema,
 }
 
 /** Registers every thread event type on a Chronicle registry. */
@@ -297,6 +315,31 @@ export function itemCompletedEvent(
     'item.completed',
     { threadId: item.threadId, turnId: item.turnId },
     { item },
+    options,
+  )
+}
+
+export function turnCancelledEvent(
+  turn: Turn,
+  options: ThreadEventBuildOptions = {},
+): NewChronicleEvent {
+  return baseEvent(
+    'turn.cancelled',
+    { threadId: turn.threadId, turnId: turn.id },
+    { turn },
+    options,
+  )
+}
+
+export function agentCheckpointEvent(
+  ids: { threadId: ThreadId; turnId: TurnId },
+  checkpoint: { stepIndex: number; stateDigest: string },
+  options: ThreadEventBuildOptions = {},
+): NewChronicleEvent {
+  return baseEvent(
+    'agent.checkpoint',
+    { threadId: ids.threadId, turnId: ids.turnId },
+    checkpoint,
     options,
   )
 }

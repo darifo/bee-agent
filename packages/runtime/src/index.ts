@@ -124,3 +124,17 @@ export type {
   LlmToolSpec,
   LlmUsage,
 } from './llm-runtime.js'
+export { AgentLoop } from './agent-loop.js'
+export type {
+  AgentLoopHookInput,
+  AgentLoopOptions,
+  AgentLoopPlanHook,
+  AgentLoopRecoverInput,
+  AgentLoopRetrieveHook,
+  AgentLoopResumeInput,
+  AgentLoopRunInput,
+  AgentLoopToolOutcome,
+  AgentLoopToolSlot,
+  AgentLoopToolSlotCall,
+  AgentLoopTurnResult,
+} from './agent-loop.js'
