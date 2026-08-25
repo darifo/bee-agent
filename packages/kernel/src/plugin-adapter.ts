@@ -1,4 +1,4 @@
-import type { Context, ForkScope, Plugin } from 'cordis'
+import type { Context, ForkScope, PluginFunction } from './context.ts'
 import { drainWithTimeout } from './plugin-handle.ts'
 import type { PluginHandleCallbacks } from './plugin-handle.ts'
 import type { ReplacementTier } from './replacement.ts'
@@ -17,7 +17,7 @@ import type {
  * by {@link Kernel.useBeeAgentPlugin}.
  */
 export interface BeeAgentPluginMountController {
-  readonly plugin: Plugin.Function<Context>
+  readonly plugin: PluginFunction<Context>
   readonly ready: Promise<void>
   /** Idempotent `plugin.stop()`; at most one stop is ever issued. */
   requestStop(): Promise<void>

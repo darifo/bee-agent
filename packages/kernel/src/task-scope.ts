@@ -1,4 +1,4 @@
-import type { Context, ForkScope } from 'cordis'
+import type { Context, ForkScope } from './context.ts'
 import { EffectScope } from './effects.ts'
 import type { EventBus, EventBusChild } from './events.ts'
 import type { TaskScope } from './types.ts'
