@@ -253,5 +253,47 @@ export function defineKanbanStoreContractSuite<
         expect(rebuilt?.version).toBe(3)
         expect(await store.list({ status: 'ready' })).toHaveLength(1)
       }))
+
+    it('updates fields without changing status', () =>
+      withSubject(setup, async ({ store }) => {
+        const task = await store.create({ title: 'Before', now: NOW })
+        const updated = await store.update(task.id, {
+          expectedVersion: 1,
+          title: 'After',
+          priority: 'high',
+          at: LATER,
+        })
+        expect(updated.title).toBe('After')
+        expect(updated.priority).toBe('high')
+        expect(updated.status).toBe('inbox')
+        expect(updated.version).toBe(2)
+        expect((await store.get(task.id))?.title).toBe('After')
+      }))
+
+    it('rejects a stale update version', () =>
+      withSubject(setup, async ({ store }) => {
+        const task = await store.create({ title: 'Race', now: NOW })
+        await expect(
+          store.update(task.id, {
+            expectedVersion: 2,
+            title: 'Lost',
+            at: LATER,
+          }),
+        ).rejects.toBeInstanceOf(KanbanVersionConflictError)
+      }))
+
+    it('appends comments and advances the version', () =>
+      withSubject(setup, async ({ store }) => {
+        const task = await store.create({ title: 'Discuss', now: NOW })
+        const commented = await store.comment(task.id, {
+          author: 'bee',
+          body: 'Needs a review',
+          at: LATER,
+        })
+        expect(commented.comments).toHaveLength(1)
+        expect(commented.comments[0]?.body).toBe('Needs a review')
+        expect(commented.version).toBe(2)
+        expect((await store.get(task.id))?.comments).toHaveLength(1)
+      }))
   })
 }

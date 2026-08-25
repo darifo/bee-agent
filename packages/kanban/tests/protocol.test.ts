@@ -23,6 +23,7 @@ function taskFixture(overrides: Record<string, unknown> = {}) {
     status: 'inbox',
     artifactRefs: [],
     trajectoryRefs: [],
+    comments: [],
     version: 1,
     createdAt: NOW,
     updatedAt: NOW,

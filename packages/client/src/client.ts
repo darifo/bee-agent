@@ -38,6 +38,53 @@ export interface CreateTurnInput {
   readonly structureVersion?: string | undefined
 }
 
+/** A kanban task as returned by the host's `/kanban/tasks` endpoints. */
+export interface KanbanTaskDto {
+  readonly id: string
+  readonly title: string
+  readonly status: string
+  readonly priority: string
+  readonly labels: readonly string[]
+  readonly version: number
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly goal?: string | undefined
+  readonly comments: readonly KanbanCommentDto[]
+}
+
+export interface KanbanCommentDto {
+  readonly id: string
+  readonly author: string
+  readonly body: string
+  readonly at: string
+}
+
+export interface CreateTaskInput {
+  readonly title: string
+  readonly priority?: string | undefined
+  readonly goal?: string | undefined
+  readonly acceptanceCriteria?: readonly string[] | undefined
+  readonly labels?: readonly string[] | undefined
+  readonly deadline?: string | undefined
+  readonly scheduledAt?: string | undefined
+}
+
+export interface ListTasksQuery {
+  readonly status?: string | undefined
+  readonly priority?: string | undefined
+  readonly labels?: readonly string[] | undefined
+  readonly limit?: number | undefined
+}
+
+export interface UpdateTaskInput {
+  readonly title?: string | undefined
+  readonly goal?: string | undefined
+  readonly priority?: string | undefined
+  readonly labels?: readonly string[] | undefined
+  readonly deadline?: string | undefined
+  readonly scheduledAt?: string | undefined
+}
+
 export interface StreamItemsOptions {
   /** Resume after this event sequence; sent as `Last-Event-ID`. */
   readonly after?: number | undefined
@@ -132,6 +179,81 @@ export class BeeAgentClient {
       'POST',
       `threads/${encodeURIComponent(threadId)}/turns/${encodeURIComponent(turnId)}/approvals/${encodeURIComponent(approvalId)}`,
       { body: { decision } },
+    )
+  }
+
+  // -------------------------------------------------------------------------
+  // Kanban (same store the agent tools and Scheduler share)
+  // -------------------------------------------------------------------------
+
+  async createTask(input: CreateTaskInput): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>('POST', 'kanban/tasks', { body: input })
+  }
+
+  async listTasks(query: ListTasksQuery = {}): Promise<KanbanTaskDto[]> {
+    const params: Record<string, string> = {}
+    if (query.status !== undefined) params.status = query.status
+    if (query.priority !== undefined) params.priority = query.priority
+    if (query.labels !== undefined && query.labels.length > 0) {
+      params.labels = query.labels.join(',')
+    }
+    if (query.limit !== undefined) params.limit = String(query.limit)
+    return this.#request<KanbanTaskDto[]>('GET', 'kanban/tasks', {
+      query: params,
+    })
+  }
+
+  async getTask(taskId: string): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'GET',
+      `kanban/tasks/${encodeURIComponent(taskId)}`,
+    )
+  }
+
+  async updateTask(
+    taskId: string,
+    input: UpdateTaskInput,
+  ): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'PATCH',
+      `kanban/tasks/${encodeURIComponent(taskId)}`,
+      { body: input },
+    )
+  }
+
+  async blockTask(taskId: string, reason?: string): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'POST',
+      `kanban/tasks/${encodeURIComponent(taskId)}/block`,
+      { body: reason !== undefined ? { reason } : {} },
+    )
+  }
+
+  async commentTask(
+    taskId: string,
+    body: string,
+    author?: string,
+  ): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'POST',
+      `kanban/tasks/${encodeURIComponent(taskId)}/comment`,
+      { body: { body, ...(author !== undefined ? { author } : {}) } },
+    )
+  }
+
+  async completeTask(taskId: string): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'POST',
+      `kanban/tasks/${encodeURIComponent(taskId)}/complete`,
+      { body: {} },
+    )
+  }
+
+  async cancelTask(taskId: string): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'POST',
+      `kanban/tasks/${encodeURIComponent(taskId)}/cancel`,
+      { body: {} },
     )
   }
 

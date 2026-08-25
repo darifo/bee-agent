@@ -49,6 +49,7 @@ export function newKanbanTask(init: NewKanbanTaskInit): KanbanTask {
     claim: undefined,
     artifactRefs: [],
     trajectoryRefs: [],
+    comments: [],
     version: 1,
     createdAt: now,
     updatedAt: now,

@@ -105,6 +105,88 @@ program
     }
   })
 
+program
+  .command('kanban')
+  .description('Manage the kanban board')
+  .command('create')
+  .description('Create a task')
+  .requiredOption('-t, --title <title>', 'task title')
+  .option('--priority <priority>', 'priority')
+  .option('--label <label...>', 'labels')
+  .option('--json', 'print raw JSON')
+  .action(
+    async (options: {
+      title: string
+      priority?: string
+      label?: string[]
+      json?: boolean
+    }) => {
+      try {
+        const task = await clientFrom(program).createTask({
+          title: options.title,
+          ...(options.priority !== undefined
+            ? { priority: options.priority }
+            : {}),
+          ...(options.label !== undefined ? { labels: options.label } : {}),
+        })
+        if (options.json) {
+          console.log(JSON.stringify(task, null, 2))
+        } else {
+          console.log(`${task.id}\t${task.status}\t${task.title}`)
+        }
+      } catch (error) {
+        printError(error)
+        process.exitCode = 1
+      }
+    },
+  )
+
+program
+  .command('kanban')
+  .command('list')
+  .description('List tasks')
+  .option('--status <status>', 'filter by status')
+  .option('--json', 'print raw JSON')
+  .action(async (options: { status?: string; json?: boolean }) => {
+    try {
+      const tasks = await clientFrom(program).listTasks({
+        ...(options.status !== undefined ? { status: options.status } : {}),
+      })
+      if (options.json) {
+        console.log(JSON.stringify(tasks, null, 2))
+      } else {
+        for (const task of tasks) {
+          console.log(
+            `${task.id}\t${task.status}\t${task.priority}\t${task.title}`,
+          )
+        }
+      }
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
+program
+  .command('kanban')
+  .command('show')
+  .description('Show a task')
+  .argument('<id>', 'task id')
+  .option('--json', 'print raw JSON')
+  .action(async (id: string, options: { json?: boolean }) => {
+    try {
+      const task = await clientFrom(program).getTask(id)
+      if (options.json) {
+        console.log(JSON.stringify(task, null, 2))
+      } else {
+        console.log(`${task.status}\t${task.title}`)
+      }
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
 program.parseAsync().catch((error: unknown) => {
   printError(error)
   process.exitCode = 1

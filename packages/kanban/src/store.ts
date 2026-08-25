@@ -7,12 +7,16 @@ import { newKanbanTask } from './construct.ts'
 import type { NewKanbanTaskInit } from './construct.ts'
 import {
   kanbanStreamId,
+  kanbanTaskCommentedEvent,
   kanbanTaskCreatedEvent,
   kanbanTaskLeaseRenewedEvent,
   kanbanTaskStatusChangedEvent,
+  kanbanTaskUpdatedEvent,
   UnknownKanbanTaskEventTypeError,
 } from './events.ts'
+import { KanbanTaskSchema } from './protocol.ts'
 import type {
+  KanbanComment,
   KanbanPriority,
   KanbanTask,
   KanbanTaskId,
@@ -20,6 +24,7 @@ import type {
 } from './protocol.ts'
 import {
   applyTransition,
+  KanbanVersionConflictError,
   type KanbanTransitionCommand,
 } from './state-machine.ts'
 
@@ -65,6 +70,25 @@ export interface KanbanLeaseRenewal {
   readonly expiresAt: string
 }
 
+/** A field-only mutation: only provided fields change, none of them status. */
+export interface KanbanTaskUpdate {
+  readonly expectedVersion: number
+  readonly at?: string | undefined
+  readonly title?: string | undefined
+  readonly goal?: string | undefined
+  readonly acceptanceCriteria?: readonly string[] | undefined
+  readonly priority?: KanbanPriority | undefined
+  readonly labels?: readonly string[] | undefined
+  readonly deadline?: string | undefined
+  readonly scheduledAt?: string | undefined
+}
+
+export interface KanbanCommentInput {
+  readonly author: string
+  readonly body: string
+  readonly at?: string | undefined
+}
+
 export interface KanbanStore {
   get(taskId: KanbanTaskId): Promise<KanbanTask | undefined>
 
@@ -92,6 +116,12 @@ export interface KanbanStore {
     taskId: KanbanTaskId,
     renewal: KanbanLeaseRenewal,
   ): Promise<KanbanTask>
+
+  /** Updates fields without changing status, guarded by expected-version. */
+  update(taskId: KanbanTaskId, patch: KanbanTaskUpdate): Promise<KanbanTask>
+
+  /** Appends a comment, advancing the version without changing status. */
+  comment(taskId: KanbanTaskId, input: KanbanCommentInput): Promise<KanbanTask>
 
   /** Replays the log into the projection (restart recovery). */
   rebuild(): Promise<void>
@@ -138,6 +168,21 @@ function foldTask(
     case 'kanban.task.status_changed': {
       const payload = event.payload as { task: KanbanTask }
       return payload.task
+    }
+    case 'kanban.task.updated': {
+      const payload = event.payload as { task: KanbanTask }
+      return payload.task
+    }
+    case 'kanban.task.commented': {
+      if (task === undefined) {
+        throw new Error('Kanban task stream has a commented before created')
+      }
+      const { comment } = event.payload as { comment: KanbanComment }
+      return {
+        ...task,
+        comments: [...task.comments, comment],
+        version: task.version + 1,
+      }
     }
     case 'kanban.task.lease_renewed': {
       if (task === undefined) {
@@ -263,6 +308,72 @@ export class ChronicleKanbanStore implements KanbanStore {
     await this.#commit(
       taskId,
       [kanbanTaskLeaseRenewedEvent({ taskId, ...renewal })],
+      current.version + 1,
+      next,
+    )
+    return next
+  }
+
+  async update(
+    taskId: KanbanTaskId,
+    patch: KanbanTaskUpdate,
+  ): Promise<KanbanTask> {
+    const current = this.#tasks.get(taskId)
+    if (current === undefined) throw new KanbanTaskNotFoundError(taskId)
+    if (patch.expectedVersion !== current.version) {
+      throw new KanbanVersionConflictError(
+        taskId,
+        patch.expectedVersion,
+        current.version,
+      )
+    }
+    const at = patch.at ?? new Date().toISOString()
+    const next = KanbanTaskSchema.parse({
+      ...current,
+      ...(patch.title !== undefined ? { title: patch.title } : {}),
+      ...(patch.goal !== undefined ? { goal: patch.goal } : {}),
+      ...(patch.acceptanceCriteria !== undefined
+        ? { acceptanceCriteria: [...patch.acceptanceCriteria] }
+        : {}),
+      ...(patch.priority !== undefined ? { priority: patch.priority } : {}),
+      ...(patch.labels !== undefined ? { labels: [...patch.labels] } : {}),
+      ...(patch.deadline !== undefined ? { deadline: patch.deadline } : {}),
+      ...(patch.scheduledAt !== undefined
+        ? { scheduledAt: patch.scheduledAt }
+        : {}),
+      version: current.version + 1,
+      updatedAt: at,
+    })
+    await this.#commit(
+      taskId,
+      [kanbanTaskUpdatedEvent(next)],
+      current.version + 1,
+      next,
+    )
+    return next
+  }
+
+  async comment(
+    taskId: KanbanTaskId,
+    input: KanbanCommentInput,
+  ): Promise<KanbanTask> {
+    const current = this.#tasks.get(taskId)
+    if (current === undefined) throw new KanbanTaskNotFoundError(taskId)
+    const comment: KanbanComment = {
+      id: crypto.randomUUID(),
+      author: input.author,
+      body: input.body,
+      at: input.at ?? new Date().toISOString(),
+    }
+    const next: KanbanTask = {
+      ...current,
+      comments: [...current.comments, comment],
+      version: current.version + 1,
+      updatedAt: comment.at,
+    }
+    await this.#commit(
+      taskId,
+      [kanbanTaskCommentedEvent({ taskId, comment })],
       current.version + 1,
       next,
     )

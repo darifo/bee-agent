@@ -41,6 +41,7 @@ function taskFixture(overrides: Partial<KanbanTask> = {}): KanbanTask {
     requiredCapabilities: [],
     artifactRefs: [],
     trajectoryRefs: [],
+    comments: [],
     status: 'inbox',
     version: 1,
     createdAt: NOW,

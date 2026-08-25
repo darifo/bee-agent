@@ -102,6 +102,18 @@ export const KanbanRefSchema = z.object({
 })
 export type KanbanRef = z.infer<typeof KanbanRefSchema>
 
+/**
+ * A note attached to a task. Comments are annotations, not state: they are
+ * folded into the projection so clients read them alongside the task.
+ */
+export const KanbanCommentSchema = z.object({
+  id: z.uuid(),
+  author: z.string().min(1),
+  body: z.string().min(1),
+  at: z.iso.datetime(),
+})
+export type KanbanComment = z.infer<typeof KanbanCommentSchema>
+
 const IsoDateTime = z.iso.datetime()
 
 /**
@@ -129,6 +141,7 @@ export const KanbanTaskSchema = z.object({
   claim: KanbanClaimLeaseSchema.optional(),
   artifactRefs: z.array(KanbanRefSchema),
   trajectoryRefs: z.array(KanbanRefSchema),
+  comments: z.array(KanbanCommentSchema),
   version: z.number().int().positive(),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,

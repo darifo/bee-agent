@@ -8,11 +8,17 @@ import type {
   NewChronicleEvent,
 } from '@bee-agent/knowledge'
 import {
+  KanbanCommentSchema,
   KanbanTaskIdSchema,
   KanbanTaskSchema,
   KanbanTaskStatusSchema,
 } from './protocol.ts'
-import type { KanbanTask, KanbanTaskId, KanbanTaskStatus } from './protocol.ts'
+import type {
+  KanbanComment,
+  KanbanTask,
+  KanbanTaskId,
+  KanbanTaskStatus,
+} from './protocol.ts'
 
 /**
  * Kanban tasks over Chronicle (architecture §15.2): each task is one stream,
@@ -29,6 +35,8 @@ export const KANBAN_TASK_EVENT_TYPES = [
   'kanban.task.created',
   'kanban.task.status_changed',
   'kanban.task.lease_renewed',
+  'kanban.task.updated',
+  'kanban.task.commented',
 ] as const
 export type KanbanTaskEventType = (typeof KANBAN_TASK_EVENT_TYPES)[number]
 
@@ -58,6 +66,16 @@ const KanbanTaskLeaseRenewedPayloadSchema = z.object({
   expiresAt: z.iso.datetime(),
 })
 
+/** A field-only mutation (no status change); carries the full new snapshot. */
+const KanbanTaskUpdatedPayloadSchema = z.object({
+  task: KanbanTaskSchema,
+})
+
+/** An annotation appended to a task; folded into the `comments` array. */
+const KanbanTaskCommentedPayloadSchema = z.object({
+  comment: KanbanCommentSchema,
+})
+
 const KANBAN_TASK_EVENT_PAYLOADS: Record<
   KanbanTaskEventType,
   z.ZodType<unknown>
@@ -65,6 +83,8 @@ const KANBAN_TASK_EVENT_PAYLOADS: Record<
   'kanban.task.created': KanbanTaskCreatedPayloadSchema,
   'kanban.task.status_changed': KanbanTaskStatusChangedPayloadSchema,
   'kanban.task.lease_renewed': KanbanTaskLeaseRenewedPayloadSchema,
+  'kanban.task.updated': KanbanTaskUpdatedPayloadSchema,
+  'kanban.task.commented': KanbanTaskCommentedPayloadSchema,
 }
 
 /** Registers every kanban task event type on a Chronicle registry. */
@@ -142,6 +162,35 @@ export function kanbanTaskLeaseRenewedEvent(
     actor: options.actor ?? DEFAULT_ACTOR,
     taskId: input.taskId,
     payload: { leaseId: input.leaseId, expiresAt: input.expiresAt },
+  })
+}
+
+export function kanbanTaskUpdatedEvent(
+  task: KanbanTask,
+  options: KanbanEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'kanban.task.updated',
+    actor: options.actor ?? DEFAULT_ACTOR,
+    taskId: task.id,
+    payload: { task },
+  })
+}
+
+export interface KanbanTaskCommentedInput {
+  readonly taskId: KanbanTaskId
+  readonly comment: KanbanComment
+}
+
+export function kanbanTaskCommentedEvent(
+  input: KanbanTaskCommentedInput,
+  options: KanbanEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'kanban.task.commented',
+    actor: options.actor ?? DEFAULT_ACTOR,
+    taskId: input.taskId,
+    payload: { comment: input.comment },
   })
 }
 

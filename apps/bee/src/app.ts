@@ -2,10 +2,20 @@ import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
 import type { ChronicleStore } from '@bee-agent/knowledge'
+import {
+  KANBAN_TOOL_DEFINITIONS,
+  createKanbanToolExecutor,
+} from '@bee-agent/kanban'
+import type { KanbanStore } from '@bee-agent/kanban'
 import { AgentLoop } from '@bee-agent/runtime'
-import type { AgentLoopToolSlot, LlmRuntime } from '@bee-agent/runtime'
+import type {
+  AgentLoopToolSlot,
+  LlmRuntime,
+  LlmToolSpec,
+} from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
+import { kanbanRoutes } from './routes/kanban.ts'
 import { threadRoutes } from './routes/threads.ts'
 
 /**
@@ -65,9 +75,13 @@ export function unsafeListenReason(
 export interface BeeServerOptions {
   /** The Chronicle store holding thread streams (migrated, registry wired). */
   readonly store: ChronicleStore
+  /** The kanban store shared by the REST API, agent tools, and dispatcher. */
+  readonly kanban: KanbanStore
   readonly llm: LlmRuntime
-  /** Tool execution seam; wired directly until ExecutionWorld lands (P1-17+). */
+  /** Tool execution seam for non-kanban tools; wired directly until ExecutionWorld lands. */
   readonly tools: AgentLoopToolSlot
+  /** Extra tool specs appended after the built-in kanban tools. */
+  readonly toolSpecs?: readonly LlmToolSpec[] | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
   readonly corsOrigin?: CorsOriginPolicy | undefined
@@ -82,6 +96,7 @@ export interface BeeServerOptions {
 export interface BeeServer {
   readonly app: FastifyInstance
   readonly store: BroadcastingChronicleStore
+  readonly kanban: KanbanStore
   readonly loop: AgentLoop
 }
 
@@ -101,6 +116,45 @@ function toFastifyCorsOrigin(
 }
 
 /**
+ * Wraps the caller's tool slot with the built-in kanban tools. `kanban_*`
+ * calls route to the kanban executor over the shared store; everything else
+ * delegates to the caller's slot. Kanban tool failures surface as error tool
+ * results so the model can respond instead of crashing the turn.
+ */
+function compositeToolSlot(
+  kanban: KanbanStore,
+  fallback: AgentLoopToolSlot,
+): AgentLoopToolSlot {
+  const executor = createKanbanToolExecutor(kanban)
+  return {
+    async execute(call) {
+      if (!call.call.toolId.startsWith('kanban_')) {
+        return fallback.execute(call)
+      }
+      try {
+        const result = await executor.execute({
+          toolId: call.call.toolId,
+          input: call.call.input,
+        })
+        return {
+          kind: 'result',
+          output: result.output,
+          content: result.content,
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        return {
+          kind: 'result',
+          output: { error: message },
+          content: message,
+          isError: true,
+        }
+      }
+    },
+  }
+}
+
+/**
  * The Personal Bee Host (architecture §9.1) minimal form: one Fastify
  * process serving the Thread–Turn–Item API over a Chronicle store. Security
  * defaults (architecture §16.4) apply out of the box: loopback-only CORS and
@@ -113,13 +167,21 @@ export async function buildBeeServer(
   const loop = new AgentLoop({
     llm: options.llm,
     store,
-    tools: options.tools,
+    tools: compositeToolSlot(options.kanban, options.tools),
+    toolSpecs: [
+      ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
+        id: definition.id,
+        description: definition.description,
+        inputSchema: definition.inputSchema,
+      })),
+      ...(options.toolSpecs ?? []),
+    ],
   })
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
-  app.decorate('bee', { store, loop })
+  app.decorate('bee', { store, kanban: options.kanban, loop })
 
   if (options.sessionToken !== undefined) {
     app.addHook('onRequest', async (request, reply) => {
@@ -143,10 +205,11 @@ export async function buildBeeServer(
   })
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(threadRoutes, { corsOrigin })
+  await app.register(kanbanRoutes)
   app.addHook('onClose', async () => {
     await store.close()
   })
-  return { app, store, loop }
+  return { app, store, kanban: options.kanban, loop }
 }
 
 async function denyUnauthorized(
