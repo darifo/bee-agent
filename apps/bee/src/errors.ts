@@ -1,5 +1,11 @@
 import { z } from 'zod'
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify'
+import {
+  KanbanInvalidTransitionError,
+  KanbanLeaseLostError,
+  KanbanTaskNotFoundError,
+  KanbanVersionConflictError,
+} from '@bee-agent/kanban'
 
 export interface ErrorEnvelope {
   code: string
@@ -25,6 +31,22 @@ export function errorToResponse(error: unknown): {
           })),
         },
       },
+    }
+  }
+  if (error instanceof KanbanTaskNotFoundError) {
+    return {
+      status: 404,
+      envelope: { code: 'not-found', message: error.message },
+    }
+  }
+  if (
+    error instanceof KanbanVersionConflictError ||
+    error instanceof KanbanInvalidTransitionError ||
+    error instanceof KanbanLeaseLostError
+  ) {
+    return {
+      status: 409,
+      envelope: { code: 'conflict', message: error.message },
     }
   }
   if (

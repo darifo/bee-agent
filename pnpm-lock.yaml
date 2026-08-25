@@ -41,6 +41,9 @@ importers:
 
   adapters/storage/sqlite:
     dependencies:
+      '@bee-agent/kanban':
+        specifier: workspace:*
+        version: link:../../../packages/kanban
       '@bee-agent/knowledge':
         specifier: workspace:*
         version: link:../../../packages/knowledge
@@ -60,6 +63,9 @@ importers:
 
   apps/bee:
     dependencies:
+      '@bee-agent/kanban':
+        specifier: workspace:*
+        version: link:../../packages/kanban
       '@bee-agent/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
@@ -166,7 +172,18 @@ importers:
         specifier: ^4.0.15
         version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
-  packages/kanban: {}
+  packages/kanban:
+    dependencies:
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
   packages/kernel:
     dependencies:

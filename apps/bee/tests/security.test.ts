@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
+import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
+import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
+import type { KanbanStore } from '@bee-agent/kanban'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
 import type { AgentLoopToolSlot } from '@bee-agent/runtime'
 import {
@@ -18,6 +21,12 @@ function createRegistryStore(): MemoryChronicleStore {
   return new MemoryChronicleStore(registry)
 }
 
+function createKanbanStore(): KanbanStore {
+  const registry = new ChronicleSchemaRegistry()
+  registerKanbanChronicleEvents(registry)
+  return createMemoryKanbanStore(registry)
+}
+
 const noopTools: AgentLoopToolSlot = {
   async execute({ call }) {
     return { kind: 'result', output: call.input, content: 'ok' }
@@ -31,6 +40,7 @@ async function build(options: {
   const llm = createFakeLlmRuntime({ script: [] })
   return buildBeeServer({
     store: createRegistryStore(),
+    kanban: createKanbanStore(),
     llm,
     tools: noopTools,
     logger: false,

@@ -48,6 +48,39 @@ button {
   padding: 8px 12px;
 }
 
+/* view toggle + kanban board */
+
+.view-toggle {
+  display: flex;
+  gap: 4px;
+}
+
+.view-toggle button {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 13px;
+}
+
+.view-toggle button.active {
+  background: #e7f1ff;
+  color: #1d4ed8;
+  border-color: #c7dcff;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.board-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .console-body {
   display: grid;
   grid-template-columns: 340px 1fr;

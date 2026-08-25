@@ -1,7 +1,11 @@
 import { randomBytes } from 'node:crypto'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
-import { SQLiteChronicleStore } from '@bee-agent/storage-sqlite'
+import {
+  SQLiteChronicleStore,
+  SQLiteKanbanStore,
+} from '@bee-agent/storage-sqlite'
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
+import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import type { AgentLoopToolSlot } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
@@ -62,13 +66,17 @@ const tools: AgentLoopToolSlot = {
 
 const registry = new ChronicleSchemaRegistry()
 registerThreadChronicleEvents(registry)
-const store = new SQLiteChronicleStore({
-  registry,
-  filename: process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite',
-})
+registerKanbanChronicleEvents(registry)
+const filename =
+  process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
+const store = new SQLiteChronicleStore({ registry, filename })
+const kanban = new SQLiteKanbanStore({ registry, filename })
+// Recover the board from the durable log before serving.
+await kanban.rebuild()
 
 const server = await buildBeeServer({
   store,
+  kanban,
   llm,
   tools,
   sessionToken: effectiveToken,

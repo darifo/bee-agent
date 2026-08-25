@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@bee-agent/kanban": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
     "better-sqlite3": "^12.4.1"
   },

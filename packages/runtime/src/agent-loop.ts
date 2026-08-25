@@ -24,6 +24,7 @@ import {
 } from '@bee-agent/thread'
 import type {
   Item,
+  ItemId,
   ThreadId,
   ThreadEvent,
   Turn,
@@ -48,6 +49,8 @@ export interface AgentLoopToolSlotCall {
   readonly call: LlmToolCall
   readonly threadId: ThreadId
   readonly turnId: TurnId
+  /** The tool_call item this execution is bound to (for provenance links). */
+  readonly itemId?: ItemId | undefined
   /** Present when a previously requested approval was granted or rejected. */
   readonly approval?: 'approved' | 'rejected' | undefined
   readonly signal?: AbortSignal | undefined
@@ -285,6 +288,7 @@ export class AgentLoop {
         call: pending.call,
         threadId: input.threadId,
         turnId: input.turnId,
+        itemId: pending.toolItem.id,
         approval: 'approved',
         signal: input.signal,
       })
@@ -350,6 +354,7 @@ export class AgentLoop {
           call: intent.call,
           threadId: state.turn.threadId,
           turnId: state.turn.id,
+          itemId: intent.item.id,
           signal,
         })
         if (result.kind === 'approval-required') {
