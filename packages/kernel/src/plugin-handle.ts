@@ -1,4 +1,4 @@
-import type { Context, ForkScope } from 'cordis'
+import type { Context, ForkScope } from './context.ts'
 import type { ReplacementTier } from './replacement.ts'
 import type {
   PluginDrainReport,

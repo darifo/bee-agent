@@ -82,7 +82,14 @@ export type {
   PluginEvent,
 } from './types.ts'
 
-export { Context } from 'cordis'
-export type { Plugin, ForkScope } from 'cordis'
+export { Context } from './context.ts'
+export type {
+  Disposer,
+  ForkScope,
+  Plugin,
+  PluginFunction,
+  PluginLike,
+  PluginObject,
+} from './context.ts'
 export { PluginManifestSchema } from './plugin.ts'
 export type { BeeAgentPlugin, PluginManifest } from './plugin.ts'

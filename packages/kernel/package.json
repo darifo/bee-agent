@@ -22,7 +22,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "cordis": "^3.18.1",
     "zod": "^4.1.13"
   }
 }

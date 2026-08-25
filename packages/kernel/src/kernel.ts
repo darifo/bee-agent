@@ -1,5 +1,5 @@
-import { Context } from 'cordis'
-import type { Plugin } from 'cordis'
+import { Context } from './context.ts'
+import type { Plugin, PluginFunction, PluginObject } from './context.ts'
 import { KernelEmitter } from './emitter.ts'
 import { EventBus } from './events.ts'
 import {
@@ -240,10 +240,7 @@ export class Kernel {
 
   use(plugin: Plugin, config?: unknown): PluginHandle {
     this.#assertMutable('Cannot mount a plugin')
-    const scope = this.context.plugin(
-      plugin as Plugin.Function<Context>,
-      config,
-    )
+    const scope = this.context.plugin(plugin as PluginFunction<Context>, config)
     const handle = new CordisPluginHandle(
       this.#nextPluginId(pluginLabel(plugin)),
       scope,
@@ -343,7 +340,7 @@ export class Kernel {
 function pluginLabel(plugin: Plugin): string {
   if (typeof plugin === 'function') return plugin.name || 'plugin'
   if (typeof plugin === 'object' && plugin !== null) {
-    const object = plugin as Plugin.Object<Context>
+    const object = plugin as PluginObject<Context>
     if (typeof object.apply === 'function' && object.apply.name) {
       return object.apply.name
     }

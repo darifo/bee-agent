@@ -1,4 +1,4 @@
-import type { Context } from 'cordis'
+import type { Context } from './context.ts'
 import type { EventBusChild } from './events.ts'
 import type { EffectScope } from './effects.ts'
 import type { ReplacementTier } from './replacement.ts'
