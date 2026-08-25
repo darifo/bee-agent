@@ -2,7 +2,7 @@ import type { Context } from 'cordis'
 import type { EventBusChild } from './events.ts'
 import type { EffectScope } from './effects.ts'
 import type { ReplacementTier } from './replacement.ts'
-import type { BeeAgentPlugin } from '@bee-agent/plugin-sdk'
+import type { BeeAgentPlugin } from './plugin.ts'
 
 export interface KernelConfig {
   baseDir?: string

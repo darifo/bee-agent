@@ -1,5 +1,0 @@
-export { initialMigration } from './migration.ts'
-export { PostgresEventStore } from './postgres-event-store.ts'
-export { PostgresStorage } from './postgres-storage.ts'
-export { PostgresStoragePlugin } from './plugin.ts'
-export type { PostgresPluginConfig } from './plugin.ts'

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
-import type { PluginManifest } from '@bee-agent/plugin-sdk'
+import { PluginManifestSchema } from '../src/index.ts'
+import type { PluginManifest } from '../src/index.ts'
 import {
   EffectScope,
   createKernel,

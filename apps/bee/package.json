@@ -21,8 +21,8 @@
   "dependencies": {
     "@bee-agent/knowledge": "workspace:*",
     "@bee-agent/model-providers": "workspace:*",
-    "@bee-agent/plugin-storage-sqlite": "workspace:*",
     "@bee-agent/runtime": "workspace:*",
+    "@bee-agent/storage-sqlite": "workspace:*",
     "@bee-agent/thread": "workspace:*",
     "@fastify/cors": "^11.3.0",
     "fastify": "^5.12.1",

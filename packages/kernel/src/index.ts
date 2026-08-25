@@ -28,11 +28,6 @@ export type {
   WaterfallMiddleware,
   WaterfallTerminal,
 } from './events.ts'
-export {
-  eventStoreService,
-  storageService,
-  vectorStoreService,
-} from './service-keys.ts'
 export { defineServiceKey, serviceName } from './types.ts'
 export {
   BEE_PROFILE_ID,
@@ -89,3 +84,5 @@ export type {
 
 export { Context } from 'cordis'
 export type { Plugin, ForkScope } from 'cordis'
+export { PluginManifestSchema } from './plugin.ts'
+export type { BeeAgentPlugin, PluginManifest } from './plugin.ts'

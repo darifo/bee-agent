@@ -94,37 +94,18 @@ test('checkSource flags self-imports and unknown workspace names', () => {
   assert.ok(violations.some((violation) => violation.unknown))
 })
 
-test('legacy allowances keep v0 imports passing until their removal phase', () => {
-  assert.deepEqual(
-    checkSource({
-      packageName: 'kernel',
-      code: "import { EventStore } from '@bee-agent/event-store'",
-    }),
-    [],
-  )
-  assert.deepEqual(
-    checkSource({
-      packageName: 'runtime',
-      code: "import { ToolResult } from '@bee-agent/contracts'",
-    }),
-    [],
-  )
-})
-
-test('allowedInternalImports unions v1 allows with legacy allowances', () => {
+test('allowedInternalImports reflects the v1 dependency DAG', () => {
   assert.deepEqual([...allowedInternalImports('runtime')].sort(), [
     'context',
-    'contracts',
-    'event-store',
     'execution',
     'kanban',
     'kernel',
     'knowledge',
     'thread',
-    'vector-store',
   ])
   assert.deepEqual(
     allowedInternalImports('thread'),
     new Set(['kernel', 'knowledge']),
   )
+  assert.deepEqual(allowedInternalImports('client'), new Set(['thread']))
 })

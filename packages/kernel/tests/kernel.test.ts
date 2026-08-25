@@ -1,14 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { PluginManifestSchema } from '@bee-agent/plugin-sdk'
-import type { BeeAgentPlugin, PluginManifest } from '@bee-agent/plugin-sdk'
+import { PluginManifestSchema } from '../src/index.ts'
+import type { BeeAgentPlugin, PluginManifest } from '../src/index.ts'
 import {
   createKernel,
   defineSerialEvent,
   defineServiceKey,
   defineWaterfallEvent,
-  eventStoreService,
-  storageService,
-  vectorStoreService,
 } from '../src/index.ts'
 import type { Context, KernelEvents } from '../src/index.ts'
 
@@ -591,30 +588,6 @@ describe('TaskScope event bindings', () => {
     )
     expect(result).toEqual({ denied: false })
     expect(() => scope.events).toThrow(/already disposed/)
-    await kernel.stop()
-  })
-})
-
-describe('Kernel service key catalog', () => {
-  it('publishes storage, event-store, and vector-store keys', async () => {
-    expect(storageService.name).toBe('storage')
-    expect(eventStoreService.name).toBe('event-store')
-    expect(vectorStoreService.name).toBe('vector-store')
-
-    const kernel = createKernel()
-    await kernel.start()
-    const fakeStore = {
-      append: async () => ({}) as never,
-      appendBatch: async () => [] as never[],
-      readTask: async function* () {},
-      getLatestSequence: async () => 0,
-      listTaskIds: async () => [] as readonly string[],
-    }
-    kernel.registerService(eventStoreService, fakeStore)
-    expect(kernel.getService(eventStoreService)).toBe(fakeStore)
-    await expect(kernel.waitForService(eventStoreService)).resolves.toBe(
-      fakeStore,
-    )
     await kernel.stop()
   })
 })

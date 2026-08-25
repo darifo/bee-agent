@@ -1,8 +1,7 @@
 // Single source of truth for workspace package dependency boundaries.
 //
-// The v1 target DAG comes from the refactor development plan §3.3. Legacy
-// packages keep their actual v0 imports until the phase that deletes them;
-// both eslint (editor + `pnpm lint`) and the CLI scanner below consume this
+// The v1 target DAG comes from the refactor development plan §3.3. Both
+// eslint (editor + `pnpm lint`) and the CLI scanner below consume this
 // module, so the rules can never drift apart.
 
 export const V1_PACKAGE_DEPENDENCIES = {
@@ -15,27 +14,8 @@ export const V1_PACKAGE_DEPENDENCIES = {
   context: ['kernel', 'thread', 'knowledge', 'execution'],
   runtime: ['kernel', 'thread', 'kanban', 'context', 'knowledge', 'execution'],
   learning: ['kernel', 'knowledge', 'runtime', 'context'],
-}
-
-// v0-era packages and the v1 packages that still host legacy code. Every
-// allowance here must disappear with its phase (noted inline); the scanner
-// enforces the union of v1 allows and legacy allowances.
-export const LEGACY_PACKAGE_ALLOWANCES = {
-  // Dissolved into thread/knowledge/execution in Phase 1.
-  contracts: [],
-  'event-store': ['contracts'],
-  'vector-store': ['contracts'],
-  'plugin-sdk': [],
-  // Rewritten as the LLMRuntime adapter in Phase 1.
-  'model-providers': ['contracts', 'runtime'],
-  // Rewritten against /threads in Phase 1.
+  'model-providers': ['runtime'],
   client: ['thread'],
-  // Legacy kernel seams (service keys + plugin mounting) until Phase 1.
-  kernel: ['event-store', 'plugin-sdk', 'storage', 'vector-store'],
-  // storage/testing.ts still types the v0 EventStore contract until Phase 1.
-  storage: ['event-store'],
-  // Old runtime keeps its v0 imports until the Phase 1 deletion.
-  runtime: ['contracts', 'event-store', 'vector-store'],
 }
 
 const INTERNAL_PREFIX = '@bee-agent/'
@@ -59,19 +39,11 @@ export function extractInternalSpecifiers(source) {
 }
 
 export function knownInternalPackages() {
-  return [
-    ...new Set([
-      ...Object.keys(V1_PACKAGE_DEPENDENCIES),
-      ...Object.keys(LEGACY_PACKAGE_ALLOWANCES),
-    ]),
-  ]
+  return [...new Set(Object.keys(V1_PACKAGE_DEPENDENCIES))]
 }
 
 export function allowedInternalImports(packageName) {
-  return new Set([
-    ...(V1_PACKAGE_DEPENDENCIES[packageName] ?? []),
-    ...(LEGACY_PACKAGE_ALLOWANCES[packageName] ?? []),
-  ])
+  return new Set(V1_PACKAGE_DEPENDENCIES[packageName] ?? [])
 }
 
 /**

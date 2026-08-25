@@ -1,6 +1,4 @@
 export { ModelProtocolError, ModelProviderError } from './errors.ts'
 export { OpenAIChatRuntime } from './openai-chat-runtime.ts'
 export type { OpenAIChatRuntimeOptions } from './openai-chat-runtime.ts'
-export { OpenAIEmbedder } from './openai-embedder.ts'
-export type { OpenAIEmbedderOptions } from './openai-embedder.ts'
 export { DEFAULT_OPENAI_BASE_URL } from './shared.ts'

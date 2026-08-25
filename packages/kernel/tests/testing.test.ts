@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  FakeClock,
-  createFakeTool,
-  createScriptedModel,
-} from '../src/testing.ts'
+import { FakeClock, createFakeTool } from '../src/testing.ts'
 
 describe('FakeClock', () => {
   it('starts at the injected epoch and never reads wall-clock time', () => {
@@ -75,32 +71,5 @@ describe('createFakeTool', () => {
     })
     await expect(tool.execute({ n: 7 }, undefined)).resolves.toBe('saw 7')
     expect(tool.calls).toHaveLength(1)
-  })
-})
-
-describe('createScriptedModel', () => {
-  it('issues scripted decisions in order and records them', async () => {
-    const model = createScriptedModel([
-      { kind: 'tool-call', toolId: 'tools.echo', input: { q: 1 } },
-      { kind: 'text', content: 'done' },
-    ])
-    await expect(model.respond({})).resolves.toEqual({
-      kind: 'tool-call',
-      toolId: 'tools.echo',
-      input: { q: 1 },
-    })
-    await expect(model.respond({})).resolves.toEqual({
-      kind: 'text',
-      content: 'done',
-    })
-    expect(model.issued).toHaveLength(2)
-  })
-
-  it('throws the scripted error and rejects when the script runs dry', async () => {
-    const model = createScriptedModel([
-      { kind: 'error', error: new Error('boom') },
-    ])
-    await expect(model.respond({})).rejects.toThrow('boom')
-    await expect(model.respond({})).rejects.toThrow('ran out of steps')
   })
 })

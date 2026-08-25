@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
-import { SQLiteChronicleStore } from '@bee-agent/plugin-storage-sqlite'
+import { SQLiteChronicleStore } from '@bee-agent/storage-sqlite'
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import type { AgentLoopToolSlot } from '@bee-agent/runtime'
