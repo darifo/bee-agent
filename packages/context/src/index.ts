@@ -44,3 +44,19 @@ export type {
   ProtectedContent,
   SectionPriority,
 } from './context-budget.ts'
+
+export {
+  SkillManifestSchema,
+  SkillSummarySchema,
+  estimateSkillTokens,
+  estimateSummaryTokens,
+  toSkillSummary,
+} from './skill.ts'
+export type {
+  Skill,
+  SkillEvalCase,
+  SkillRiskLevel,
+  SkillSummary,
+} from './skill.ts'
+export { SkillRegistry, evaluateSkill } from './skill-registry.ts'
+export type { SkillEvalResult, SkillEvaluator } from './skill-registry.ts'
