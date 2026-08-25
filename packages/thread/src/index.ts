@@ -396,6 +396,15 @@ function toThreadEvent(stored: ChronicleEvent): ThreadEvent {
 }
 
 /**
+ * Converts one stored Chronicle event into its wire shape. Used by hosts
+ * that stream live thread events (e.g. the apps/bee SSE endpoint) as they
+ * are appended, without reading the whole stream back.
+ */
+export function threadEventFromChronicle(stored: ChronicleEvent): ThreadEvent {
+  return toThreadEvent(stored)
+}
+
+/**
  * Reads a thread's history with `after` recovery semantics: returns wire
  * events with `sequence > after` in order, at most `limit` of them, with
  * `hasMore` telling the client to keep paging. Sequences are contiguous,
