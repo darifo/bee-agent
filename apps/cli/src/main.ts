@@ -187,6 +187,131 @@ program
     }
   })
 
+program
+  .command('kanban')
+  .command('update')
+  .description('Update a task')
+  .argument('<id>', 'task id')
+  .option('--title <title>', 'new title')
+  .option('--priority <priority>', 'new priority')
+  .option('--json', 'print raw JSON')
+  .action(
+    async (
+      id: string,
+      options: { title?: string; priority?: string; json?: boolean },
+    ) => {
+      try {
+        const task = await clientFrom(program).updateTask(id, {
+          ...(options.title !== undefined ? { title: options.title } : {}),
+          ...(options.priority !== undefined
+            ? { priority: options.priority }
+            : {}),
+        })
+        if (options.json) {
+          console.log(JSON.stringify(task, null, 2))
+        } else {
+          console.log(`${task.id}\t${task.status}\t${task.title}`)
+        }
+      } catch (error) {
+        printError(error)
+        process.exitCode = 1
+      }
+    },
+  )
+
+program
+  .command('kanban')
+  .command('block')
+  .description('Block a task')
+  .argument('<id>', 'task id')
+  .option('--reason <reason>', 'block reason')
+  .option('--json', 'print raw JSON')
+  .action(async (id: string, options: { reason?: string; json?: boolean }) => {
+    try {
+      const task = await clientFrom(program).blockTask(id, options.reason)
+      if (options.json) {
+        console.log(JSON.stringify(task, null, 2))
+      } else {
+        console.log(`${task.id}\t${task.status}`)
+      }
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
+program
+  .command('kanban')
+  .command('comment')
+  .description('Comment on a task')
+  .argument('<id>', 'task id')
+  .argument('<body>', 'comment body')
+  .option('--author <author>', 'comment author')
+  .option('--json', 'print raw JSON')
+  .action(
+    async (
+      id: string,
+      body: string,
+      options: { author?: string; json?: boolean },
+    ) => {
+      try {
+        const task = await clientFrom(program).commentTask(
+          id,
+          body,
+          options.author,
+        )
+        if (options.json) {
+          console.log(JSON.stringify(task, null, 2))
+        } else {
+          console.log(`${task.id}\t${task.comments.length} comment(s)`)
+        }
+      } catch (error) {
+        printError(error)
+        process.exitCode = 1
+      }
+    },
+  )
+
+program
+  .command('kanban')
+  .command('complete')
+  .description('Complete a task')
+  .argument('<id>', 'task id')
+  .option('--json', 'print raw JSON')
+  .action(async (id: string, options: { json?: boolean }) => {
+    try {
+      const task = await clientFrom(program).completeTask(id)
+      if (options.json) {
+        console.log(JSON.stringify(task, null, 2))
+      } else {
+        console.log(`${task.id}\t${task.status}`)
+      }
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
+program
+  .command('kanban')
+  .command('cancel')
+  .description('Cancel a task')
+  .argument('<id>', 'task id')
+  .option('--json', 'print raw JSON')
+  .action(async (id: string, options: { json?: boolean }) => {
+    try {
+      const task = await clientFrom(program).cancelTask(id)
+      if (options.json) {
+        console.log(JSON.stringify(task, null, 2))
+      } else {
+        console.log(`${task.id}\t${task.status}`)
+      }
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
 program.parseAsync().catch((error: unknown) => {
   printError(error)
   process.exitCode = 1

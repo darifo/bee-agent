@@ -3,6 +3,7 @@ import type { TurnResult } from '@bee-agent/client'
 import type { BeeAgentClient } from '@bee-agent/client'
 import { useThreadStream } from './hooks/useThreadStream.ts'
 import { deriveEntries } from './messages.ts'
+import { KanbanBoard } from './KanbanBoard.tsx'
 
 export interface AppProps {
   client: BeeAgentClient
@@ -13,6 +14,8 @@ interface PendingApproval {
   readonly approvalId: string
   readonly title: string
 }
+
+type View = 'chat' | 'board'
 
 function outputOf(result: TurnResult): string {
   if (result.status === 'completed') return result.output
@@ -27,6 +30,7 @@ function outputOf(result: TurnResult): string {
  * prompt (architecture §9.1 Thread–Turn–Item, §16.4 local Web).
  */
 export function App({ client }: AppProps) {
+  const [view, setView] = useState<View>('chat')
   const [threadId, setThreadId] = useState<string | null>(null)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
@@ -99,65 +103,91 @@ export function App({ client }: AppProps) {
     <main className="console">
       <header className="console-head">
         <h1>Bee</h1>
-        {threadId === null ? (
-          <button type="button" onClick={() => void start()} disabled={busy}>
-            New conversation
+        <nav className="view-toggle">
+          <button
+            type="button"
+            className={view === 'chat' ? 'active' : ''}
+            onClick={() => setView('chat')}
+          >
+            Chat
           </button>
-        ) : (
-          <button type="button" onClick={() => setThreadId(null)}>
-            Reset
+          <button
+            type="button"
+            className={view === 'board' ? 'active' : ''}
+            onClick={() => setView('board')}
+          >
+            Board
           </button>
-        )}
+        </nav>
+        {view === 'chat' ? (
+          threadId === null ? (
+            <button type="button" onClick={() => void start()} disabled={busy}>
+              New conversation
+            </button>
+          ) : (
+            <button type="button" onClick={() => setThreadId(null)}>
+              Reset
+            </button>
+          )
+        ) : null}
       </header>
-      {error !== undefined ? <p className="console-error">{error}</p> : null}
-      {threadId === null ? (
-        <section className="task-detail-empty">
-          Start a conversation to talk to Bee.
-        </section>
+      {view === 'board' ? (
+        <KanbanBoard client={client} />
       ) : (
         <>
-          <section className="transcript" aria-label="conversation">
-            {entries.map((entry, index) => (
-              <Entry key={`${index}-${entry.kind}`} entry={entry} />
-            ))}
-          </section>
-          {pending !== undefined ? (
-            <div className="approval" role="alert">
-              <span>Approval needed: {pending.title}</span>
-              <button
-                type="button"
-                onClick={() => void decide('approved')}
-                disabled={busy}
-              >
-                Approve
-              </button>
-              <button
-                type="button"
-                onClick={() => void decide('rejected')}
-                disabled={busy}
-              >
-                Reject
-              </button>
-            </div>
+          {error !== undefined ? (
+            <p className="console-error">{error}</p>
           ) : null}
-          <form
-            className="composer"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void send()
-            }}
-          >
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Message Bee…"
-              disabled={busy}
-              aria-label="message"
-            />
-            <button type="submit" disabled={busy || input.trim() === ''}>
-              Send
-            </button>
-          </form>
+          {threadId === null ? (
+            <section className="task-detail-empty">
+              Start a conversation to talk to Bee.
+            </section>
+          ) : (
+            <>
+              <section className="transcript" aria-label="conversation">
+                {entries.map((entry, index) => (
+                  <Entry key={`${index}-${entry.kind}`} entry={entry} />
+                ))}
+              </section>
+              {pending !== undefined ? (
+                <div className="approval" role="alert">
+                  <span>Approval needed: {pending.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => void decide('approved')}
+                    disabled={busy}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void decide('rejected')}
+                    disabled={busy}
+                  >
+                    Reject
+                  </button>
+                </div>
+              ) : null}
+              <form
+                className="composer"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void send()
+                }}
+              >
+                <input
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  placeholder="Message Bee…"
+                  disabled={busy}
+                  aria-label="message"
+                />
+                <button type="submit" disabled={busy || input.trim() === ''}>
+                  Send
+                </button>
+              </form>
+            </>
+          )}
         </>
       )}
     </main>
