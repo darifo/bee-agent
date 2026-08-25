@@ -2,7 +2,11 @@ import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
 import type { ChronicleStore } from '@bee-agent/knowledge'
-import type { Kernel } from '@bee-agent/kernel'
+import type {
+  EffectiveStructure,
+  Kernel,
+  ReconcileResult,
+} from '@bee-agent/kernel'
 import {
   KANBAN_TOOL_DEFINITIONS,
   createKanbanToolExecutor,
@@ -12,6 +16,7 @@ import type {
   AgentLoopToolSlot,
   LlmRuntime,
   LlmToolSpec,
+  StructureReconciler,
 } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
@@ -21,6 +26,7 @@ import {
 } from './kernel-runtime.ts'
 import { kanbanRoutes } from './routes/kanban.ts'
 import { threadRoutes } from './routes/threads.ts'
+import { structureRoutes } from './routes/structure.ts'
 
 /**
  * CORS origin policy. `false` denies all cross-origin requests; a string
@@ -81,6 +87,10 @@ export interface BeeServerOptions {
   readonly tools: AgentLoopToolSlot
   /** Extra tool specs appended after the built-in kanban tools. */
   readonly toolSpecs?: readonly LlmToolSpec[] | undefined
+  readonly effectiveStructure?: EffectiveStructure | undefined
+  readonly modelId?: string | undefined
+  readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
+  readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
   readonly corsOrigin?: CorsOriginPolicy | undefined
@@ -98,6 +108,8 @@ export interface BeeServer {
   readonly kanban: KanbanStore
   readonly loop: AgentLoopService
   readonly kernel: Kernel
+  readonly structures: StructureReconciler
+  reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
 function toFastifyCorsOrigin(
@@ -184,13 +196,23 @@ export async function buildBeeServer(
     llm: options.llm,
     tools,
     toolSpecs,
+    effectiveStructure: options.effectiveStructure,
+    modelId: options.modelId,
+    modelProviders: options.modelProviders,
+    restoreActiveStructure: options.restoreActiveStructure,
   })
-  const { kernel, loop } = runtime
+  const { kernel, loop, structures } = runtime
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
-  app.decorate('bee', { store, kanban: options.kanban, loop, kernel })
+  app.decorate('bee', {
+    store,
+    kanban: options.kanban,
+    loop,
+    kernel,
+    structures,
+  })
 
   if (options.sessionToken !== undefined) {
     app.addHook('onRequest', async (request, reply) => {
@@ -215,11 +237,20 @@ export async function buildBeeServer(
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(threadRoutes, { corsOrigin })
   await app.register(kanbanRoutes)
+  await app.register(structureRoutes)
   app.addHook('onClose', async () => {
     await runtime.stop()
     await store.close()
   })
-  return { app, store, kanban: options.kanban, loop, kernel }
+  return {
+    app,
+    store,
+    kanban: options.kanban,
+    loop,
+    kernel,
+    structures,
+    reconcileStructure: (structure) => runtime.reconcile(structure),
+  }
 }
 
 async function denyUnauthorized(

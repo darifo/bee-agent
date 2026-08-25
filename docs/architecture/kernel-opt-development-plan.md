@@ -30,6 +30,7 @@ Bee 层负责 Cordis 不解决的产品不变量：
 - `ContextPolicy` 对子作用域实施单调收紧；
 - tier B 使用新 generation 接管新 Turn，tier C 显式返回 restart-required；
 - Host 的 Chronicle、Kanban、Model、Tools、AgentLoop 均通过插件提供。
+- `PluginFactoryRegistry` 已把 `EffectiveStructure` 转换为真实 `PluginGraph`，`StructureReconciler` 负责持久化并串行应用结构变更。
 
 这不是给旧内核增加一层 Cordis adapter。旧内核已删除，`@bee-agent/kernel` 只有一套公共语义。
 
@@ -63,16 +64,16 @@ apps/bee/src/kernel-runtime.ts   # Host 插件图与 Turn generation pinning
 
 ## 3. 与 DeepSeek Harness Cordis 底座的区别
 
-| 维度          | DeepSeek Harness / Cordis                | Bee Agent                                                  |
-| ------------- | ---------------------------------------- | ---------------------------------------------------------- |
-| 活插件图      | Context、Registry、Fiber、inject、effect | 移植并保留相同核心语义                                     |
-| 结构切换      | 主要是 Fiber 原地 restart/update         | 使用不可变 `StructureGeneration`，新旧两代可并存           |
-| 执行中一致性  | 服务变化可以响应式影响 Fiber             | Turn 持有 generation lease，执行中不会切换 Model/Tool/Loop |
-| desired state | 插件配置与宿主装配                       | `PluginGraph`，后续由 `EffectiveStructure` 生成            |
-| 持久事实      | 不由 Cordis 负责                         | Chronicle 是事实源；Fiber 只保存瞬时运行状态               |
-| 权限          | Context isolate/intercept/filter         | 叠加 `ContextPolicy`，派生作用域只能收紧                   |
-| 替换治理      | restart/update                           | tier B generation replacement；tier C restart-required     |
-| 产品组合      | Harness 自身插件体系                     | 单一 `bee` Profile；Host 核心服务全部插件化                |
+| 维度          | DeepSeek Harness / Cordis                | Bee Agent                                                          |
+| ------------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| 活插件图      | Context、Registry、Fiber、inject、effect | 移植并保留相同核心语义                                             |
+| 结构切换      | 主要是 Fiber 原地 restart/update         | 使用不可变 `StructureGeneration`，新旧两代可并存                   |
+| 执行中一致性  | 服务变化可以响应式影响 Fiber             | Turn 持有 generation lease，执行中不会切换 Model/Tool/Loop         |
+| desired state | 插件配置与宿主装配                       | `EffectiveStructure` 经 `PluginFactoryRegistry` 生成 `PluginGraph` |
+| 持久事实      | 不由 Cordis 负责                         | Chronicle 是事实源；Fiber 只保存瞬时运行状态                       |
+| 权限          | Context isolate/intercept/filter         | 叠加 `ContextPolicy`，派生作用域只能收紧                           |
+| 替换治理      | restart/update                           | tier B generation replacement；tier C restart-required             |
+| 产品组合      | Harness 自身插件体系                     | 单一 `bee` Profile；Host 核心服务全部插件化                        |
 
 因此不需要再替换内核底座；需要长期维护的是 Bee 在 Cordis 之上的治理层，并避免把持久状态塞回 Fiber。
 
@@ -80,6 +81,9 @@ apps/bee/src/kernel-runtime.ts   # Host 插件图与 Turn generation pinning
 
 ```text
 EffectiveStructure / host config
+              │
+              ▼
+      PluginFactoryRegistry
               │
               ▼
          PluginGraph
@@ -108,6 +112,7 @@ EffectiveStructure / host config
 5. candidate 启动失败不得破坏当前 active generation。
 6. draining generation 只有在最后一个 lease 释放后才能销毁。
 7. tier C 变更不热换，Kernel 暴露 `restartRequired` 和 `restartRequiredPlugins`。
+8. Host 不直接调用 `Kernel.reconcile()`；所有变更必须经过 `StructureReconciler`，先写 `structure.resolved` 再激活。
 
 ## 5. 可复制的插件开发模板
 
@@ -242,13 +247,14 @@ node scripts/check-package-boundaries.mjs
 
 边界扫描现在覆盖 `packages/*`、`apps/bee` 和 SQLite adapter，并禁止业务代码直接依赖 npm `cordis`/`cosmokit`。业务包只能通过 `@bee-agent/kernel` 使用内核能力。
 
+Host 提供两个本地管理入口：`GET /structure` 查看 active generation、restart-required 和 Fiber 快照；`POST /structure/reconcile` 提交经过 `EffectiveStructureSchema` 校验的结构。配置文件或 Bundle watcher 应调用同一 `BeeServer.reconcileStructure()` 边界，不得绕过协调器。
+
 内核测试覆盖：Proxy 服务解析、inject 等待、依赖出现后激活、effects LIFO 清理、未声明访问失败、缺失依赖、provider 冲突、依赖环、candidate 回滚、generation pinning、tier C、结构版本碰撞和 ContextPolicy 单调收紧。
 
 ## 9. 后续开发边界
 
 本次内核 clean break 已完成。以下是建立在新内核上的后续产品工作，不应重新引入第二套内核抽象：
 
-- 由 `EffectiveStructure` 自动生成完整 `PluginGraph`，并把 lifecycle/activation failure 写入 Chronicle；
 - 将 Turn/Subagent/ToolCall 的 lineage 和权限快照持久化；
 - 所有模型调用统一经过 `ModelRequestService`，持久化 `ContextManifest`；
 - 完成多 tool-call batch、审批跨重启和 checkpoint digest 校验；

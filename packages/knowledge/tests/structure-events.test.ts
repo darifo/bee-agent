@@ -3,10 +3,14 @@ import { resolveEffectiveStructure, BundleSchema } from '@bee-agent/kernel'
 import type { Bundle, EffectiveStructure } from '@bee-agent/kernel'
 import {
   ChronicleSchemaRegistry,
+  STRUCTURE_ACTIVATED_EVENT_TYPE,
+  STRUCTURE_ACTIVATION_FAILED_EVENT_TYPE,
   STRUCTURE_RESOLVED_EVENT_TYPE,
   STRUCTURE_STREAM_ID,
   StructureResolvedPayloadSchema,
   appendResolvedStructure,
+  appendStructureLifecycleEvent,
+  readActiveStructure,
   registerStructureChronicleEvents,
   structureResolvedEvent,
 } from '../src/index.ts'
@@ -131,5 +135,54 @@ describe('structure lineage in Chronicle', () => {
         expectedSequence: 1,
       }),
     ).rejects.toThrow(/Unknown Chronicle event type/)
+  })
+
+  it('rebuilds the latest activated structure and ignores failed candidates', async () => {
+    const store = createRegistryStore()
+    const active = await resolveVariant({})
+    const failed = await resolveVariant({
+      model: { id: 'openai', version: 'broken' },
+    })
+    await appendResolvedStructure(store, active)
+    await appendStructureLifecycleEvent(store, {
+      type: 'generation.activated',
+      generationId: '11111111-1111-4111-8111-111111111111',
+      structureVersion: active.digest,
+    })
+    await appendResolvedStructure(store, failed)
+    await appendStructureLifecycleEvent(store, {
+      type: 'generation.failed',
+      generationId: '22222222-2222-4222-8222-222222222222',
+      structureVersion: failed.digest,
+      error: new Error('provider failed'),
+    })
+
+    expect(await readActiveStructure(store)).toEqual(active)
+    const events = await collectStructureEvents(store)
+    expect(events.map((event) => event.eventType)).toEqual([
+      STRUCTURE_RESOLVED_EVENT_TYPE,
+      STRUCTURE_ACTIVATED_EVENT_TYPE,
+      STRUCTURE_RESOLVED_EVENT_TYPE,
+      STRUCTURE_ACTIVATION_FAILED_EVENT_TYPE,
+    ])
+  })
+
+  it('deduplicates a resolved structure even after lifecycle events', async () => {
+    const store = createRegistryStore()
+    const structure = await resolveVariant({})
+    await appendResolvedStructure(store, structure)
+    await appendStructureLifecycleEvent(store, {
+      type: 'generation.activated',
+      generationId: '11111111-1111-4111-8111-111111111111',
+      structureVersion: structure.digest,
+    })
+    await appendResolvedStructure(store, structure)
+
+    const events = await collectStructureEvents(store)
+    expect(
+      events.filter(
+        (event) => event.eventType === STRUCTURE_RESOLVED_EVENT_TYPE,
+      ),
+    ).toHaveLength(1)
   })
 })

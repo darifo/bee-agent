@@ -1,5 +1,8 @@
 import { randomBytes } from 'node:crypto'
-import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
+import {
+  ChronicleSchemaRegistry,
+  registerStructureChronicleEvents,
+} from '@bee-agent/knowledge'
 import {
   SQLiteChronicleStore,
   SQLiteKanbanStore,
@@ -65,6 +68,7 @@ const tools: AgentLoopToolSlot = {
 }
 
 const registry = new ChronicleSchemaRegistry()
+registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
 const filename =

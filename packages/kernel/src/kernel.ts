@@ -406,6 +406,20 @@ export class StructureGeneration {
     return this.graphDigest
   }
 
+  restartRequiredPlugins(next: readonly RuntimePlugin[]): readonly string[] {
+    const current = new Map(this.#plugins.map((plugin) => [plugin.id, plugin]))
+    const incoming = new Map(next.map((plugin) => [plugin.id, plugin]))
+    const ids = new Set([...current.keys(), ...incoming.keys()])
+    return [...ids].filter((id) => {
+      const before = current.get(id)
+      const after = incoming.get(id)
+      const tier = after?.replacementTier ?? before?.replacementTier
+      if (tier !== 'c') return false
+      if (before === undefined || after === undefined) return true
+      return pluginDescriptorDigest(before) !== pluginDescriptorDigest(after)
+    })
+  }
+
   async #dispose(): Promise<void> {
     const failures: unknown[] = []
     for (const { fiber } of [...this.#mounted].reverse()) {
@@ -475,6 +489,12 @@ export type KernelLifecycleEvent =
       readonly generationId: string
       readonly structureVersion: string
     }
+  | {
+      readonly type: 'generation.restart_required'
+      readonly generationId: string
+      readonly structureVersion: string
+      readonly pluginIds: readonly string[]
+    }
 
 export interface KernelOptions {
   readonly bootstrapServices?: ReadonlyMap<string, unknown> | undefined
@@ -532,11 +552,15 @@ export class Kernel {
       return { kind: 'unchanged', generation: this.#active }
     }
     if (this.#active !== undefined) {
-      const tierC = graph.plugins
-        .filter((plugin) => plugin.replacementTier === 'c')
-        .map((plugin) => plugin.id)
+      const tierC = this.#active.restartRequiredPlugins(graph.plugins)
       if (tierC.length > 0) {
         this.#restartRequiredPlugins = tierC
+        await this.#emit({
+          type: 'generation.restart_required',
+          generationId: this.#active.id,
+          structureVersion: graph.structureVersion,
+          pluginIds: tierC,
+        })
         return { kind: 'restart-required', pluginIds: tierC }
       }
     }
@@ -637,16 +661,22 @@ export class Kernel {
 }
 
 function pluginGraphDigest(plugins: readonly RuntimePlugin[]): string {
-  return configDigest(
-    plugins.map((plugin) => ({
-      id: plugin.id,
-      version: plugin.version,
-      config: plugin.config,
-      inject: plugin.inject,
-      provides: plugin.provides,
-      replacementTier: plugin.replacementTier,
-    })),
-  )
+  return configDigest(plugins.map(pluginDescriptor))
+}
+
+function pluginDescriptor(plugin: RuntimePlugin): unknown {
+  return {
+    id: plugin.id,
+    version: plugin.version,
+    config: plugin.config,
+    inject: plugin.inject,
+    provides: plugin.provides,
+    replacementTier: plugin.replacementTier,
+  }
+}
+
+function pluginDescriptorDigest(plugin: RuntimePlugin): string {
+  return configDigest(pluginDescriptor(plugin))
 }
 
 export function createKernel(options: KernelOptions = {}): Kernel {

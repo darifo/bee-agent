@@ -36,14 +36,29 @@ export {
 } from './chronicle-store.ts'
 export type { ChronicleAppendOptions } from './chronicle-store.ts'
 export {
+  STRUCTURE_ACTIVATED_EVENT_TYPE,
+  STRUCTURE_ACTIVATION_FAILED_EVENT_TYPE,
+  STRUCTURE_DISPOSED_EVENT_TYPE,
+  STRUCTURE_DRAINING_EVENT_TYPE,
+  STRUCTURE_PREPARED_EVENT_TYPE,
   STRUCTURE_RESOLVED_EVENT_TYPE,
+  STRUCTURE_RESTART_REQUIRED_EVENT_TYPE,
   STRUCTURE_STREAM_ID,
+  StructureActivationFailedPayloadSchema,
+  StructureLifecyclePayloadSchema,
   StructureResolvedPayloadSchema,
+  StructureRestartRequiredPayloadSchema,
   appendResolvedStructure,
+  appendStructureLifecycleEvent,
+  readActiveStructure,
   registerStructureChronicleEvents,
+  structureLifecycleEvent,
   structureResolvedEvent,
 } from './structure-events.ts'
 export type {
   AppendResolvedStructureOptions,
+  StructureActivationFailedPayload,
+  StructureLifecyclePayload,
   StructureResolvedPayload,
+  StructureRestartRequiredPayload,
 } from './structure-events.ts'

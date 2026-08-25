@@ -1,10 +1,14 @@
 import type { ChronicleStore } from '@bee-agent/knowledge'
 import type { KanbanStore } from '@bee-agent/kanban'
 import {
-  createKernel,
-  type RuntimePlugin,
+  BundleSchema,
+  resolveEffectiveStructure,
+  type EffectiveStructure,
   type GenerationLease,
   type Kernel,
+  type ReconcileResult,
+  type ReplacementTier,
+  type RuntimePlugin,
 } from '@bee-agent/kernel'
 import type {
   AgentLoopRecoverInput,
@@ -15,7 +19,12 @@ import type {
   LlmRuntime,
   LlmToolSpec,
 } from '@bee-agent/runtime'
-import { AGENT_LOOP_SERVICE, createAgentLoopPlugin } from '@bee-agent/runtime'
+import {
+  AGENT_LOOP_SERVICE,
+  PluginFactoryRegistry,
+  StructureReconciler,
+  createAgentLoopPlugin,
+} from '@bee-agent/runtime'
 
 export interface AgentLoopService {
   runTurn(input: AgentLoopRunInput): Promise<AgentLoopTurnResult>
@@ -29,12 +38,18 @@ export interface BeeKernelRuntimeOptions {
   readonly llm: LlmRuntime
   readonly tools: AgentLoopToolSlot
   readonly toolSpecs: readonly LlmToolSpec[]
-  readonly structureVersion?: string | undefined
+  readonly effectiveStructure?: EffectiveStructure | undefined
+  readonly modelId?: string | undefined
+  /** Additional providers keyed by `<structure model id>@<model version>`. */
+  readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
+  readonly restoreActiveStructure?: boolean | undefined
 }
 
 export interface BeeKernelRuntime {
   readonly kernel: Kernel
+  readonly structures: StructureReconciler
   readonly loop: AgentLoopService
+  reconcile(structure: EffectiveStructure): Promise<ReconcileResult>
   stop(): Promise<void>
 }
 
@@ -119,15 +134,129 @@ function servicePlugin(
   id: string,
   serviceName: string,
   value: unknown,
+  options: {
+    readonly config: unknown
+    readonly replacementTier: ReplacementTier
+  },
 ): RuntimePlugin {
   return {
     id,
     version: '1.0.0',
+    config: options.config,
     provides: [serviceName],
+    replacementTier: options.replacementTier,
     apply(ctx) {
       ctx.provide(serviceName, value)
     },
   }
+}
+
+/** Deterministic built-in structure used only when Chronicle has no active one. */
+export async function createDefaultBeeStructure(
+  options: Pick<BeeKernelRuntimeOptions, 'llm' | 'modelId' | 'toolSpecs'>,
+): Promise<EffectiveStructure> {
+  return resolveEffectiveStructure(
+    BundleSchema.parse({
+      id: 'bee-host',
+      version: '1.0.0',
+      model: {
+        id: options.modelId ?? 'host-model',
+        version: options.llm.model,
+      },
+      prompt: { id: 'bee-system', version: '1.0.0' },
+      contextPolicy: { id: 'bee-default', version: '1.0.0' },
+      memoryView: { id: 'bee-personal', version: '1.0.0' },
+      sandbox: { id: 'bee-local', version: '1.0.0' },
+      evalPolicy: { id: 'bee-default', version: '1.0.0' },
+      tools: options.toolSpecs.map((tool) => ({
+        id: tool.id,
+        version: '1.0.0',
+      })),
+    }),
+  )
+}
+
+function createHostPluginFactories(
+  options: BeeKernelRuntimeOptions,
+): PluginFactoryRegistry {
+  const factories = new PluginFactoryRegistry()
+  const defaultModelKey = modelBindingKey(
+    options.modelId ?? 'host-model',
+    options.llm.model,
+  )
+  const models = new Map(options.modelProviders)
+  models.set(defaultModelKey, options.llm)
+  factories.register({
+    id: 'bee.host-services',
+    create(structure) {
+      const selectedModel = models.get(
+        modelBindingKey(structure.model.ref.id, structure.model.ref.version),
+      )
+      if (selectedModel === undefined) {
+        throw new Error(
+          `No model provider is bound for '${structure.model.ref.id}@${structure.model.ref.version}'`,
+        )
+      }
+      const availableTools = new Set(options.toolSpecs.map((tool) => tool.id))
+      const missingTools = structure.tools
+        .map((slot) => slot.ref.id)
+        .filter((id) => !availableTools.has(id))
+      if (missingTools.length > 0) {
+        throw new Error(
+          `No tool provider is bound for: ${missingTools.join(', ')}`,
+        )
+      }
+      return [
+        servicePlugin('bee.chronicle', 'chronicle', options.store, {
+          config: { binding: 'host-chronicle' },
+          replacementTier: 'c',
+        }),
+        servicePlugin('bee.kanban', 'kanban', options.kanban, {
+          config: { binding: 'host-kanban' },
+          replacementTier: 'c',
+        }),
+        servicePlugin('bee.model', 'llm', selectedModel, {
+          config: structure.model.ref,
+          replacementTier: 'b',
+        }),
+        servicePlugin('bee.tools', 'tools', options.tools, {
+          config: structure.tools.map((slot) => slot.ref),
+          replacementTier: 'b',
+        }),
+        servicePlugin(
+          'bee.sandbox-policy',
+          'sandboxPolicy',
+          structure.sandbox.ref,
+          {
+            config: structure.sandbox.ref,
+            replacementTier: 'c',
+          },
+        ),
+      ]
+    },
+  })
+  factories.register({
+    id: 'bee.agent-loop',
+    create(structure) {
+      return {
+        ...createAgentLoopPlugin({ toolSpecs: options.toolSpecs }),
+        config: {
+          prompt: structure.prompt.ref,
+          contextPolicy: structure.contextPolicy.ref,
+          memoryView: structure.memoryView.ref,
+          sandbox: structure.sandbox.ref,
+          evalPolicy: structure.evalPolicy.ref,
+          permissions: structure.permissions,
+          budgets: structure.budgets,
+        },
+      }
+    },
+  })
+  return factories
+}
+
+export function modelBindingKey(id: string, version: string): string {
+  return `${id}@${version}`
 }
 
 /**
@@ -138,28 +267,34 @@ function servicePlugin(
 export async function createBeeKernelRuntime(
   options: BeeKernelRuntimeOptions,
 ): Promise<BeeKernelRuntime> {
-  const kernel = createKernel()
-  const plugins: RuntimePlugin[] = [
-    servicePlugin('bee.chronicle', 'chronicle', options.store),
-    servicePlugin('bee.kanban', 'kanban', options.kanban),
-    servicePlugin('bee.model', 'llm', options.llm),
-    servicePlugin('bee.tools', 'tools', options.tools),
-    createAgentLoopPlugin({ toolSpecs: options.toolSpecs }),
-  ]
-  const result = await kernel.reconcile({
-    structureVersion: options.structureVersion ?? 'bee:host:default-v1',
-    plugins,
+  const structures = new StructureReconciler({
+    store: options.store,
+    factories: createHostPluginFactories(options),
   })
+  const kernel = structures.kernel
+  const result =
+    options.effectiveStructure !== undefined
+      ? await structures.reconcile(options.effectiveStructure)
+      : options.restoreActiveStructure !== false
+        ? ((await structures.restore()) ??
+          (await structures.reconcile(
+            await createDefaultBeeStructure(options),
+          )))
+        : await structures.reconcile(await createDefaultBeeStructure(options))
   if (result.kind === 'restart-required') {
     throw new Error('Initial Bee Host generation unexpectedly requires restart')
   }
   const loop = new PinnedAgentLoop(kernel)
   return {
     kernel,
+    structures,
     loop,
+    async reconcile(structure) {
+      return structures.reconcile(structure)
+    },
     async stop() {
       loop.stop()
-      await kernel.stop()
+      await structures.stop()
     },
   }
 }

@@ -208,6 +208,7 @@ describe('Kernel generations', () => {
       graph('b', [
         {
           ...provider('store', 'store', {}),
+          config: { filename: 'b.sqlite' },
           replacementTier: 'c',
         },
       ]),
@@ -216,6 +217,24 @@ describe('Kernel generations', () => {
     expect(kernel.restartRequired).toBe(true)
     expect(kernel.restartRequiredPlugins).toEqual(['store'])
     expect(kernel.activeGeneration?.structureVersion).toBe('a')
+    await kernel.stop()
+  })
+
+  it('allows a B-tier change when an unchanged C-tier provider remains', async () => {
+    const kernel = createKernel()
+    const store = {
+      ...provider('store', 'store', {}),
+      replacementTier: 'c' as const,
+      config: { filename: 'bee.sqlite' },
+    }
+    await kernel.reconcile(
+      graph('a', [store, { ...provider('model', 'llm', 'a'), config: 'a' }]),
+    )
+    const result = await kernel.reconcile(
+      graph('b', [store, { ...provider('model', 'llm', 'b'), config: 'b' }]),
+    )
+    expect(result.kind).toBe('activated')
+    expect(kernel.service('llm')).toBe('b')
     await kernel.stop()
   })
 

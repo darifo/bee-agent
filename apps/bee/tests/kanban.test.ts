@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
+import {
+  ChronicleSchemaRegistry,
+  registerStructureChronicleEvents,
+} from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import {
@@ -18,6 +21,7 @@ const NOW = '2026-08-25T10:00:00.000Z'
 
 function createRegistry(): ChronicleSchemaRegistry {
   const registry = new ChronicleSchemaRegistry()
+  registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
   registerKanbanChronicleEvents(registry)
   return registry

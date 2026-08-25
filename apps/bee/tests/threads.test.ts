@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
+import {
+  ChronicleSchemaRegistry,
+  registerStructureChronicleEvents,
+} from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
@@ -17,6 +20,7 @@ import type { BeeServer } from '../src/index.ts'
 
 function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
+  registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
 }

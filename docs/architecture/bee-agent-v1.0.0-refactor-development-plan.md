@@ -9,6 +9,8 @@
 
 > 2026-08-25 内核实施覆盖：本文件 Phase 1 中关于最小 Context、EffectScope、PluginHandle 和 ReplacementCoordinator 的完成描述已由 ADR 0030 取代。当前实现是 Cordis 派生 Context–Registry–Fiber + Bee StructureGeneration；旧近似层已删除。内核的现行开发规则以 `kernel-opt-development-plan.md` 为准。
 
+> 2026-08-25 结构协调覆盖：ADR 0032 已完成 EffectiveStructure 驱动、插件工厂注册表、Chronicle 生命周期事实、失败候选回滚、C-tier restart-required 与 Host 重启重建。
+
 ## 1. 计划定位与使用方式
 
 ### 1.1 与架构方案的关系
