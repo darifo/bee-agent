@@ -14,10 +14,11 @@ import type {
   AgentLoopRecoverInput,
   AgentLoopResumeInput,
   AgentLoopRunInput,
-  AgentLoopToolSlot,
   AgentLoopTurnResult,
   LlmRuntime,
   LlmToolSpec,
+  ToolAuthorizationRule,
+  ToolExecutor,
 } from '@bee-agent/runtime'
 import {
   AGENT_LOOP_SERVICE,
@@ -25,6 +26,7 @@ import {
   StructureReconciler,
   createAgentLoopPlugin,
   createModelRequestPlugin,
+  createToolExecutionPlugin,
 } from '@bee-agent/runtime'
 
 export interface AgentLoopService {
@@ -37,7 +39,8 @@ export interface BeeKernelRuntimeOptions {
   readonly store: ChronicleStore
   readonly kanban: KanbanStore
   readonly llm: LlmRuntime
-  readonly tools: AgentLoopToolSlot
+  readonly toolExecutor: ToolExecutor
+  readonly toolAuthorization: readonly ToolAuthorizationRule[]
   readonly toolSpecs: readonly LlmToolSpec[]
   readonly effectiveStructure?: EffectiveStructure | undefined
   readonly modelId?: string | undefined
@@ -220,10 +223,15 @@ function createHostPluginFactories(
           config: structure.model.ref,
           replacementTier: 'b',
         }),
-        servicePlugin('bee.tools', 'tools', options.tools, {
-          config: structure.tools.map((slot) => slot.ref),
-          replacementTier: 'b',
-        }),
+        servicePlugin(
+          'bee.tool-executor',
+          'toolExecutor',
+          options.toolExecutor,
+          {
+            config: structure.tools.map((slot) => slot.ref),
+            replacementTier: 'b',
+          },
+        ),
         servicePlugin(
           'bee.sandbox-policy',
           'sandboxPolicy',
@@ -234,6 +242,17 @@ function createHostPluginFactories(
           },
         ),
       ]
+    },
+  })
+  factories.register({
+    id: 'bee.tool-execution',
+    create(structure) {
+      const enabled = new Set(structure.tools.map((slot) => slot.ref.id))
+      return createToolExecutionPlugin({
+        rules: options.toolAuthorization.filter((rule) =>
+          enabled.has(rule.toolId),
+        ),
+      })
     },
   })
   factories.register({

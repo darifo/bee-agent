@@ -5,15 +5,16 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
+import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import type { KanbanStore } from '@bee-agent/kanban'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
 import type {
-  AgentLoopToolOutcome,
-  AgentLoopToolSlot,
-  AgentLoopToolSlotCall,
+  ActionResult,
+  ToolAuthorizationRule,
+  ToolExecutionCall,
+  ToolExecutor,
 } from '@bee-agent/runtime'
 import type { FakeLlmStep } from '@bee-agent/runtime/testing'
 import { buildBeeServer } from '../src/index.ts'
@@ -23,7 +24,7 @@ function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
-  registerModelRequestChronicleEvents(registry)
+  registerRuntimeChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
 }
 
@@ -36,16 +37,30 @@ function createKanbanStore(): KanbanStore {
 function scriptedTools(
   handlers: Record<
     string,
-    (
-      input: AgentLoopToolSlotCall,
-    ) => AgentLoopToolOutcome | Promise<AgentLoopToolOutcome>
+    (input: ToolExecutionCall) => ActionResult | Promise<ActionResult>
   >,
-): AgentLoopToolSlot {
+): ToolExecutor {
   return {
+    describe(call) {
+      return {
+        capability: `tool:${call.toolId}`,
+        requirements: {
+          readPaths: [],
+          writePaths: [],
+          networkTargets: [],
+          commands: [],
+          secretRefs: [],
+        },
+        expectedEffects: [
+          `Execute tool '${call.toolId}' with input ${JSON.stringify(call.input)}`,
+        ],
+        verification: ['Tool executor reports completion'],
+      }
+    },
     async execute(input) {
       const handler = handlers[input.call.toolId] ?? handlers['*']
       if (handler === undefined) {
-        return { kind: 'result', output: {}, content: 'no handler' }
+        return { output: {}, content: 'no handler', verification: [] }
       }
       return handler(input)
     },
@@ -54,15 +69,41 @@ function scriptedTools(
 
 async function withServer(
   script: readonly FakeLlmStep[],
-  tools: AgentLoopToolSlot,
+  toolExecutor: ToolExecutor,
   fn: (server: BeeServer, baseUrl: string) => Promise<void>,
+  authorization?: readonly ToolAuthorizationRule[],
 ): Promise<void> {
   const llm = createFakeLlmRuntime({ script })
+  const scriptedToolIds = [
+    ...new Set(
+      script.flatMap((step) =>
+        step.type === 'respond'
+          ? (step.toolCalls ?? []).map((call) => call.toolId)
+          : [],
+      ),
+    ),
+  ]
   const server = await buildBeeServer({
     store: createRegistryStore(),
     kanban: createKanbanStore(),
     llm,
-    tools,
+    toolExecutor,
+    toolSpecs: scriptedToolIds.map((id) => ({
+      id,
+      description: `Test tool ${id}`,
+      inputSchema: { type: 'object' },
+    })),
+    toolAuthorization:
+      authorization ??
+      script.flatMap((step) =>
+        step.type === 'respond'
+          ? (step.toolCalls ?? []).map((call) => ({
+              toolId: call.toolId,
+              decision: 'allow' as const,
+              reason: 'Test-declared capability',
+            }))
+          : [],
+      ),
     logger: false,
   })
   await server.app.listen({ host: '127.0.0.1', port: 0 })
@@ -209,14 +250,11 @@ describe('apps/bee /threads API', () => {
         { type: 'respond', deltas: ['Deployed.'] },
       ],
       scriptedTools({
-        deploy: (input) =>
-          input.approval === 'approved'
-            ? { kind: 'result', output: { ok: true }, content: 'deployed' }
-            : {
-                kind: 'approval-required',
-                approvalId: 'approval-1',
-                title: 'Deploy to prod?',
-              },
+        deploy: () => ({
+          output: { ok: true },
+          content: 'deployed',
+          verification: ['Deployment executor completed'],
+        }),
       }),
       async (_server, baseUrl) => {
         const created = await fetch(`${baseUrl}/threads`, {
@@ -237,10 +275,9 @@ describe('apps/bee /threads API', () => {
           turn: { id: string }
         }
         expect(suspended.status).toBe('suspended')
-        expect(suspended.approval.approvalId).toBe('approval-1')
 
         const resume = await fetch(
-          `${baseUrl}/threads/${thread.id}/turns/${suspended.turn.id}/approvals/approval-1`,
+          `${baseUrl}/threads/${thread.id}/turns/${suspended.turn.id}/approvals/${suspended.approval.approvalId}`,
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -250,6 +287,13 @@ describe('apps/bee /threads API', () => {
         const completed = (await resume.json()) as { status: string }
         expect(completed.status).toBe('completed')
       },
+      [
+        {
+          toolId: 'deploy',
+          decision: 'ask',
+          reason: 'Production deployment requires user approval',
+        },
+      ],
     )
   })
 })

@@ -5,12 +5,12 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
+import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import type { KanbanStore } from '@bee-agent/kanban'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
-import type { AgentLoopToolSlot } from '@bee-agent/runtime'
+import type { ToolExecutor } from '@bee-agent/runtime'
 import {
   buildBeeServer,
   isLoopbackHost,
@@ -23,7 +23,7 @@ function createRegistryStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
-  registerModelRequestChronicleEvents(registry)
+  registerRuntimeChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
 }
 
@@ -33,9 +33,27 @@ function createKanbanStore(): KanbanStore {
   return createMemoryKanbanStore(registry)
 }
 
-const noopTools: AgentLoopToolSlot = {
+const noopTools: ToolExecutor = {
+  describe(call) {
+    return {
+      capability: `tool:${call.toolId}`,
+      requirements: {
+        readPaths: [],
+        writePaths: [],
+        networkTargets: [],
+        commands: [],
+        secretRefs: [],
+      },
+      expectedEffects: ['Echo input'],
+      verification: ['Output returned'],
+    }
+  },
   async execute({ call }) {
-    return { kind: 'result', output: call.input, content: 'ok' }
+    return {
+      output: call.input,
+      content: 'ok',
+      verification: ['Output returned'],
+    }
   },
 }
 
@@ -48,7 +66,7 @@ async function build(options: {
     store: createRegistryStore(),
     kanban: createKanbanStore(),
     llm,
-    tools: noopTools,
+    toolExecutor: noopTools,
     logger: false,
     ...options,
   })

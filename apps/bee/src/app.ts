@@ -13,7 +13,8 @@ import {
 } from '@bee-agent/kanban'
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
-  AgentLoopToolSlot,
+  ToolAuthorizationRule,
+  ToolExecutor,
   LlmRuntime,
   LlmToolSpec,
   StructureReconciler,
@@ -83,8 +84,9 @@ export interface BeeServerOptions {
   /** The kanban store shared by the REST API, agent tools, and dispatcher. */
   readonly kanban: KanbanStore
   readonly llm: LlmRuntime
-  /** Tool execution seam for non-kanban tools; wired directly until ExecutionWorld lands. */
-  readonly tools: AgentLoopToolSlot
+  /** Declares and executes non-Kanban capabilities behind ExecutionWorld. */
+  readonly toolExecutor: ToolExecutor
+  readonly toolAuthorization?: readonly ToolAuthorizationRule[] | undefined
   /** Extra tool specs appended after the built-in kanban tools. */
   readonly toolSpecs?: readonly LlmToolSpec[] | undefined
   readonly effectiveStructure?: EffectiveStructure | undefined
@@ -130,15 +132,30 @@ function toFastifyCorsOrigin(
 /**
  * Wraps the caller's tool slot with the built-in kanban tools. `kanban_*`
  * calls route to the kanban executor over the shared store; everything else
- * delegates to the caller's slot. Kanban tool failures surface as error tool
+ * delegates to the caller's executor. Kanban tool failures surface as error tool
  * results so the model can respond instead of crashing the turn.
  */
-function compositeToolSlot(
+function compositeToolExecutor(
   kanban: KanbanStore,
-  fallback: AgentLoopToolSlot,
-): AgentLoopToolSlot {
+  fallback: ToolExecutor,
+): ToolExecutor {
   const executor = createKanbanToolExecutor(kanban)
   return {
+    describe(call) {
+      if (!call.toolId.startsWith('kanban_')) return fallback.describe(call)
+      return {
+        capability: `tool:${call.toolId}`,
+        requirements: {
+          readPaths: [],
+          writePaths: [],
+          networkTargets: [],
+          commands: [],
+          secretRefs: [],
+        },
+        expectedEffects: ['Update the durable Bee Kanban task state'],
+        verification: ['Kanban event append succeeds'],
+      }
+    },
     async execute(call) {
       if (!call.call.toolId.startsWith('kanban_')) {
         return fallback.execute(call)
@@ -154,17 +171,17 @@ function compositeToolSlot(
           },
         })
         return {
-          kind: 'result',
           output: result.output,
           content: result.content,
+          verification: ['Kanban event append succeeded'],
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         return {
-          kind: 'result',
           output: { error: message },
           content: message,
           isError: true,
+          verification: [],
         }
       }
     },
@@ -181,7 +198,10 @@ export async function buildBeeServer(
   options: BeeServerOptions,
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
-  const tools = compositeToolSlot(options.kanban, options.tools)
+  const toolExecutor = compositeToolExecutor(
+    options.kanban,
+    options.toolExecutor,
+  )
   const toolSpecs = [
     ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
       id: definition.id,
@@ -194,7 +214,15 @@ export async function buildBeeServer(
     store,
     kanban: options.kanban,
     llm: options.llm,
-    tools,
+    toolExecutor,
+    toolAuthorization: [
+      ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
+        toolId: definition.id,
+        decision: 'allow' as const,
+        reason: 'Built-in local Kanban capability',
+      })),
+      ...(options.toolAuthorization ?? []),
+    ],
     toolSpecs,
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,

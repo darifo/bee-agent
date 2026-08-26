@@ -28,12 +28,10 @@ export type {
   AgentLoopRetrieveHook,
   AgentLoopResumeInput,
   AgentLoopRunInput,
-  AgentLoopToolOutcome,
-  AgentLoopToolSlot,
-  AgentLoopToolSlotCall,
   AgentLoopTurnResult,
 } from './agent-loop.ts'
 export { CheckpointDigestMismatchError } from './agent-loop.ts'
+export { registerRuntimeChronicleEvents } from './chronicle-events.ts'
 export {
   MODEL_REQUEST_EVENT_TYPES,
   MODEL_REQUEST_SERVICE,
@@ -48,6 +46,15 @@ export type {
   RebuiltModelRequest,
   TrackedLlmCall,
 } from './model-request-service.ts'
+export { InProcessToolSandbox, ToolExecutionService } from './tool-execution.ts'
+export type {
+  ToolActionDescriptor,
+  ToolAuthorizationRule,
+  ToolExecutionCall,
+  ToolExecutionOutcome,
+  ToolExecutionPort,
+  ToolExecutor,
+} from './tool-execution.ts'
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'
@@ -55,11 +62,38 @@ export {
   AGENT_LOOP_SERVICE,
   createAgentLoopPlugin,
   createModelRequestPlugin,
+  createToolExecutionPlugin,
 } from './plugin.ts'
 export type {
   AgentLoopPluginOptions,
   ModelRequestPluginOptions,
+  ToolExecutionPluginOptions,
 } from './plugin.ts'
+export {
+  EXECUTION_EVENT_TYPES,
+  ActionRequestSchema,
+  ActionResultSchema,
+  ExecutionWorld,
+  IdempotencyKeyCollisionError,
+  ResourceRequirementsSchema,
+  StaticAuthorizationPolicy,
+  executionStreamId,
+  registerExecutionChronicleEvents,
+} from '@bee-agent/execution'
+export type {
+  ActionRequest,
+  ActionResult,
+  AuthorizationDecision,
+  AuthorizationPolicy,
+  CapabilityRule,
+  ExecutionOptions,
+  ExecutionOutcome,
+  ResourceRequirements,
+  SandboxCapabilityReport,
+  SandboxProvider,
+  SecretBroker,
+  WorldSnapshot,
+} from '@bee-agent/execution'
 export {
   PluginFactoryRegistry,
   StructureReconciler,

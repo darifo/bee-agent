@@ -10,3 +10,4 @@ export {
   isValidArtifactDigest,
 } from './artifact-store.ts'
 export type { ArtifactRef, ArtifactStore } from './artifact-store.ts'
+export * from './execution-world.ts'

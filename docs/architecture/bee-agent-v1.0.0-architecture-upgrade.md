@@ -660,6 +660,8 @@ interface ExecutionWorld {
 
 `ActionRequest` 必须声明：capability、主体、输入、读写路径、网络目标、进程、资源预算、secret refs、期望副作用和验证方式。
 
+当前实现由 `ToolExecutor.describe()` 将 tool intent 展开为完整 `ActionRequest`，再由插件化 ToolExecution 服务进入 ExecutionWorld。每个动作独占基于幂等键寻址的 Chronicle stream；完成结果可安全 replay，`started` 后缺少 terminal event 的动作必须进入 reconciliation，而不是自动重做。`InProcessToolSandbox` 仅服务无 OS 副作用的逻辑工具，任何文件、网络或进程要求都会因 capability report 不足而 fail closed。
+
 ### 13.3 权限计算
 
 有效权限为以下集合的交集：

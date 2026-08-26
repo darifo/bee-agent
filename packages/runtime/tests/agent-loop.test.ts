@@ -23,9 +23,9 @@ import {
 import { createFakeLlmRuntime } from '../src/testing.ts'
 import type { LlmRuntime } from '../src/llm-runtime.ts'
 import type {
-  AgentLoopToolOutcome,
-  AgentLoopToolSlot,
-} from '../src/agent-loop.ts'
+  ToolExecutionCall,
+  ToolExecutionPort,
+} from '../src/tool-execution.ts'
 
 function createStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
@@ -51,19 +51,68 @@ function historyDigest(history: unknown): string {
 }
 
 /** A tool slot whose behavior is scripted per (toolId, callId). */
+type ScriptedToolOutcome =
+  | {
+      readonly kind: 'result'
+      readonly output: unknown
+      readonly content: string
+      readonly isError?: boolean | undefined
+    }
+  | {
+      readonly kind: 'approval-required'
+      readonly approvalId: string
+      readonly title: string
+      readonly detail?: string | undefined
+    }
+
 function scriptedTools(
   handlers: Record<
     string,
-    (input: unknown) => AgentLoopToolOutcome | Promise<AgentLoopToolOutcome>
+    (
+      input: unknown,
+      call: ToolExecutionCall & {
+        readonly approval?: 'approved' | 'rejected' | undefined
+      },
+    ) => ScriptedToolOutcome | Promise<ScriptedToolOutcome>
   >,
-): AgentLoopToolSlot {
+): ToolExecutionPort {
   return {
-    async execute({ call }) {
+    async execute(input) {
+      const { call } = input
+      if (input.approval === 'rejected') {
+        return {
+          kind: 'result',
+          result: {
+            output: { rejected: true },
+            content: 'The user rejected this tool call.',
+            isError: true,
+            verification: [],
+          },
+        }
+      }
       const handler = handlers[call.toolId] ?? handlers['*']
       if (handler === undefined) {
-        return { kind: 'result', output: {}, content: 'no handler' }
+        return {
+          kind: 'result',
+          result: {
+            output: {},
+            content: 'no handler',
+            verification: [],
+          },
+        }
       }
-      return handler(call.input)
+      const outcome = await handler(call.input, input)
+      return outcome.kind === 'approval-required'
+        ? { ...outcome, detail: outcome.detail ?? outcome.title }
+        : {
+            kind: 'result',
+            result: {
+              output: outcome.output,
+              content: outcome.content,
+              isError: outcome.isError,
+              verification: [],
+            },
+          }
     },
   }
 }
@@ -84,7 +133,7 @@ describe('AgentLoop happy path', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
     const threadId = crypto.randomUUID()
@@ -129,7 +178,7 @@ describe('AgentLoop happy path', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({
+      toolExecution: scriptedTools({
         calculator: (input) => {
           calls.push({ toolId: 'calculator', input })
           return { kind: 'result', output: 3, content: '3' }
@@ -170,7 +219,7 @@ describe('AgentLoop happy path', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
     const result = await loop.runTurn({
@@ -203,7 +252,7 @@ describe('AgentLoop tool approval', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({
+      toolExecution: scriptedTools({
         deploy: () => {
           if (!approved) {
             return {
@@ -275,7 +324,7 @@ describe('AgentLoop tool approval', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({
+      toolExecution: scriptedTools({
         deploy: () => {
           executed = true
           return { kind: 'approval-required', approvalId: 'a1', title: 'OK?' }
@@ -301,6 +350,37 @@ describe('AgentLoop tool approval', () => {
 })
 
 describe('AgentLoop failure and cancellation', () => {
+  it('fails the tool item and turn when action resolution throws', async () => {
+    const store = createStore()
+    const llm = createFakeLlmRuntime({
+      script: [
+        {
+          type: 'respond',
+          toolCalls: [{ callId: 'c1', toolId: 'broken', input: {} }],
+        },
+      ],
+    })
+    const loop = new AgentLoop({
+      modelRequests: modelRequests(store, llm),
+      store,
+      toolExecution: scriptedTools({
+        broken: () => {
+          throw new Error('invalid action declaration')
+        },
+      }),
+      now: () => NOW,
+    })
+    const threadId = crypto.randomUUID()
+    const result = await loop.runTurn({ threadId, input: 'run broken tool' })
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: 'Tool execution failed: invalid action declaration',
+    })
+    const events = await collectEvents(store, threadId)
+    expect(events.some((event) => event.event === 'item.failed')).toBe(true)
+    expect(events.at(-1)?.event).toBe('turn.failed')
+  })
+
   it('fails the turn when the model fatally fails after retries', async () => {
     const store = createStore()
     const llm = createFakeLlmRuntime({
@@ -313,7 +393,7 @@ describe('AgentLoop failure and cancellation', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       maxRetries: 2,
       now: () => NOW,
     })
@@ -338,7 +418,7 @@ describe('AgentLoop failure and cancellation', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       maxRetries: 2,
       now: () => NOW,
     })
@@ -363,7 +443,7 @@ describe('AgentLoop failure and cancellation', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
     const result = await loop.runTurn({
@@ -386,7 +466,7 @@ describe('AgentLoop failure and cancellation', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
     const controller = new AbortController()
@@ -429,7 +509,7 @@ describe('AgentLoop crash recovery', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
 
@@ -484,7 +564,7 @@ describe('AgentLoop crash recovery', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
 
@@ -511,7 +591,7 @@ describe('AgentLoop crash recovery', () => {
     const loop = new AgentLoop({
       modelRequests: modelRequests(store, llm),
       store,
-      tools: scriptedTools({}),
+      toolExecution: scriptedTools({}),
       now: () => NOW,
     })
     const result = await loop.runTurn({ threadId, input: 'x' })
@@ -541,7 +621,7 @@ describe('AgentLoop recovery of suspended turns', () => {
     const firstLoop = new AgentLoop({
       modelRequests: modelRequests(store, firstLlm),
       store,
-      tools: scriptedTools({
+      toolExecution: scriptedTools({
         deploy: () => ({
           kind: 'approval-required',
           approvalId: 'approval-1',
@@ -562,7 +642,7 @@ describe('AgentLoop recovery of suspended turns', () => {
     const secondLoop = new AgentLoop({
       modelRequests: modelRequests(store, secondLlm),
       store,
-      tools: scriptedTools({
+      toolExecution: scriptedTools({
         deploy: () => {
           if (!approved) {
             return {

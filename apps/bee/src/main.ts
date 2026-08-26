@@ -11,8 +11,8 @@ import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import {
-  registerModelRequestChronicleEvents,
-  type AgentLoopToolSlot,
+  registerRuntimeChronicleEvents,
+  type ToolExecutor,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 
@@ -60,12 +60,26 @@ const llm = new OpenAIChatRuntime({
 
 // A placeholder tool seam until real tools land (P1-13 minimal form): tool
 // calls resolve to an echo result so a bare conversation can run end to end.
-const tools: AgentLoopToolSlot = {
+const toolExecutor: ToolExecutor = {
+  describe(call) {
+    return {
+      capability: `tool:${call.toolId}`,
+      requirements: {
+        readPaths: [],
+        writePaths: [],
+        networkTargets: [],
+        commands: [],
+        secretRefs: [],
+      },
+      expectedEffects: ['Return the supplied input without host side effects'],
+      verification: ['Output equals input'],
+    }
+  },
   async execute({ call }) {
     return {
-      kind: 'result',
       output: call.input,
       content: JSON.stringify(call.input),
+      verification: ['Output equals input'],
     }
   },
 }
@@ -73,7 +87,7 @@ const tools: AgentLoopToolSlot = {
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
-registerModelRequestChronicleEvents(registry)
+registerRuntimeChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
 const filename =
   process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
@@ -86,7 +100,7 @@ const server = await buildBeeServer({
   store,
   kanban,
   llm,
-  tools,
+  toolExecutor,
   sessionToken: effectiveToken,
 })
 server.app.log.info(

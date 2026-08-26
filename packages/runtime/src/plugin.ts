@@ -3,11 +3,18 @@ import { AgentLoop } from './agent-loop.ts'
 import type { AgentLoopOptions } from './agent-loop.ts'
 import type { LlmRuntime } from './llm-runtime.ts'
 import type { ChronicleStore } from '@bee-agent/knowledge'
-import type { AgentLoopToolSlot } from './agent-loop.ts'
+import { ExecutionWorld, StaticAuthorizationPolicy } from '@bee-agent/execution'
 import {
   MODEL_REQUEST_SERVICE,
   ModelRequestService,
 } from './model-request-service.ts'
+import {
+  InProcessToolSandbox,
+  ToolExecutionService,
+  type ToolAuthorizationRule,
+  type ToolExecutionPort,
+  type ToolExecutor,
+} from './tool-execution.ts'
 
 export const AGENT_LOOP_SERVICE = 'agentLoop'
 
@@ -21,7 +28,7 @@ export interface AgentLoopPluginOptions extends Pick<
 interface AgentLoopPluginContext extends Context {
   readonly chronicle: ChronicleStore
   readonly modelRequest: ModelRequestService
-  readonly tools: AgentLoopToolSlot
+  readonly toolExecution: ToolExecutionPort
 }
 
 /** Canonical AgentLoop plugin; the Host supplies providers, not constructors. */
@@ -32,7 +39,7 @@ export function createAgentLoopPlugin(
     id: 'bee.agent-loop',
     version: options.version ?? '1.0.0',
     replacementTier: 'b',
-    inject: ['chronicle', MODEL_REQUEST_SERVICE, 'tools'],
+    inject: ['chronicle', MODEL_REQUEST_SERVICE, 'toolExecution'],
     provides: [AGENT_LOOP_SERVICE],
     apply(ctx) {
       const services = ctx as AgentLoopPluginContext
@@ -41,9 +48,49 @@ export function createAgentLoopPlugin(
         new AgentLoop({
           store: services.chronicle,
           modelRequests: services.modelRequest,
-          tools: services.tools,
+          toolExecution: services.toolExecution,
           toolSpecs: options.toolSpecs,
         }),
+      )
+    },
+  }
+}
+
+export interface ToolExecutionPluginOptions {
+  readonly rules: readonly ToolAuthorizationRule[]
+  readonly version?: string | undefined
+}
+
+interface ToolExecutionPluginContext extends Context {
+  readonly chronicle: ChronicleStore
+  readonly toolExecutor: ToolExecutor
+}
+
+export function createToolExecutionPlugin(
+  options: ToolExecutionPluginOptions,
+): RuntimePlugin {
+  return {
+    id: 'bee.tool-execution',
+    version: options.version ?? '1.0.0',
+    replacementTier: 'b',
+    config: options.rules,
+    inject: ['chronicle', 'toolExecutor'],
+    provides: ['toolExecution'],
+    apply(ctx) {
+      const services = ctx as ToolExecutionPluginContext
+      const world = new ExecutionWorld({
+        store: services.chronicle,
+        policy: new StaticAuthorizationPolicy(
+          options.rules.map(({ toolId, ...decision }) => ({
+            capability: `tool:${toolId}`,
+            ...decision,
+          })),
+        ),
+        sandbox: new InProcessToolSandbox(services.toolExecutor),
+      })
+      ctx.provide(
+        'toolExecution',
+        new ToolExecutionService(world, services.toolExecutor),
       )
     },
   }

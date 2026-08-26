@@ -5,7 +5,7 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
+import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import {
   ChronicleKanbanStore,
   KanbanDispatcher,
@@ -13,7 +13,7 @@ import {
 } from '@bee-agent/kanban'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
 import type { FakeLlmStep } from '@bee-agent/runtime/testing'
-import type { AgentLoopToolSlot } from '@bee-agent/runtime'
+import type { ToolExecutor } from '@bee-agent/runtime'
 import { buildBeeServer } from '../src/index.ts'
 import type { BeeServer } from '../src/index.ts'
 import type { KanbanStore, KanbanTask } from '@bee-agent/kanban'
@@ -24,14 +24,28 @@ function createRegistry(): ChronicleSchemaRegistry {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
-  registerModelRequestChronicleEvents(registry)
+  registerRuntimeChronicleEvents(registry)
   registerKanbanChronicleEvents(registry)
   return registry
 }
 
-const noopTools: AgentLoopToolSlot = {
+const noopTools: ToolExecutor = {
+  describe(call) {
+    return {
+      capability: `tool:${call.toolId}`,
+      requirements: {
+        readPaths: [],
+        writePaths: [],
+        networkTargets: [],
+        commands: [],
+        secretRefs: [],
+      },
+      expectedEffects: ['No side effects'],
+      verification: ['No-op completed'],
+    }
+  },
   async execute() {
-    return { kind: 'result', output: {}, content: 'noop' }
+    return { output: {}, content: 'noop', verification: ['No-op completed'] }
   },
 }
 
@@ -43,7 +57,7 @@ async function startServer(
     store: new MemoryChronicleStore(createRegistry()),
     kanban,
     llm: createFakeLlmRuntime({ script }),
-    tools: noopTools,
+    toolExecutor: noopTools,
     logger: false,
   })
   await server.app.listen({ host: '127.0.0.1', port: 0 })

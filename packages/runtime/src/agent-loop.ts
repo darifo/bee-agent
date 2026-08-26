@@ -3,6 +3,11 @@ import { canonicalJson } from '@bee-agent/kernel'
 import { isLlmRuntimeError } from './llm-runtime.ts'
 import type { LlmMessage, LlmToolCall, LlmToolSpec } from './llm-runtime.ts'
 import type { ModelRequestService } from './model-request-service.ts'
+import type { ActionResult } from '@bee-agent/execution'
+import type {
+  ToolExecutionOutcome,
+  ToolExecutionPort,
+} from './tool-execution.ts'
 import {
   agentCheckpointEvent,
   agentRecoveryFailedEvent,
@@ -21,7 +26,6 @@ import {
 } from '@bee-agent/thread'
 import type {
   Item,
-  ItemId,
   ThreadId,
   ThreadEvent,
   Turn,
@@ -37,40 +41,6 @@ import type { ChronicleStore, NewChronicleEvent } from '@bee-agent/knowledge'
  * stream, so a crashed turn resumes from Chronicle plus the last checkpoint
  * (see {@link AgentLoop.recoverTurn}).
  */
-
-// ---------------------------------------------------------------------------
-// Execution slot (direct in Phase 1, ExecutionWorld in Phase 3)
-// ---------------------------------------------------------------------------
-
-export interface AgentLoopToolSlotCall {
-  readonly call: LlmToolCall
-  readonly threadId: ThreadId
-  readonly turnId: TurnId
-  /** The tool_call item this execution is bound to (for provenance links). */
-  readonly itemId?: ItemId | undefined
-  /** Present when a previously requested approval was granted or rejected. */
-  readonly approval?: 'approved' | 'rejected' | undefined
-  readonly signal?: AbortSignal | undefined
-}
-
-/** The execution seam tools run through; swapped for ExecutionWorld in Phase 3. */
-export interface AgentLoopToolSlot {
-  execute(input: AgentLoopToolSlotCall): Promise<AgentLoopToolOutcome>
-}
-
-export type AgentLoopToolOutcome =
-  | {
-      readonly kind: 'result'
-      readonly output: unknown
-      readonly content: string
-      readonly isError?: boolean | undefined
-    }
-  | {
-      readonly kind: 'approval-required'
-      readonly approvalId: string
-      readonly title: string
-      readonly detail?: string | undefined
-    }
 
 // ---------------------------------------------------------------------------
 // Phase 2 hook seams (retrieval, planning)
@@ -99,7 +69,7 @@ export interface AgentLoopPlanHook {
 export interface AgentLoopOptions {
   readonly modelRequests: ModelRequestService
   readonly store: ChronicleStore
-  readonly tools: AgentLoopToolSlot
+  readonly toolExecution: ToolExecutionPort
   /** Tool declarations passed to the model; empty until tool specs land. */
   readonly toolSpecs?: readonly LlmToolSpec[] | undefined
   readonly hooks?:
@@ -292,40 +262,41 @@ export class AgentLoop {
       }),
     )
 
-    let toolMessage: LlmMessage
-    if (input.decision === 'approved') {
-      const outcome = await this.#options.tools.execute({
+    let outcome: ToolExecutionOutcome
+    try {
+      outcome = await this.#options.toolExecution.execute({
         call: pending.call,
         threadId: input.threadId,
         turnId: input.turnId,
         itemId: pending.toolItem.id,
-        approval: 'approved',
+        structureVersion: rebuilt.state.turn.structureVersion,
+        approval: input.decision,
         signal: input.signal,
       })
-      if (outcome.kind === 'approval-required') {
-        throw new Error(
-          'Tool slot requested another approval for an approved call',
-        )
-      }
-      toolMessage = await this.#completeToolItem(
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await this.#append(
         input.threadId,
-        pending.toolItem,
-        outcome,
-        now,
+        itemFailedEvent(
+          {
+            threadId: input.threadId,
+            turnId: input.turnId,
+            itemId: pending.toolItem.id,
+          },
+          message,
+        ),
       )
-    } else {
-      toolMessage = await this.#completeToolItem(
-        input.threadId,
-        pending.toolItem,
-        {
-          kind: 'result',
-          output: { rejected: true },
-          content: 'The user rejected this tool call.',
-          isError: true,
-        },
-        now,
-      )
+      return this.#fail(rebuilt.state, `Tool execution failed: ${message}`)
     }
+    if (outcome.kind === 'approval-required') {
+      throw new Error('ExecutionWorld requested approval after a decision')
+    }
+    const toolMessage = await this.#completeToolItem(
+      input.threadId,
+      pending.toolItem,
+      outcome.result,
+      now,
+    )
     rebuilt.state.history.push(toolMessage)
 
     return this.#drive(rebuilt.state, input.signal)
@@ -360,13 +331,31 @@ export class AgentLoop {
       state.history.push(outcome.assistantMessage)
       for (const intent of outcome.intents) {
         if (signal?.aborted) return this.#cancel(state)
-        const result = await this.#options.tools.execute({
-          call: intent.call,
-          threadId: state.turn.threadId,
-          turnId: state.turn.id,
-          itemId: intent.item.id,
-          signal,
-        })
+        let result: ToolExecutionOutcome
+        try {
+          result = await this.#options.toolExecution.execute({
+            call: intent.call,
+            threadId: state.turn.threadId,
+            turnId: state.turn.id,
+            itemId: intent.item.id,
+            structureVersion: state.turn.structureVersion,
+            signal,
+          })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          await this.#append(
+            state.turn.threadId,
+            itemFailedEvent(
+              {
+                threadId: state.turn.threadId,
+                turnId: state.turn.id,
+                itemId: intent.item.id,
+              },
+              message,
+            ),
+          )
+          return this.#fail(state, `Tool execution failed: ${message}`)
+        }
         if (result.kind === 'approval-required') {
           return this.#suspend(state, intent, result)
         }
@@ -374,7 +363,7 @@ export class AgentLoop {
           await this.#completeToolItem(
             state.turn.threadId,
             intent.item,
-            result,
+            result.result,
             this.#now(),
           ),
         )
@@ -652,7 +641,7 @@ export class AgentLoop {
   async #suspend(
     state: LoopState,
     intent: GenerationIntent,
-    result: Extract<AgentLoopToolOutcome, { kind: 'approval-required' }>,
+    result: Extract<ToolExecutionOutcome, { kind: 'approval-required' }>,
   ): Promise<AgentLoopTurnResult> {
     const now = this.#now()
     const approvalItem = newItem({
@@ -687,7 +676,7 @@ export class AgentLoop {
   async #completeToolItem(
     threadId: ThreadId,
     toolItem: ToolCallItem,
-    result: Extract<AgentLoopToolOutcome, { kind: 'result' }>,
+    result: ActionResult,
     now: string,
   ): Promise<LlmMessage> {
     const completed: ToolCallItem = {

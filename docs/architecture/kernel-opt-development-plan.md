@@ -57,8 +57,11 @@ packages/kernel/
     └── structure.test.ts
 
 packages/runtime/src/model-request-service.ts # 模型调用、manifest、生命周期事实与重建
+packages/runtime/src/tool-execution.ts # Tool intent → ActionRequest → ExecutionWorld
 packages/runtime/src/plugin.ts   # ModelRequestService / AgentLoop 标准 RuntimePlugin
 apps/bee/src/kernel-runtime.ts   # Host 插件图与 Turn generation pinning
+
+packages/execution/src/execution-world.ts # 授权、审批、幂等、sandbox、diff、审计
 ```
 
 已删除的旧实现包括：`context.ts`、`effects.ts`、`events.ts`、`emitter.ts`、旧 `kernel.ts` 内容、`replacement.ts`、`task-scope.ts`、`plugin-adapter.ts`、`plugin-handle.ts`、`types.ts`、`testing.ts` 及对应旧测试。`@bee-agent/kernel/testing` 也已移除。
@@ -272,14 +275,43 @@ AgentLoop
 2. assistant tool calls 与工具结果的 exact `content` / `isError` 必须进入 Thread Item；
 3. 从 committed Item 重建 history 后必须复算 `stateDigest`；
 4. 不匹配时追加 `agent.recovery_failed` 并抛出 `CheckpointDigestMismatchError`，禁止带着漂移状态继续执行；
-5. ModelRequestService、Model、Tools、AgentLoop 都是 tier B 插件，结构变化通过新 generation 接管新 Turn。
+5. ModelRequestService、ToolExecution、Model、ToolExecutor、AgentLoop 都是 tier B 插件，结构变化通过新 generation 接管新 Turn。
 
-## 10. 后续开发边界
+## 10. ExecutionWorld（核心管线已完成）
+
+AgentLoop 不再直接调用工具。标准链路为：
+
+```text
+LLM tool intent
+  → ToolExecutor.describe()       # 展开 capability / resources / effects
+  → ActionRequestSchema           # 完整校验
+  → StaticAuthorizationPolicy     # deny-by-default；deny → ask → allow
+  → durable approval              # Thread Approval Item + generation lease
+  → SecretBroker.materialize()    # 仅引用晚绑定；无 broker 时 fail closed
+  → SandboxProvider               # capability report 不足时 fail closed
+  → snapshot → execute → snapshot → diff
+  → execution.completed | execution.failed
+```
+
+每个动作使用 `tool:<turnId>:<callId>` 作为幂等键，并写入独立 `execution:<sha256(idempotencyKey)>` stream：
+
+- 已完成动作直接返回持久化结果，不再次产生副作用；
+- 相同幂等键对应不同 ActionRequest 时抛 `IdempotencyKeyCollisionError`；
+- 已写 `execution.started` 但没有 durable result 时返回 `reconciliation-required`，禁止盲目重放；
+- 审批详情由展开后的 input、路径、网络目标、命令、secret refs、预期副作用和验证方式生成，不采用模型自然语言标题；
+- 未声明 capability 默认 deny；结构中未启用的工具不会进入授权规则；
+- `InProcessToolSandbox` 只允许不需要文件、网络或进程隔离的逻辑工具。遇到这些要求会因 capability report 不足而拒绝，不能退化为裸执行。
+
+当前完成的是 ExecutionWorld 核心契约、逻辑工具 provider 和 Host/AgentLoop 迁移。macOS Seatbelt、Linux bwrap、进程树取消、真实 SecretBroker provider 与 command/python/MCP adapter 仍属于 Phase 3 后续实现，不能宣称已由 in-process provider 提供隔离。
+
+## 11. 后续开发边界
 
 本次内核 clean break 已完成。以下是建立在新内核上的后续产品工作，不应重新引入第二套内核抽象：
 
-- 将 Turn/Subagent/ToolCall 的 lineage 和权限快照持久化；
+- 完成 hard deny、Structure permission、task scope、plugin declaration 与 sandbox capability 的完整交集权限快照；
 - 把 ContextBudget 的压缩决策直接接入 ModelRequestService，而非只记录最终 bundle；
+- 实现 Seatbelt/bwrap SandboxProvider、进程树取消，以及 command/python/MCP 全量迁移；
+- 实现系统 Keychain-backed SecretBroker、最小环境注入和 artifact/日志扫描；
 - 完成多 tool-call 的并行调度、失败隔离和 batch 级 checkpoint；
 - 为 generation/Fiber 增加 doctor 输出、故障注入和长时泄漏测试。
 

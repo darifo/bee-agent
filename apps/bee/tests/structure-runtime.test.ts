@@ -11,11 +11,11 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import { registerModelRequestChronicleEvents } from '@bee-agent/runtime'
+import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
-import type { AgentLoopToolSlot, LlmRuntime } from '@bee-agent/runtime'
+import type { LlmRuntime, ToolExecutor } from '@bee-agent/runtime'
 import {
   buildBeeServer,
   createBeeKernelRuntime,
@@ -44,7 +44,7 @@ function chronicle(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerStructureChronicleEvents(registry)
   registerThreadChronicleEvents(registry)
-  registerModelRequestChronicleEvents(registry)
+  registerRuntimeChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
 }
 
@@ -54,9 +54,23 @@ function kanban() {
   return createMemoryKanbanStore(registry)
 }
 
-const tools: AgentLoopToolSlot = {
+const tools: ToolExecutor = {
+  describe(call) {
+    return {
+      capability: `tool:${call.toolId}`,
+      requirements: {
+        readPaths: [],
+        writePaths: [],
+        networkTargets: [],
+        commands: [],
+        secretRefs: [],
+      },
+      expectedEffects: ['No side effects'],
+      verification: ['Completed'],
+    }
+  },
   async execute() {
-    return { kind: 'result', output: {}, content: 'ok' }
+    return { output: {}, content: 'ok', verification: ['Completed'] }
   },
 }
 
@@ -84,7 +98,8 @@ describe('Bee Host structure runtime', () => {
       kanban: board,
       llm: modelA,
       modelProviders: providers,
-      tools,
+      toolExecutor: tools,
+      toolAuthorization: [],
       toolSpecs: [],
       effectiveStructure: await hostStructure('model-a'),
     })
@@ -123,7 +138,8 @@ describe('Bee Host structure runtime', () => {
       kanban: board,
       llm: modelA,
       modelProviders: providers,
-      tools,
+      toolExecutor: tools,
+      toolAuthorization: [],
       toolSpecs: [],
     })
     expect(restored.kernel.activeGeneration?.structureVersion).toBe(
@@ -143,7 +159,7 @@ describe('Bee Host structure runtime', () => {
       modelProviders: new Map([
         [modelBindingKey('host-model', 'model-b'), modelB],
       ]),
-      tools,
+      toolExecutor: tools,
       effectiveStructure: await hostStructure('model-a'),
       logger: false,
     })
