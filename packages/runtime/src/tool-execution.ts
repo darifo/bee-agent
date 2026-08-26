@@ -28,6 +28,8 @@ export interface ToolExecutor {
   /** Expands model intent into the concrete resources and effects to authorize. */
   describe(call: LlmToolCall): ToolActionDescriptor
   execute(input: ToolExecutionCall): Promise<ActionResult>
+  /** Deterministically maps a sandbox result into model-facing tool content. */
+  present?(result: ActionResult, call: LlmToolCall): ActionResult
 }
 
 /** One coherent tool plugin binding: model schema, policy default, and resolver. */
@@ -137,7 +139,12 @@ export class ToolExecutionService implements ToolExecutionPort {
       signal: input.signal,
     })
     if (outcome.kind === 'result') {
-      return { kind: 'result', result: outcome.result }
+      return {
+        kind: 'result',
+        result:
+          this.#executor.present?.(outcome.result, input.call) ??
+          outcome.result,
+      }
     }
     if (outcome.kind === 'approval-required') return outcome
     return {

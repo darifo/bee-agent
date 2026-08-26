@@ -46,7 +46,7 @@ describe('platform sandbox policies', () => {
     )
     expect(profile).toContain('(deny default)')
     expect(profile).toContain('(literal "/bin/echo")')
-    expect(profile).toContain('(allow file-read-metadata (literal "/bin"))')
+    expect(profile).toContain('(allow file-read-metadata (literal "/bin")')
     expect(profile).toContain('(literal "/dev/urandom")')
     expect(profile).toContain('(subpath "/tmp/input")')
     expect(profile).toContain('(subpath "/tmp/output")')
@@ -156,6 +156,33 @@ describe('platform sandbox policies', () => {
       { secrets: new Map() },
     )
     expect(outcome.content).toBe('input-through-sandbox\n')
+  })
+
+  it.runIf(
+    process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
+  )('ends a stdio service after its matching JSON line', async () => {
+    const sandbox = new PlatformCommandSandbox()
+    if (!(await sandbox.capabilities()).processIsolation) return
+    const outcome = await sandbox.execute(
+      request({
+        commands: [
+          [
+            '/bin/bash',
+            '-c',
+            'echo \'{"jsonrpc":"2.0","id":"done","result":{}}\'; sleep 10',
+          ],
+        ],
+        stdoutCompletion: {
+          kind: 'json-line-property',
+          property: 'id',
+          equals: 'done',
+        },
+        timeoutMs: 2_000,
+      }),
+      { secrets: new Map() },
+    )
+    expect(outcome.isError).toBeUndefined()
+    expect(outcome.content).toContain('"id":"done"')
   })
 
   it.runIf(

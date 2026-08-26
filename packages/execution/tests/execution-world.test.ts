@@ -157,6 +157,26 @@ describe('ExecutionWorld', () => {
     ).rejects.toThrow('exactly one command')
   })
 
+  it('requires staged stdio to end on an explicit response condition', async () => {
+    await expect(
+      canonicalizeActionRequest(
+        request({
+          requirements: {
+            readPaths: [],
+            writePaths: [],
+            networkTargets: [],
+            commands: [['/bin/cat']],
+            commandStdio: {
+              kind: 'json-lines',
+              steps: [{ input: '{}\n' }],
+            },
+            secretEnv: {},
+          },
+        }),
+      ),
+    ).rejects.toThrow('completion condition')
+  })
+
   it('authorizes, records, executes once, and replays the durable result', async () => {
     const chronicle = store()
     const sandbox = new FakeSandbox()

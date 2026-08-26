@@ -85,6 +85,7 @@ interface ProcessResult {
   readonly signal: NodeJS.Signals | null
   readonly stdout: string
   readonly stderr: string
+  readonly completedByOutput?: boolean | undefined
 }
 
 async function runProcess(input: {
@@ -93,6 +94,25 @@ async function runProcess(input: {
   readonly cwd?: string | undefined
   readonly env: Readonly<Record<string, string>>
   readonly stdin?: string | undefined
+  readonly stdoutCompletion?:
+    | {
+        readonly property: string
+        readonly equals: string | number
+      }
+    | undefined
+  readonly stdioSequence?:
+    | {
+        readonly steps: readonly {
+          readonly input: string
+          readonly waitFor?:
+            | {
+                readonly property: string
+                readonly equals: string | number
+              }
+            | undefined
+        }[]
+      }
+    | undefined
   readonly signal?: AbortSignal | undefined
   readonly timeoutMs: number
   readonly maxOutputBytes: number
@@ -112,7 +132,16 @@ async function runProcess(input: {
     const stderr: Buffer[] = []
     let size = 0
     let settled = false
-    const timeout: { timer?: ReturnType<typeof setTimeout> } = {}
+    let completedByOutput = false
+    let stdoutLineBuffer = ''
+    let stdioStep = 0
+    let stagedWait:
+      | { readonly property: string; readonly equals: string | number }
+      | undefined
+    const timeout: {
+      timer?: ReturnType<typeof setTimeout>
+      completionTimer?: ReturnType<typeof setTimeout>
+    } = {}
     const killTree = (signal: NodeJS.Signals) => {
       if (child.pid === undefined) return
       try {
@@ -125,6 +154,8 @@ async function runProcess(input: {
       if (settled) return
       settled = true
       if (timeout.timer !== undefined) clearTimeout(timeout.timer)
+      if (timeout.completionTimer !== undefined)
+        clearTimeout(timeout.completionTimer)
       input.signal?.removeEventListener('abort', onAbort)
       killTree('SIGKILL')
       reject(error)
@@ -137,23 +168,83 @@ async function runProcess(input: {
       }
       target.push(chunk)
     }
-    child.stdout.on('data', (chunk: Buffer) => append(stdout, chunk))
+    const completeByOutput = () => {
+      if (completedByOutput) return
+      completedByOutput = true
+      killTree('SIGTERM')
+      timeout.completionTimer = setTimeout(() => killTree('SIGKILL'), 250)
+      timeout.completionTimer.unref()
+    }
+    const pumpStdio = () => {
+      const steps = input.stdioSequence?.steps
+      if (steps === undefined) return
+      while (stagedWait === undefined && stdioStep < steps.length) {
+        const step = steps[stdioStep]
+        if (step === undefined) break
+        child.stdin.write(step.input)
+        stagedWait = step.waitFor
+        if (stagedWait === undefined) stdioStep += 1
+      }
+    }
+    const inspectStdout = (chunk: Buffer) => {
+      if (
+        (input.stdoutCompletion === undefined && stagedWait === undefined) ||
+        completedByOutput
+      )
+        return
+      stdoutLineBuffer += chunk.toString('utf8')
+      const lines = stdoutLineBuffer.split('\n')
+      stdoutLineBuffer = lines.pop() ?? ''
+      for (const line of lines) {
+        try {
+          const message = JSON.parse(line) as Record<string, unknown>
+          const completion = stagedWait ?? input.stdoutCompletion
+          if (
+            completion !== undefined &&
+            message[completion.property] === completion.equals
+          ) {
+            if (stagedWait !== undefined) {
+              stagedWait = undefined
+              stdioStep += 1
+              if (stdioStep < (input.stdioSequence?.steps.length ?? 0)) {
+                pumpStdio()
+              } else {
+                completeByOutput()
+              }
+            } else {
+              completeByOutput()
+            }
+            break
+          }
+        } catch {
+          // Non-JSON stdout remains captured for adapter-level diagnostics.
+        }
+      }
+    }
+    child.stdout.on('data', (chunk: Buffer) => {
+      append(stdout, chunk)
+      inspectStdout(chunk)
+    })
     child.stderr.on('data', (chunk: Buffer) => append(stderr, chunk))
     child.stdin.on('error', (error) => {
       if ((error as NodeJS.ErrnoException).code !== 'EPIPE') finishError(error)
     })
-    child.stdin.end(input.stdin)
+    if (input.stdioSequence !== undefined) pumpStdio()
+    else child.stdin.end(input.stdin)
     child.once('error', finishError)
     child.once('close', (exitCode, signal) => {
       if (settled) return
       settled = true
       if (timeout.timer !== undefined) clearTimeout(timeout.timer)
+      if (timeout.completionTimer !== undefined)
+        clearTimeout(timeout.completionTimer)
       input.signal?.removeEventListener('abort', onAbort)
       resolve({
         exitCode,
         signal,
         stdout: Buffer.concat(stdout).toString('utf8'),
         stderr: Buffer.concat(stderr).toString('utf8'),
+        ...(completedByOutput ? { completedByOutput: true } : {}),
       })
     })
     const onAbort = () => finishError(new SandboxCancelledError())
@@ -199,7 +290,18 @@ export function buildSeatbeltProfile(
   const executableRules = executables
     .map((path) => `(literal ${quoteScheme(path)})`)
     .join(' ')
-  const executableParentRules = [...new Set(executables.flatMap(pathAncestors))]
+  const resourceParentRules = [
+    ...new Set(
+      [
+        ...executables,
+        ...request.requirements.readPaths,
+        ...request.requirements.writePaths,
+        ...(request.requirements.workingDirectory === undefined
+          ? []
+          : [request.requirements.workingDirectory]),
+      ].flatMap(pathAncestors),
+    ),
+  ]
     .map((path) => `(literal ${quoteScheme(path)})`)
     .join(' ')
   return [
@@ -207,9 +309,9 @@ export function buildSeatbeltProfile(
     '(deny default)',
     '(allow process-fork)',
     `(allow process-exec ${executableRules})`,
-    ...(executableParentRules === ''
+    ...(resourceParentRules === ''
       ? []
-      : [`(allow file-read-metadata ${executableParentRules})`]),
+      : [`(allow file-read-metadata ${resourceParentRules})`]),
     '(allow file-read* (literal "/") (subpath "/System") (subpath "/usr/lib") (subpath "/usr/share") (subpath "/private/var/db"))',
     '(allow file-read* (literal "/dev/random") (literal "/dev/urandom"))',
     `(allow file-read* ${executableRules})`,
@@ -315,6 +417,14 @@ export class PlatformCommandSandbox implements SandboxProvider {
         cwd: request.requirements.workingDirectory ?? '/',
         env,
         stdin: request.requirements.commandStdin,
+        stdoutCompletion:
+          request.requirements.stdoutCompletion?.kind === 'json-line-property'
+            ? request.requirements.stdoutCompletion
+            : undefined,
+        stdioSequence:
+          request.requirements.commandStdio?.kind === 'json-lines'
+            ? request.requirements.commandStdio
+            : undefined,
         signal: options.signal,
         timeoutMs: remainingTimeoutMs,
         maxOutputBytes: remainingOutputBytes,
@@ -331,7 +441,9 @@ export class PlatformCommandSandbox implements SandboxProvider {
         return `${result.stdout}${separator}[stderr]\n${result.stderr}`
       })
       .join('')
-    const failed = results.some((result) => result.exitCode !== 0)
+    const failed = results.some(
+      (result) => result.exitCode !== 0 && result.completedByOutput !== true,
+    )
     return {
       output: { commands: results },
       content,

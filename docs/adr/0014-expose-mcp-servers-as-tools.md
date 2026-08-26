@@ -1,8 +1,8 @@
 # ADR 0014: Expose MCP servers as tools
 
-> Status: Superseded by the v1 clean break and ADR 0034. The direct stdio
-> process implementation was deleted; replacement MCP transports must execute
-> through ExecutionWorld and declare process, network, path, and secret scope.
+> Status: Replaced for v1 by `adapters/tools/mcp` and ADR 0034. The old
+> direct-spawn client was deleted; the replacement pins discovery output in a
+> Host manifest and executes each stdio session through ExecutionWorld.
 
 ## Background
 
@@ -11,6 +11,13 @@ The tool pipeline is local (calculator); real deployments need the broader MCP e
 ## Decision
 
 Add `plugins/tools/mcp`: a hand-rolled, zero-dependency MCP client over the stdio transport (newline-delimited JSON-RPC 2.0) that spawns each configured server as its own child process, completes the `initialize` handshake, discovers tools via `tools/list`, and adapts them to the runtime `Tool` contract under `mcp.<server>.<tool>` ids. The composition root mounts servers from `BEE_AGENT_MCP` (a JSON array validated by the exported `McpServerConfigSchema`) and registers the discovered tools into the task runtime.
+
+For v1, `BEE_AGENT_MCP_MANIFESTS` supplies the protocol version and pinned tool
+schemas. Adapters emit `mcp__<server>__<tool>` specs and staged JSON-lines stdio
+requirements. PlatformSandbox starts the native executable, waits for the
+initialize response, sends the initialized notification and tool call, then
+terminates the process group after the matching response. Adapter-side process
+creation and implicit startup discovery are forbidden.
 
 ## Reasons
 
@@ -22,12 +29,17 @@ The official `@modelcontextprotocol/sdk` (dependency weight, version churn), HTT
 
 ## Positive impact
 
-Any stdio MCP server works with no code changes; server death surfaces as rejected tool calls with the child's stderr tail; the kernel lifecycle terminates children with SIGTERM→SIGKILL.
+Networkless stdio MCP servers work behind the same authorization, event,
+cancellation, output-bound and sandbox pipeline as other external tools.
 
 ## Negative impact
 
-Only the stdio transport and the tools capability are covered (resources and prompts are out of scope); one process per server; no auth handshake for remote transports yet.
+Only JSON-lines stdio tools are covered; resources, prompts, dynamic discovery,
+networked servers, and remote transports remain out of scope. A fresh process
+and initialize handshake are paid per tool call.
 
 ## Follow-up constraints
 
-Remote transports extend `McpClient` behind the same interface; MCP tool ids stay namespaced so policies can target them (`mcp.<server>.*`).
+Dynamic discovery must become a separately authorized lifecycle action that
+produces a reviewable manifest. Remote transports require an enforcing network
+provider. Tool ids stay namespaced as `mcp__<server>__<tool>`.

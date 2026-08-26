@@ -16,6 +16,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
   learning: ['kernel', 'knowledge', 'runtime', 'context'],
   'model-providers': ['runtime'],
   'tool-command': ['knowledge', 'runtime'],
+  'tool-mcp': ['knowledge', 'runtime'],
   'tool-python': ['knowledge', 'runtime'],
   client: ['thread'],
   'storage-sqlite': ['kanban', 'knowledge'],
@@ -28,6 +29,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
     'storage-sqlite',
     'thread',
     'tool-command',
+    'tool-mcp',
     'tool-python',
   ],
 }
@@ -136,6 +138,10 @@ async function scanWorkspace(rootDir) {
     {
       packageName: 'tool-command',
       directory: join(rootDir, 'adapters', 'tools', 'command'),
+    },
+    {
+      packageName: 'tool-mcp',
+      directory: join(rootDir, 'adapters', 'tools', 'mcp'),
     },
     {
       packageName: 'tool-python',

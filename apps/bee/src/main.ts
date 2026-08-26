@@ -11,6 +11,10 @@ import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import { CommandToolAdapter } from '@bee-agent/tool-command'
+import {
+  McpServerManifestSchema,
+  createMcpToolAdapters,
+} from '@bee-agent/tool-mcp'
 import { PythonToolAdapter } from '@bee-agent/tool-python'
 import {
   registerRuntimeChronicleEvents,
@@ -100,6 +104,14 @@ const pythonTool =
         ),
       })
 
+const mcpManifestInput = process.env.BEE_AGENT_MCP_MANIFESTS
+const mcpTools =
+  mcpManifestInput === undefined || mcpManifestInput.trim() === ''
+    ? []
+    : McpServerManifestSchema.array()
+        .parse(JSON.parse(mcpManifestInput))
+        .flatMap(createMcpToolAdapters)
+
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
@@ -116,10 +128,13 @@ const server = await buildBeeServer({
   store,
   kanban,
   llm,
-  toolAdapters: [commandTool, pythonTool].filter(
-    (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>
-      adapter !== undefined,
-  ),
+  toolAdapters: [
+    ...[commandTool, pythonTool].filter(
+      (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>
+        adapter !== undefined,
+    ),
+    ...mcpTools,
+  ],
   sandboxProvider: new PlatformCommandSandbox(),
   ...(process.platform === 'darwin'
     ? { secretBroker: new MacOSKeychainSecretBroker() }

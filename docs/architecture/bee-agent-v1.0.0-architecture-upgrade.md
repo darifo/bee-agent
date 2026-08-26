@@ -695,6 +695,8 @@ interface ExecutionWorld {
 
 `adapters/tools/python` 复用同一契约提供 `python_run`：Host 固定一个 native CPython executable、只读 runtime roots 和 workspace root，模型只能提供 code、JSON-compatible args、workspace 内路径与有上限的资源参数。adapter 将 `{code,args}` 作为有大小上限的 `commandStdin` 声明，命令固定为隔离模式 bootstrap；ExecutionWorld 在审批与幂等摘要前记录完整执行描述，PlatformSandbox 才拥有 stdin pipe 和进程创建权。解释器标准库/动态模块路径由 `BEE_AGENT_PYTHON_RUNTIME_READ_PATHS` 显式给出，不从模型输入或宿主环境推断；未配置 `BEE_AGENT_PYTHON_EXECUTABLE` 时，该能力不会被注册。
 
+`adapters/tools/mcp` 将 stdio 协议迁入同一边界，但不恢复 v0 的常驻直连进程。Host 通过 `BEE_AGENT_MCP_MANIFESTS` 固定 server executable、argv、protocolVersion、runtime/workspace 路径、secret refs 与工具 schema；每个工具注册为 `mcp__<server>__<tool>`。`commandStdio` 是通用的 JSON-lines 分阶段执行描述：平台 provider 写 initialize，等待匹配响应后再写 initialized notification 与 tools/call，收到最终 response id 后以 TERM→KILL 回收整个进程组。原始沙箱结果持久化后，adapter 的纯 `present()` 才提取 MCP content。启动期隐式 discovery 被刻意移除；未来 discovery 必须是单独授权、可审阅并产出 manifest 的生命周期动作。当前平台 provider 不支持 network allowlist，因此仅启用 networkless stdio server，不能静默退化为宿主网络权限。
+
 ### 13.5 最小安全边界
 
 - 文件：workspace allowlist、只读/读写分离、symlink 和 path traversal 防护；

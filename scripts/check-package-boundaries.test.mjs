@@ -147,6 +147,10 @@ test('allowedInternalImports reflects the v1 dependency DAG', () => {
     new Set(['knowledge', 'runtime']),
   )
   assert.deepEqual(
+    allowedInternalImports('tool-mcp'),
+    new Set(['knowledge', 'runtime']),
+  )
+  assert.deepEqual(
     allowedInternalImports('tool-python'),
     new Set(['knowledge', 'runtime']),
   )

@@ -216,6 +216,15 @@ function compositeToolExecutor(
         }
       }
     },
+    present(result, call) {
+      if (!call.toolId.startsWith('kanban_')) {
+        const adapter = registered.get(call.toolId)
+        if (adapter?.present !== undefined) return adapter.present(result, call)
+        if (fallback?.present !== undefined)
+          return fallback.present(result, call)
+      }
+      return result
+    },
   }
 }
 

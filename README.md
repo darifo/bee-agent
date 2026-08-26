@@ -111,7 +111,7 @@ abstractions, and SQLite Event Store.
 | Model providers          | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted       |
 | Command tool             | Available | Opt-in `command_run` adapter: Host-allowlisted native executables and workspace-confined paths; exact ActionRequest approval; execution only through Seatbelt/bwrap with empty env, timeout/output limits, and process-tree cancellation                             |
 | Python tool              | Available | Opt-in `python_run` adapter: a fixed native interpreter, JSON stdin contract, isolated one-shot process, workspace-confined paths, approval and resource bounds; no adapter-side process creation                                                                    |
-| MCP tool                 | Planned   | The unsafe v0 direct-spawn implementation was removed. A replacement adapter must declare resources and execute through ExecutionWorld; it is not currently exposed by the Host                                                                                      |
+| MCP tool                 | Available | Opt-in manifest-pinned stdio adapters: staged initialize/call JSON-RPC, static model schemas, declared executable/path/secret scope, exact approval, and process lifecycle exclusively through ExecutionWorld and Seatbelt/bwrap                                     |
 | External agents          | Planned   | v0 RemoteAgent/CommandAgent paths were removed by the clean break. Replacement adapters must preserve Thread–Turn–Item, approval, cancellation, and trajectory lineage                                                                                               |
 
 ## Requirements
@@ -207,8 +207,23 @@ model-controlled. On macOS, select the real interpreter binary rather than the
 `/usr/bin/python3` developer-tools shim.
 
 When the environment variable is absent, the tool is not registered in the
-EffectiveStructure or model context. MCP and external-agent adapters remain
-disabled until their ExecutionWorld migrations land.
+EffectiveStructure or model context.
+
+### Enabling manifest-pinned MCP tools
+
+`BEE_AGENT_MCP_MANIFESTS` accepts a JSON array of stdio server manifests. Tool
+schemas are pinned by the Host rather than discovered with an unapproved
+startup process. Each tool becomes `mcp__<server>__<tool>` and each call starts
+a fresh, network-denied server inside the platform sandbox:
+
+```bash
+BEE_AGENT_MCP_MANIFESTS='[{"name":"local","protocolVersion":"2024-11-05","executable":"/absolute/path/to/native/node","arguments":["/workspace/server.mjs"],"workspaceRoot":"/workspace","runtimeReadPaths":["/absolute/path/to/node/runtime"],"readPaths":["server.mjs"],"writePaths":[],"tools":[{"name":"lookup","description":"Look up local data","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}}]}]' \
+pnpm --filter @bee-agent/bee start
+```
+
+The executable, server code/runtime roots, filesystem effects, secret refs,
+protocol version, and tool schemas are all Host-controlled. Networked MCP
+transports remain disabled until an enforcing network sandbox provider exists.
 
 ### Running on PostgreSQL
 
@@ -262,7 +277,8 @@ bee-agent/
 │   ├── storage/sqlite/      # SQLite Chronicle and Kanban stores
 │   └── tools/
 │       ├── command/         # command_run declaration; execution stays in execution/
-│       └── python/          # python_run one-shot JSON/stdin declaration
+│       ├── python/          # python_run one-shot JSON/stdin declaration
+│       └── mcp/             # manifest-pinned staged stdio declarations
 ├── tests/                   # Shared integration and E2E suites
 └── docs/                    # ADRs and the v1 architecture/refactor plans
 ```

@@ -16,6 +16,27 @@ const AbsolutePathSchema = z
   .min(1)
   .refine(isAbsolute, 'Path must be absolute')
 
+const StdoutCompletionSchema = z.object({
+  kind: z.literal('json-line-property'),
+  property: z.string().min(1),
+  equals: z.union([z.string(), z.number()]),
+})
+const CommandStdioSequenceSchema = z
+  .object({
+    kind: z.literal('json-lines'),
+    steps: z
+      .array(
+        z.object({
+          input: z.string(),
+          waitFor: StdoutCompletionSchema.optional(),
+        }),
+      )
+      .min(1),
+  })
+  .refine((value) => value.steps.at(-1)?.waitFor !== undefined, {
+    message: 'Final command stdio step must declare a completion condition',
+  })
+
 export const ResourceRequirementsSchema = z.object({
   readPaths: z.array(AbsolutePathSchema).default([]),
   writePaths: z.array(AbsolutePathSchema).default([]),
@@ -32,6 +53,10 @@ export const ResourceRequirementsSchema = z.object({
     .default([]),
   /** Standard input for a single declared command. */
   commandStdin: z.string().optional(),
+  /** Ends a long-running single command after a matching stdout JSON line. */
+  stdoutCompletion: StdoutCompletionSchema.optional(),
+  /** Ordered writes gated by matching JSON-line responses. */
+  commandStdio: CommandStdioSequenceSchema.optional(),
   secretEnv: z
     .record(z.string().regex(/^[A-Z_][A-Z0-9_]*$/), z.string().min(1))
     .default({}),
@@ -80,10 +105,18 @@ export async function canonicalizeActionRequest(
 ): Promise<ActionRequest> {
   const request = ActionRequestSchema.parse(candidate)
   if (
-    request.requirements.commandStdin !== undefined &&
+    (request.requirements.commandStdin !== undefined ||
+      request.requirements.stdoutCompletion !== undefined ||
+      request.requirements.commandStdio !== undefined) &&
     request.requirements.commands.length !== 1
   ) {
-    throw new Error('Command stdin requires exactly one command')
+    throw new Error('Command stdio controls require exactly one command')
+  }
+  if (
+    request.requirements.commandStdin !== undefined &&
+    request.requirements.commandStdio !== undefined
+  ) {
+    throw new Error('Command stdin and staged stdio are mutually exclusive')
   }
   const [readPaths, writePaths, commands, workingDirectory] = await Promise.all(
     [

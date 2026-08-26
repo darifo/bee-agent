@@ -27,6 +27,7 @@
     "@bee-agent/storage-sqlite": "workspace:*",
     "@bee-agent/thread": "workspace:*",
     "@bee-agent/tool-command": "workspace:*",
+    "@bee-agent/tool-mcp": "workspace:*",
     "@bee-agent/tool-python": "workspace:*",
     "@fastify/cors": "^11.3.0",
     "fastify": "^5.12.1",
