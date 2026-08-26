@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, realpath, rm, symlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
@@ -5,6 +8,7 @@ import {
   ExecutionWorld,
   IdempotencyKeyCollisionError,
   StaticAuthorizationPolicy,
+  canonicalizeActionRequest,
   executionStreamId,
   registerExecutionChronicleEvents,
   type ActionRequest,
@@ -31,7 +35,7 @@ function request(overrides: Partial<ActionRequest> = {}): ActionRequest {
       writePaths: [],
       networkTargets: [],
       commands: [],
-      secretRefs: [],
+      secretEnv: {},
     },
     expectedEffects: ['Return a calculated value'],
     verification: ['Result equals 3'],
@@ -90,6 +94,52 @@ async function eventTypes(
 }
 
 describe('ExecutionWorld', () => {
+  it('canonicalizes declared paths and executables before authorization', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'bee-action-'))
+    const target = join(directory, 'target')
+    const link = join(directory, 'link')
+    await mkdir(target)
+    await symlink(target, link)
+    try {
+      const resolved = await canonicalizeActionRequest(
+        request({
+          requirements: {
+            readPaths: [link],
+            writePaths: [join(link, 'new-file')],
+            networkTargets: [],
+            commands: [['/bin/echo', 'hello']],
+            secretEnv: {},
+          },
+        }),
+      )
+      expect(resolved.requirements.readPaths).toEqual([await realpath(target)])
+      expect(resolved.requirements.writePaths).toEqual([
+        join(await realpath(target), 'new-file'),
+      ])
+      expect(resolved.requirements.commands[0]?.[0]).toBe(
+        await realpath('/bin/echo'),
+      )
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects relative resource paths and executables', async () => {
+    await expect(
+      canonicalizeActionRequest(
+        request({
+          requirements: {
+            readPaths: ['relative'],
+            writePaths: [],
+            networkTargets: [],
+            commands: [['echo', 'hello']],
+            secretEnv: {},
+          },
+        }),
+      ),
+    ).rejects.toThrow()
+  })
+
   it('authorizes, records, executes once, and replays the durable result', async () => {
     const chronicle = store()
     const sandbox = new FakeSandbox()
@@ -193,8 +243,8 @@ describe('ExecutionWorld', () => {
           readPaths: [],
           writePaths: [],
           networkTargets: [],
-          commands: [['git', 'status']],
-          secretRefs: [],
+          commands: [['/usr/bin/git', 'status']],
+          secretEnv: {},
         },
       }),
     )
@@ -253,7 +303,7 @@ describe('ExecutionWorld', () => {
         writePaths: [],
         networkTargets: [],
         commands: [],
-        secretRefs: ['api-key'],
+        secretEnv: { API_KEY: 'api-key' },
       },
     })
     const outcome = await world.execute(action)

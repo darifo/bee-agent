@@ -17,6 +17,8 @@ import type {
   AgentLoopTurnResult,
   LlmRuntime,
   LlmToolSpec,
+  SandboxProvider,
+  SecretBroker,
   ToolAuthorizationRule,
   ToolExecutor,
 } from '@bee-agent/runtime'
@@ -42,6 +44,8 @@ export interface BeeKernelRuntimeOptions {
   readonly toolExecutor: ToolExecutor
   readonly toolAuthorization: readonly ToolAuthorizationRule[]
   readonly toolSpecs: readonly LlmToolSpec[]
+  readonly sandboxProvider?: SandboxProvider | undefined
+  readonly secretBroker?: SecretBroker | undefined
   readonly effectiveStructure?: EffectiveStructure | undefined
   readonly modelId?: string | undefined
   /** Additional providers keyed by `<structure model id>@<model version>`. */
@@ -252,6 +256,8 @@ function createHostPluginFactories(
         rules: options.toolAuthorization.filter((rule) =>
           enabled.has(rule.toolId),
         ),
+        sandbox: options.sandboxProvider,
+        secrets: options.secretBroker,
       })
     },
   })

@@ -34,6 +34,7 @@ const SPECIFIER_PATTERN =
   /(?:\bfrom\s+|\bimport\s*\(?\s*|\brequire\s*\(?\s*)['"]([^'"]+)['"]/g
 
 const FORBIDDEN_RUNTIME_PACKAGES = new Set(['cordis', 'cosmokit'])
+const PROCESS_SPAWN_MODULES = new Set(['child_process', 'node:child_process'])
 
 export function extractImportSpecifiers(source) {
   return [...source.matchAll(SPECIFIER_PATTERN)].map((match) => match[1])
@@ -74,6 +75,13 @@ export function checkSource(source) {
   const offenders = new Map()
 
   for (const specifier of extractImportSpecifiers(source.code)) {
+    if (packageName !== 'execution' && PROCESS_SPAWN_MODULES.has(specifier)) {
+      offenders.set(`spawn:${specifier}`, {
+        packageName,
+        imported: specifier,
+        forbiddenSpawn: true,
+      })
+    }
     const root = specifier.split('/')[0]
     if (FORBIDDEN_RUNTIME_PACKAGES.has(root)) {
       offenders.set(`forbidden:${root}`, {
@@ -142,10 +150,54 @@ async function scanWorkspace(rootDir) {
       }
     }
   }
-  return violations
+
+  // Spawn confinement is repository-wide, including apps/adapters that do not
+  // participate in the internal package DAG above.
+  for (const base of ['packages', 'apps', 'adapters', 'scripts']) {
+    const directory = join(rootDir, base)
+    let files
+    try {
+      files = await readdir(directory, { recursive: true, withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const file of files) {
+      if (!file.isFile() || !/\.(?:ts|js|mjs)$/.test(file.name)) continue
+      const filePath = join(file.parentPath, file.name)
+      const relativePath = relative(rootDir, filePath)
+      if (
+        relativePath.includes('/dist/') ||
+        relativePath.includes('/node_modules/') ||
+        relativePath.startsWith('packages/execution/')
+      ) {
+        continue
+      }
+      const code = await readFile(filePath, 'utf8')
+      for (const specifier of extractImportSpecifiers(code)) {
+        if (!PROCESS_SPAWN_MODULES.has(specifier)) continue
+        violations.push({
+          packageName: 'repository',
+          imported: specifier,
+          forbiddenSpawn: true,
+          file: relativePath,
+        })
+      }
+    }
+  }
+  return [
+    ...new Map(
+      violations.map((violation) => [
+        `${violation.file}:${violation.imported}:${violation.forbiddenSpawn === true ? 'spawn' : 'boundary'}`,
+        violation,
+      ]),
+    ).values(),
+  ]
 }
 
 function formatViolation(violation) {
+  if (violation.forbiddenSpawn) {
+    return `${violation.file}: imports '${violation.imported}' outside @bee-agent/execution; route process creation through ExecutionWorld`
+  }
   if (violation.forbidden) {
     return `${violation.file}: imports forbidden runtime package '${violation.imported}'; use @bee-agent/kernel`
   }
@@ -171,6 +223,21 @@ export function getEslintBoundaryConfigs() {
         'no-restricted-imports': [
           'error',
           {
+            paths:
+              packageName === 'execution'
+                ? []
+                : [
+                    {
+                      name: 'node:child_process',
+                      message:
+                        'Route process creation through @bee-agent/execution.',
+                    },
+                    {
+                      name: 'child_process',
+                      message:
+                        'Route process creation through @bee-agent/execution.',
+                    },
+                  ],
             patterns: [
               {
                 group,

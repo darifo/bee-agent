@@ -15,12 +15,15 @@ The tier-B ToolExecution plugin converts the description to a validated `ActionR
 
 Every action uses a stable idempotency key and an independently addressed Chronicle stream. Completed results replay without execution. Reusing a key for a different request fails. A stream containing `execution.started` without a completed result is marked `reconciliation-required`; Bee must not blindly repeat an unknown external effect.
 
-Sandbox providers report which filesystem, network, and process restrictions they can enforce. The built-in in-process provider is only for logical tools and rejects requests needing any of those OS boundaries. Secret values are materialized after authorization, passed separately to the sandbox, and redacted from output, diff, and failures before persistence.
+Sandbox providers report which filesystem, network, and process restrictions they can enforce. The built-in in-process provider is only for logical tools. A request-scoped router sends commands, path access, network declarations, and secrets to the platform provider while retaining provider ownership across snapshot/diff.
+
+The first platform provider uses macOS Seatbelt or Linux bubblewrap. It probes whether isolation can actually be activated, uses no implicit shell, starts from an empty environment, terminates the detached process group on cancellation/timeout/output overflow, and fails closed when a requested boundary cannot be enforced. A macOS Keychain broker resolves `keychain:<service>/<account>` references only after authorization; only explicitly mapped `secretEnv` values reach the child process and all materialized values are redacted before persistence.
 
 ## Consequences
 
 - AgentLoop no longer owns tool authorization or direct execution.
 - Tool plugins must provide concrete declarations; undeclared capabilities are denied.
 - Approval text is derived from the expanded action, not from model prose.
-- Logical Kanban tools remain in process, while command, Python, MCP, browser, and remote-agent adapters must wait for or select an enforcing sandbox provider.
-- Seatbelt, bwrap, process-tree cancellation, and a system-backed SecretBroker remain explicit Phase 3 deliverables; the in-process provider must never be presented as OS isolation.
+- Logical Kanban tools remain in process; command, Python, MCP, browser, and remote-agent adapters must declare resources so routing selects an enforcing provider.
+- Network allowlists, recursive filesystem diffs, non-macOS credential stores, and adapter migration remain Phase 3 deliverables. Until then their requested capabilities fail closed.
+- Imports of `child_process` outside `@bee-agent/execution` are rejected by static package-boundary checks.

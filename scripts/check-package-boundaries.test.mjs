@@ -111,6 +111,23 @@ test('checkSource forbids bypassing the Bee kernel runtime', () => {
   assert.equal(violations[0].forbidden, true)
 })
 
+test('checkSource confines process spawning to the execution package', () => {
+  const violation = checkSource({
+    packageName: 'runtime',
+    code: "import { spawn } from 'node:" + "child_process'",
+  })
+  assert.equal(violation.length, 1)
+  assert.equal(violation[0].forbiddenSpawn, true)
+
+  assert.deepEqual(
+    checkSource({
+      packageName: 'execution',
+      code: "import { spawn } from 'node:" + "child_process'",
+    }),
+    [],
+  )
+})
+
 test('allowedInternalImports reflects the v1 dependency DAG', () => {
   assert.deepEqual([...allowedInternalImports('runtime')].sort(), [
     'context',

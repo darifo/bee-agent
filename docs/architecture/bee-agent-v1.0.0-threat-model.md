@@ -139,13 +139,13 @@ flowchart TB
 
 ## 7. 阶段落地索引
 
-| 威胁         | 化解落地阶段（开发计划任务）                       |
-| ------------ | -------------------------------------------------- |
-| T1/T2/T3     | P1-14（安全默认值先行）                            |
-| T4/T5        | P1-11 AgentLoop 数据分级渲染；P4 记忆 provenance   |
-| T6           | P0-4 lint 基础上 Phase 3 加 spawn 禁令（WF3-E）    |
-| T7/T8/T9/T10 | Phase 3 WF3-B/C/D/F                                |
-| T11/T12      | P1-2/P1-4（生命周期与热换）+ Phase 3 manifest 强制 |
-| T13/T14/T15  | Phase 5 WF5-C/D/E                                  |
-| T16          | Phase 4（数据目录）+ Phase 6（导出）               |
-| T17          | Phase 6 WF6-C（v0 导入工具）                       |
+| 威胁         | 化解落地阶段（开发计划任务）                        |
+| ------------ | --------------------------------------------------- |
+| T1/T2/T3     | P1-14（安全默认值先行）                             |
+| T4/T5        | P1-11 AgentLoop 数据分级渲染；P4 记忆 provenance    |
+| T6           | Phase 3 spawn 禁令已启用；仅 execution 包可创建进程 |
+| T7/T8/T9/T10 | Phase 3 WF3-B/C/D/F                                 |
+| T11/T12      | P1-2/P1-4（生命周期与热换）+ Phase 3 manifest 强制  |
+| T13/T14/T15  | Phase 5 WF5-C/D/E                                   |
+| T16          | Phase 4（数据目录）+ Phase 6（导出）                |
+| T17          | Phase 6 WF6-C（v0 导入工具）                        |

@@ -17,6 +17,8 @@ import type {
   ToolExecutor,
   LlmRuntime,
   LlmToolSpec,
+  SandboxProvider,
+  SecretBroker,
   StructureReconciler,
 } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
@@ -87,6 +89,8 @@ export interface BeeServerOptions {
   /** Declares and executes non-Kanban capabilities behind ExecutionWorld. */
   readonly toolExecutor: ToolExecutor
   readonly toolAuthorization?: readonly ToolAuthorizationRule[] | undefined
+  readonly sandboxProvider?: SandboxProvider | undefined
+  readonly secretBroker?: SecretBroker | undefined
   /** Extra tool specs appended after the built-in kanban tools. */
   readonly toolSpecs?: readonly LlmToolSpec[] | undefined
   readonly effectiveStructure?: EffectiveStructure | undefined
@@ -150,7 +154,7 @@ function compositeToolExecutor(
           writePaths: [],
           networkTargets: [],
           commands: [],
-          secretRefs: [],
+          secretEnv: {},
         },
         expectedEffects: ['Update the durable Bee Kanban task state'],
         verification: ['Kanban event append succeeds'],
@@ -215,6 +219,8 @@ export async function buildBeeServer(
     kanban: options.kanban,
     llm: options.llm,
     toolExecutor,
+    sandboxProvider: options.sandboxProvider,
+    secretBroker: options.secretBroker,
     toolAuthorization: [
       ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
         toolId: definition.id,

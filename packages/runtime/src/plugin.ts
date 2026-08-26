@@ -3,7 +3,13 @@ import { AgentLoop } from './agent-loop.ts'
 import type { AgentLoopOptions } from './agent-loop.ts'
 import type { LlmRuntime } from './llm-runtime.ts'
 import type { ChronicleStore } from '@bee-agent/knowledge'
-import { ExecutionWorld, StaticAuthorizationPolicy } from '@bee-agent/execution'
+import {
+  ExecutionWorld,
+  RoutingSandboxProvider,
+  StaticAuthorizationPolicy,
+  type SandboxProvider,
+  type SecretBroker,
+} from '@bee-agent/execution'
 import {
   MODEL_REQUEST_SERVICE,
   ModelRequestService,
@@ -58,6 +64,8 @@ export function createAgentLoopPlugin(
 
 export interface ToolExecutionPluginOptions {
   readonly rules: readonly ToolAuthorizationRule[]
+  readonly sandbox?: SandboxProvider | undefined
+  readonly secrets?: SecretBroker | undefined
   readonly version?: string | undefined
 }
 
@@ -78,6 +86,21 @@ export function createToolExecutionPlugin(
     provides: ['toolExecution'],
     apply(ctx) {
       const services = ctx as ToolExecutionPluginContext
+      const logical = new InProcessToolSandbox(services.toolExecutor)
+      const osSandbox = options.sandbox
+      const sandbox =
+        osSandbox === undefined
+          ? logical
+          : new RoutingSandboxProvider((request) => {
+              const requirements = request.requirements
+              const requiresOsBoundary =
+                requirements.commands.length > 0 ||
+                requirements.readPaths.length > 0 ||
+                requirements.writePaths.length > 0 ||
+                requirements.networkTargets.length > 0 ||
+                Object.keys(requirements.secretEnv).length > 0
+              return requiresOsBoundary ? osSandbox : logical
+            })
       const world = new ExecutionWorld({
         store: services.chronicle,
         policy: new StaticAuthorizationPolicy(
@@ -86,7 +109,8 @@ export function createToolExecutionPlugin(
             ...decision,
           })),
         ),
-        sandbox: new InProcessToolSandbox(services.toolExecutor),
+        sandbox,
+        secrets: options.secrets,
       })
       ctx.provide(
         'toolExecution',

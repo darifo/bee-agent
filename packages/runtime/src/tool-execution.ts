@@ -74,9 +74,9 @@ export class InProcessToolSandbox implements SandboxProvider {
     })
   }
 
-  async snapshot(scope: ActionRequest['scope']) {
+  async snapshot(request: ActionRequest) {
     return {
-      ref: `in-process:${scope.turnId}:${Date.now()}`,
+      ref: `in-process:${request.scope.turnId}:${Date.now()}`,
       capturedAt: new Date().toISOString(),
     }
   }

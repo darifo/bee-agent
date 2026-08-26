@@ -12,6 +12,8 @@ import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import {
   registerRuntimeChronicleEvents,
+  MacOSKeychainSecretBroker,
+  PlatformCommandSandbox,
   type ToolExecutor,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
@@ -69,7 +71,7 @@ const toolExecutor: ToolExecutor = {
         writePaths: [],
         networkTargets: [],
         commands: [],
-        secretRefs: [],
+        secretEnv: {},
       },
       expectedEffects: ['Return the supplied input without host side effects'],
       verification: ['Output equals input'],
@@ -101,6 +103,10 @@ const server = await buildBeeServer({
   kanban,
   llm,
   toolExecutor,
+  sandboxProvider: new PlatformCommandSandbox(),
+  ...(process.platform === 'darwin'
+    ? { secretBroker: new MacOSKeychainSecretBroker() }
+    : {}),
   sessionToken: effectiveToken,
 })
 server.app.log.info(

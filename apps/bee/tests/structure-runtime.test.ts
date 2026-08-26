@@ -63,7 +63,7 @@ const tools: ToolExecutor = {
         writePaths: [],
         networkTargets: [],
         commands: [],
-        secretRefs: [],
+        secretEnv: {},
       },
       expectedEffects: ['No side effects'],
       verification: ['Completed'],

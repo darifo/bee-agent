@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto'
+import { realpath } from 'node:fs/promises'
+import { basename, dirname, isAbsolute, join } from 'node:path'
 import { z } from 'zod'
 import { canonicalJson } from '@bee-agent/kernel'
 import {
@@ -9,13 +11,29 @@ import {
 } from '@bee-agent/knowledge'
 
 const DigestSchema = z.string().regex(/^sha256:[0-9a-f]{64}$/)
+const AbsolutePathSchema = z
+  .string()
+  .min(1)
+  .refine(isAbsolute, 'Path must be absolute')
 
 export const ResourceRequirementsSchema = z.object({
-  readPaths: z.array(z.string()).default([]),
-  writePaths: z.array(z.string()).default([]),
+  readPaths: z.array(AbsolutePathSchema).default([]),
+  writePaths: z.array(AbsolutePathSchema).default([]),
   networkTargets: z.array(z.string()).default([]),
-  commands: z.array(z.array(z.string())).default([]),
-  secretRefs: z.array(z.string()).default([]),
+  commands: z
+    .array(
+      z
+        .array(z.string())
+        .min(1)
+        .refine((argv) => isAbsolute(argv[0] as string), {
+          message: 'Command executable must be absolute',
+        }),
+    )
+    .default([]),
+  secretEnv: z
+    .record(z.string().regex(/^[A-Z_][A-Z0-9_]*$/), z.string().min(1))
+    .default({}),
+  workingDirectory: AbsolutePathSchema.optional(),
   timeoutMs: z.number().int().positive().optional(),
   maxOutputBytes: z.number().int().positive().optional(),
 })
@@ -41,6 +59,50 @@ export const ActionRequestSchema = z.object({
   structureVersion: z.string().min(1).optional(),
 })
 export type ActionRequest = z.infer<typeof ActionRequestSchema>
+
+async function canonicalPath(path: string): Promise<string> {
+  try {
+    return await realpath(path)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
+    const parent = dirname(path)
+    if (parent === path) return path
+    return join(await canonicalPath(parent), basename(path))
+  }
+}
+
+/** Resolves symlinks and missing-path ancestors before policy and approval. */
+export async function canonicalizeActionRequest(
+  candidate: ActionRequest,
+): Promise<ActionRequest> {
+  const request = ActionRequestSchema.parse(candidate)
+  const [readPaths, writePaths, commands, workingDirectory] = await Promise.all(
+    [
+      Promise.all(request.requirements.readPaths.map(canonicalPath)),
+      Promise.all(request.requirements.writePaths.map(canonicalPath)),
+      Promise.all(
+        request.requirements.commands.map(async ([executable, ...args]) => [
+          await canonicalPath(executable as string),
+          ...args,
+        ]),
+      ),
+      request.requirements.workingDirectory === undefined
+        ? undefined
+        : canonicalPath(request.requirements.workingDirectory),
+    ],
+  )
+  return {
+    ...request,
+    requirements: {
+      ...request.requirements,
+      readPaths: [...new Set(readPaths)],
+      writePaths: [...new Set(writePaths)],
+      commands,
+      ...(workingDirectory === undefined ? {} : { workingDirectory }),
+    },
+  }
+}
 
 export const ActionResultSchema = z.object({
   output: z.unknown(),
@@ -105,9 +167,9 @@ export interface SandboxProvider {
       readonly secrets: ReadonlyMap<string, string>
     },
   ): Promise<ActionResult>
-  snapshot(scope: ActionRequest['scope']): Promise<WorldSnapshot>
+  snapshot(request: ActionRequest): Promise<WorldSnapshot>
   diff(before: WorldSnapshot, after: WorldSnapshot): Promise<unknown>
-  capabilities(): Promise<SandboxCapabilityReport>
+  capabilities(request: ActionRequest): Promise<SandboxCapabilityReport>
 }
 
 export interface SecretBroker {
@@ -116,6 +178,10 @@ export interface SecretBroker {
     request: ActionRequest,
   ): Promise<ReadonlyMap<string, string>>
   redact(value: string): string
+  release?(
+    refs: readonly string[],
+    request: ActionRequest,
+  ): void | Promise<void>
 }
 
 export type ExecutionOutcome =
@@ -253,7 +319,7 @@ export class ExecutionWorld {
     candidate: ActionRequest,
     options: ExecutionOptions = {},
   ): Promise<ExecutionOutcome> {
-    const request = ActionRequestSchema.parse(candidate)
+    const request = await canonicalizeActionRequest(candidate)
     const active = this.#inflight.get(request.idempotencyKey)
     if (active !== undefined) {
       await active
@@ -358,7 +424,7 @@ export class ExecutionWorld {
     }
 
     if (
-      request.requirements.secretRefs.length > 0 &&
+      Object.keys(request.requirements.secretEnv).length > 0 &&
       this.#secrets === undefined
     ) {
       const reason = 'The action requires secrets but no SecretBroker is active'
@@ -372,7 +438,7 @@ export class ExecutionWorld {
       return { kind: 'denied', reason }
     }
 
-    const capabilities = await this.#sandbox.capabilities()
+    const capabilities = await this.#sandbox.capabilities(request)
     const unsupported = [
       request.requirements.readPaths.length > 0 &&
       !capabilities.filesystemIsolation
@@ -416,17 +482,17 @@ export class ExecutionWorld {
     try {
       const secrets =
         (await this.#secrets?.materialize(
-          request.requirements.secretRefs,
+          Object.values(request.requirements.secretEnv),
           request,
         )) ?? new Map<string, string>()
-      const before = await this.#sandbox.snapshot(request.scope)
+      const before = await this.#sandbox.snapshot(request)
       const result = ActionResultSchema.parse(
         await this.#sandbox.execute(request, {
           signal: options.signal,
           secrets,
         }),
       )
-      const after = await this.#sandbox.snapshot(request.scope)
+      const after = await this.#sandbox.snapshot(request)
       const worldDiff = await this.#sandbox.diff(before, after)
       const safeResult =
         this.#secrets === undefined
@@ -463,19 +529,24 @@ export class ExecutionWorld {
           verification: [],
         },
       }
+    } finally {
+      await this.#secrets?.release?.(
+        Object.values(request.requirements.secretEnv),
+        request,
+      )
     }
   }
 
-  snapshot(scope: ActionRequest['scope']): Promise<WorldSnapshot> {
-    return this.#sandbox.snapshot(scope)
+  snapshot(request: ActionRequest): Promise<WorldSnapshot> {
+    return this.#sandbox.snapshot(request)
   }
 
   diff(before: WorldSnapshot, after: WorldSnapshot): Promise<unknown> {
     return this.#sandbox.diff(before, after)
   }
 
-  capabilities(): Promise<SandboxCapabilityReport> {
-    return this.#sandbox.capabilities()
+  capabilities(request: ActionRequest): Promise<SandboxCapabilityReport> {
+    return this.#sandbox.capabilities(request)
   }
 
   async #read(streamId: string) {

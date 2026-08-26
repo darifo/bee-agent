@@ -652,15 +652,15 @@ v1 不再内置 `memory-native`、`memory-honcho`、`memory-postgres` 等平行�
 ```ts
 interface ExecutionWorld {
   execute(request: ActionRequest, signal: AbortSignal): Promise<ActionResult>
-  snapshot(scope: SnapshotScope): Promise<WorldSnapshot>
+  snapshot(request: ActionRequest): Promise<WorldSnapshot>
   diff(before: WorldSnapshotRef, after: WorldSnapshotRef): Promise<WorldDiff>
-  capabilities(): Promise<CapabilityReport>
+  capabilities(request: ActionRequest): Promise<CapabilityReport>
 }
 ```
 
-`ActionRequest` 必须声明：capability、主体、输入、读写路径、网络目标、进程、资源预算、secret refs、期望副作用和验证方式。
+`ActionRequest` 必须声明：capability、主体、输入、读写路径、网络目标、进程、资源预算、`secretEnv`（环境变量名到 secret ref 的映射）、工作目录、期望副作用和验证方式。路径、工作目录和 executable 必须是绝对路径；实现会在授权、审批和幂等摘要之前解析 symlink 与不存在路径的最近现存父目录，避免批准文本与实际内核路径不一致。
 
-当前实现由 `ToolExecutor.describe()` 将 tool intent 展开为完整 `ActionRequest`，再由插件化 ToolExecution 服务进入 ExecutionWorld。每个动作独占基于幂等键寻址的 Chronicle stream；完成结果可安全 replay，`started` 后缺少 terminal event 的动作必须进入 reconciliation，而不是自动重做。`InProcessToolSandbox` 仅服务无 OS 副作用的逻辑工具，任何文件、网络或进程要求都会因 capability report 不足而 fail closed。
+当前实现由 `ToolExecutor.describe()` 将 tool intent 展开为完整 `ActionRequest`，再由插件化 ToolExecution 服务进入 ExecutionWorld。每个动作独占基于幂等键寻址的 Chronicle stream；完成结果可安全 replay，`started` 后缺少 terminal event 的动作必须进入 reconciliation，而不是自动重做。`InProcessToolSandbox` 仅服务无 OS 副作用的逻辑工具；`RoutingSandboxProvider` 将声明 OS 资源或 secret 的请求切到 `PlatformCommandSandbox`。macOS Seatbelt 与 Linux bubblewrap 均采用 deny-default 策略、空白环境基线、无隐式 shell、进程组取消、timeout 和输出上限；provider 在宿主无法真正启用隔离时报告不可用并 fail closed。
 
 ### 13.3 权限计算
 
@@ -688,6 +688,8 @@ interface ExecutionWorld {
 - test fake sandbox。
 
 每个 provider 返回 capability report。平台无法强制的限制必须 fail closed 或请求更安全 provider，不能只打印警告后裸跑。
+
+首版 provider 默认完全关闭网络，不接受域名 allowlist；声明网络目标的动作因此会在能力交集阶段被拒绝。Keychain SecretBroker 只把请求声明的引用映射到指定环境变量，secret value 不进入 ActionRequest、审批内容或 Chronicle 普通事件。
 
 ### 13.5 最小安全边界
 

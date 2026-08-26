@@ -49,7 +49,7 @@ function scriptedTools(
           writePaths: [],
           networkTargets: [],
           commands: [],
-          secretRefs: [],
+          secretEnv: {},
         },
         expectedEffects: [
           `Execute tool '${call.toolId}' with input ${JSON.stringify(call.input)}`,

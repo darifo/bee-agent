@@ -42,7 +42,7 @@ const noopTools: ToolExecutor = {
         writePaths: [],
         networkTargets: [],
         commands: [],
-        secretRefs: [],
+        secretEnv: {},
       },
       expectedEffects: ['Echo input'],
       verification: ['Output returned'],

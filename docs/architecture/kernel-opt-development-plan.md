@@ -298,11 +298,17 @@ LLM tool intent
 - 已完成动作直接返回持久化结果，不再次产生副作用；
 - 相同幂等键对应不同 ActionRequest 时抛 `IdempotencyKeyCollisionError`；
 - 已写 `execution.started` 但没有 durable result 时返回 `reconciliation-required`，禁止盲目重放；
-- 审批详情由展开后的 input、路径、网络目标、命令、secret refs、预期副作用和验证方式生成，不采用模型自然语言标题；
+- 审批详情由展开后的 input、路径、网络目标、命令、`secretEnv` 引用、预期副作用和验证方式生成，不采用模型自然语言标题；
+- 读写路径、工作目录和 executable 必须是绝对路径，并在授权、审批和幂等摘要之前解析 symlink 与不存在路径的最近现存父目录；
 - 未声明 capability 默认 deny；结构中未启用的工具不会进入授权规则；
 - `InProcessToolSandbox` 只允许不需要文件、网络或进程隔离的逻辑工具。遇到这些要求会因 capability report 不足而拒绝，不能退化为裸执行。
+- `RoutingSandboxProvider` 按完整 ActionRequest 选择逻辑或平台 provider，并保证 snapshot/diff 归属同一 provider；
+- `PlatformCommandSandbox` 在 macOS 使用 Seatbelt、Linux 使用 bubblewrap；启动前做真实可用性探测，宿主不允许嵌套沙箱时 capability report 返回 false；
+- 子进程不使用 shell、不继承 `process.env`，只注入 `secretEnv` 指定的晚绑定值；timeout、输出上限与 `AbortSignal` 会终止整个 detached process group；
+- `MacOSKeychainSecretBroker` 使用 `keychain:<service>/<account>` 引用，通过 `/usr/bin/security` 晚绑定并对结果、diff 和错误统一脱敏；
+- 静态包边界禁止 `packages/execution` 之外导入 `child_process`，新增执行能力不能绕过 ExecutionWorld。
 
-当前完成的是 ExecutionWorld 核心契约、逻辑工具 provider 和 Host/AgentLoop 迁移。macOS Seatbelt、Linux bwrap、进程树取消、真实 SecretBroker provider 与 command/python/MCP adapter 仍属于 Phase 3 后续实现，不能宣称已由 in-process provider 提供隔离。
+当前完成的是 ExecutionWorld 核心契约、逻辑工具 provider、Seatbelt/bwrap 首版、进程树取消、Keychain SecretBroker 和 Host/AgentLoop 路由。当前 Codex 宿主拒绝嵌套 Seatbelt，运行时探测会正确 fail closed；Linux bwrap 仍需在 Linux CI 做真实契约验收。command/python/MCP adapter 尚未迁入，因此 Phase 3 还不能标记完成。
 
 ## 11. 后续开发边界
 
@@ -310,8 +316,8 @@ LLM tool intent
 
 - 完成 hard deny、Structure permission、task scope、plugin declaration 与 sandbox capability 的完整交集权限快照；
 - 把 ContextBudget 的压缩决策直接接入 ModelRequestService，而非只记录最终 bundle；
-- 实现 Seatbelt/bwrap SandboxProvider、进程树取消，以及 command/python/MCP 全量迁移；
-- 实现系统 Keychain-backed SecretBroker、最小环境注入和 artifact/日志扫描；
+- 完成 command/python/MCP adapter 全量迁移，并补 Linux bwrap、symlink/path escape、网络逃逸与孤儿进程的 CI 契约测试；
+- 扩展 SecretBroker 的 artifact/日志扫描，并实现非 macOS 的系统凭据 provider；
 - 完成多 tool-call 的并行调度、失败隔离和 batch 级 checkpoint；
 - 为 generation/Fiber 增加 doctor 输出、故障注入和长时泄漏测试。
 

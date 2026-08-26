@@ -38,7 +38,7 @@ const noopTools: ToolExecutor = {
         writePaths: [],
         networkTargets: [],
         commands: [],
-        secretRefs: [],
+        secretEnv: {},
       },
       expectedEffects: ['No side effects'],
       verification: ['No-op completed'],
