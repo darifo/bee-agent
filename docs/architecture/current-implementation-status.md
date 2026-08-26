@@ -37,10 +37,16 @@ Turns retain their original lease until completion, failure, or cancellation.
 - `ctx.effect()`, `ctx.on()`, and `ctx.provide()` ownership by the active Fiber.
 - Context derive/isolate/intercept and monotonic ContextPolicy restriction.
 - Immutable StructureGeneration, reference-counted leases, prepare/activate/
-  drain, tier-B replacement, and tier-C restart-required reporting.
-- EffectiveStructure-driven factory registry, deterministic digest,
+  drain, config-only tier-A Fiber update with rollback, tier-B replacement,
+  and tier-C restart-required reporting. Tier A only mutates a quiescent
+  generation; an active Turn forces a safe generation swap.
+- EffectiveStructure-driven built-in factory registry plus trusted,
+  exact-version PluginCatalog; Bundle plugin instances, deterministic digest,
   serialized reconcile, Chronicle lifecycle facts, failed candidate rollback,
-  inspection endpoint, and restart rebuild.
+  inspection/Doctor endpoint, cleanup quarantine, and restart rebuild.
+- ConfigSource controller with coalesced file/custom-source refresh; invalid
+  JSON, forged digests, missing plugins, and failed candidates retain the
+  active generation.
 
 ### Protocol and durable runtime
 
@@ -126,5 +132,7 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 312 tests, including real macOS Seatbelt Command/Python/MCP
+- 320 passing workspace tests (1 platform-specific skip), including
+  PluginCatalog selection, A/B/C reconciliation,
+  config refresh/rollback, Doctor quarantine, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

@@ -2,7 +2,7 @@
 
 > 状态：Implemented
 >
-> 分支：`feature/kernel-opt`
+> 分支：`main`
 >
 > 初版日期：2026-08-25；最近同步：2026-08-26
 >
@@ -26,13 +26,19 @@ Cordis 层负责活的插件图：
 Bee 层负责 Cordis 不解决的产品不变量：
 
 - `PluginGraph` 是一次结构期望；
-- `StructureGeneration` 是不可变、可引用计数的运行时切片；
+- `StructureGeneration` 是版本化、可引用计数的运行时切片；除无 lease 的
+  A 级配置更新外不原地改变；
 - 新结构先 prepare，成功后 activate，再 drain 旧代；
 - Turn 通过 `GenerationLease` 固定 `structureVersion` 和服务实现；
 - `ContextPolicy` 对子作用域实施单调收紧；
-- tier B 使用新 generation 接管新 Turn，tier C 显式返回 restart-required；
+- tier A 在无 lease 时调用 `Fiber.update()` 并健康检查/回滚，有 lease 时转为
+  generation swap；tier B 使用新 generation；tier C 返回 restart-required；
 - Host 的 Chronicle、Kanban、Model、Tools、AgentLoop 均通过插件提供。
 - `PluginFactoryRegistry` 已把 `EffectiveStructure` 转换为真实 `PluginGraph`，`StructureReconciler` 负责持久化并串行应用结构变更。
+- `PluginCatalog` 把 Bundle 的通用 `plugins` 条目解析为精确版本的受信任工厂；
+  manifest `entry` 不能触发任意动态导入。
+- `StructureConfigController` 接入文件或自定义 ConfigSource，并对变更 burst
+  合并、串行 reconcile；`Kernel.doctor()` 汇总运行代、重启要求和 quarantine。
 
 这不是给旧内核增加一层 Cordis adapter。旧内核已删除，`@bee-agent/kernel` 只有一套公共语义。
 
@@ -75,10 +81,10 @@ packages/execution/src/execution-world.ts # 授权、审批、幂等、sandbox�
 | 活插件图      | Context、Registry、Fiber、inject、effect | 移植并保留相同核心语义                                             |
 | 结构切换      | 主要是 Fiber 原地 restart/update         | 使用不可变 `StructureGeneration`，新旧两代可并存                   |
 | 执行中一致性  | 服务变化可以响应式影响 Fiber             | Turn 持有 generation lease，执行中不会切换 Model/Tool/Loop         |
-| desired state | 插件配置与宿主装配                       | `EffectiveStructure` 经 `PluginFactoryRegistry` 生成 `PluginGraph` |
+| desired state | 插件配置、loader/include/group 装配      | `EffectiveStructure` 经 factory registry + `PluginCatalog` 生成图  |
 | 持久事实      | 不由 Cordis 负责                         | Chronicle 是事实源；Fiber 只保存瞬时运行状态                       |
 | 权限          | Context isolate/intercept/filter         | 叠加 `ContextPolicy`，派生作用域只能收紧                           |
-| 替换治理      | restart/update                           | tier B generation replacement；tier C restart-required             |
+| 替换治理      | restart/update                           | tier A update/rollback；tier B generation；tier C restart-required |
 | 产品组合      | Harness 自身插件体系                     | 单一 `bee` Profile；Host 核心服务全部插件化                        |
 
 因此不需要再替换内核底座；需要长期维护的是 Bee 在 Cordis 之上的治理层，并避免把持久状态塞回 Fiber。
@@ -89,7 +95,7 @@ packages/execution/src/execution-world.ts # 授权、审批、幂等、sandbox�
 EffectiveStructure / host config
               │
               ▼
-      PluginFactoryRegistry
+ PluginFactoryRegistry + PluginCatalog
               │
               ▼
          PluginGraph
@@ -119,6 +125,60 @@ EffectiveStructure / host config
 6. draining generation 只有在最后一个 lease 释放后才能销毁。
 7. tier C 变更不热换，Kernel 暴露 `restartRequired` 和 `restartRequiredPlugins`。
 8. Host 不直接调用 `Kernel.reconcile()`；所有变更必须经过 `StructureReconciler`，先写 `structure.resolved` 再激活。
+9. Bundle 只能引用 Catalog 已安装的精确 `id@version`；配置中的 `entry`、路径或
+   包名不得成为运行时动态执行入口。
+10. 外部 EffectiveStructure 必须复算 digest；不匹配时在创建插件图之前拒绝。
+
+### 4.1 A/B/C 决策表
+
+| 变化                               | 执行路径                                         | Turn 一致性       |
+| ---------------------------------- | ------------------------------------------------ | ----------------- |
+| A：仅 config，且无 lease           | 当前 Fiber `update()`；health；失败回滚旧 config | 无执行中 Turn     |
+| A：仅 config，但有 lease           | 候选 generation prepare/activate，旧代 drain     | 旧 Turn 固定旧代  |
+| B：实现、依赖、provider 或拓扑变化 | 候选 generation 切换                             | 旧 Turn 固定旧代  |
+| C：进程级资源变化                  | `restart-required`，不部分应用                   | 当前代保持 active |
+
+新增/删除插件以及 A 级插件的拓扑变化自动提升为 B；不能用 A 标签绕过依赖图验证。
+
+### 4.2 Bundle 插件与 Catalog 模板
+
+```ts
+const bundle = BundleSchema.parse({
+  // ...六个标量结构槽...
+  plugins: [
+    {
+      id: 'search.primary',
+      ref: { id: 'search-plugin', version: '2.1.0' },
+      config: { endpoint: 'https://example.invalid' },
+    },
+  ],
+})
+
+catalog.register({
+  manifest: {
+    id: 'search-plugin',
+    name: 'Search',
+    version: '2.1.0',
+    engine: { pluginApi: BEE_PLUGIN_API_VERSION },
+    requires: ['http'],
+    capabilities: [],
+    permissions: ['net:fetch'],
+    replacementTier: 'a',
+    entry: './dist/index.js',
+  },
+  create(entry) {
+    return {
+      id: entry.id,
+      version: entry.ref.version,
+      apply(ctx, config) {
+        /* ... */
+      },
+    }
+  },
+})
+```
+
+Catalog 注册由 Host/安装流程完成，是信任边界；Bundle 只是选择和配置。
 
 ## 5. 可复制的插件开发模板
 
@@ -253,7 +313,10 @@ node scripts/check-package-boundaries.mjs
 
 边界扫描现在覆盖 `packages/*`、`apps/bee` 和 SQLite adapter，并禁止业务代码直接依赖 npm `cordis`/`cosmokit`。业务包只能通过 `@bee-agent/kernel` 使用内核能力。
 
-Host 提供两个本地管理入口：`GET /structure` 查看 active generation、restart-required 和 Fiber 快照；`POST /structure/reconcile` 提交经过 `EffectiveStructureSchema` 校验的结构。配置文件或 Bundle watcher 应调用同一 `BeeServer.reconcileStructure()` 边界，不得绕过协调器。
+Host 提供两个本地管理入口：`GET /structure` 查看 active generation、Doctor、
+restart-required、quarantine 和 Fiber 快照；`POST /structure/reconcile` 提交结构，
+并复算 digest。文件部署可用 `FileEffectiveStructureSource` +
+`StructureConfigController`；其他来源实现 `ConfigSource`，不得绕过协调器。
 
 内核测试覆盖：Proxy 服务解析、inject 等待、依赖出现后激活、effects LIFO 清理、未声明访问失败、缺失依赖、provider 冲突、依赖环、candidate 回滚、generation pinning、tier C、结构版本碰撞和 ContextPolicy 单调收紧。
 
@@ -318,6 +381,8 @@ ExecutionWorld 已形成完整 Phase 3 契约：逻辑工具、Command、Python�
 
 - 把 ContextBudget 的压缩决策直接接入 ModelRequestService，而非只记录最终 bundle；
 - 完成多 tool-call 的并行调度、失败隔离和 batch 级 checkpoint；
-- 为 generation/Fiber 增加 doctor 输出、故障注入和长时泄漏测试。
+- 增加长时 soak、文件替换/rename 的跨平台 watcher 契约和 quarantine 运维清除策略；
+- 若需要源码 HMR，只在开发模式实现受控 module loader；生产路径继续使用安装目录
+  - 版本化 Bundle 调和，不修改 Node module cache。
 
 这些能力应作为 runtime/protocol/observability 层继续演进，而不是修改 Context–Registry–Fiber 的基本所有权模型。

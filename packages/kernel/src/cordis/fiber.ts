@@ -207,6 +207,7 @@ export class Fiber {
   protected context: Context
 
   private _error: any
+  private _cleanupErrors: unknown[] = []
   private _runner: EffectRunner<string>
   private _store: Dict<Impl> = Object.create(null)
 
@@ -682,6 +683,7 @@ export class Fiber {
           await runDisposable(dispose)
         }, this._runner.getOuterStack)
       } catch (reason) {
+        this._cleanupErrors.push(reason)
         this.ctx.logger.error(reason)
       }
     }))
@@ -694,6 +696,11 @@ export class Fiber {
         return FiberState.LOADING
       }
     })
+  }
+
+  /** Return and clear disposer failures retained for kernel quarantine diagnostics. */
+  consumeCleanupErrors(): unknown[] {
+    return this._cleanupErrors.splice(0)
   }
 
   /**

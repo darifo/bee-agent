@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   createKernel,
+  PluginCatalog,
   type EffectiveStructure,
   type Kernel,
   type KernelLifecycleEvent,
@@ -8,6 +9,7 @@ import {
   type PluginGraph,
   type ReconcileResult,
   type RuntimePlugin,
+  verifyEffectiveStructure,
 } from '@bee-agent/kernel'
 import {
   appendResolvedStructure,
@@ -48,12 +50,20 @@ export class PluginFactoryRegistry {
     return [...this.#factories.keys()]
   }
 
-  async createGraph(structure: EffectiveStructure): Promise<PluginGraph> {
+  async createGraph(
+    structure: EffectiveStructure,
+    catalog?: PluginCatalog,
+  ): Promise<PluginGraph> {
     const plugins: RuntimePlugin[] = []
     for (const factory of this.#factories.values()) {
       const created = await factory.create(structure)
       if (created === null) continue
       plugins.push(...(Array.isArray(created) ? created : [created]))
+    }
+    if (catalog !== undefined) {
+      for (const entry of structure.plugins) {
+        if (entry.enabled) plugins.push(await catalog.resolve(entry, structure))
+      }
     }
     return { structureVersion: structure.digest, plugins }
   }
@@ -80,6 +90,7 @@ class StructureChronicleWriter {
 export interface StructureReconcilerOptions {
   readonly store: ChronicleStore
   readonly factories: PluginFactoryRegistry
+  readonly catalog?: PluginCatalog | undefined
   readonly kernel?: Omit<KernelOptions, 'onLifecycleEvent'> | undefined
   readonly onLifecycleEvent?:
     ((event: KernelLifecycleEvent) => void | Promise<void>) | undefined
@@ -93,6 +104,7 @@ export class StructureReconciler {
   readonly kernel: Kernel
   readonly #store: ChronicleStore
   readonly #factories: PluginFactoryRegistry
+  readonly #catalog: PluginCatalog | undefined
   readonly #writer = new StructureChronicleWriter()
   #reconcileTail: Promise<void> = Promise.resolve()
   #activeStructure: EffectiveStructure | undefined
@@ -100,6 +112,7 @@ export class StructureReconciler {
   constructor(options: StructureReconcilerOptions) {
     this.#store = options.store
     this.#factories = options.factories
+    this.#catalog = options.catalog ?? new PluginCatalog()
     this.kernel = createKernel({
       ...options.kernel,
       onLifecycleEvent: async (event) => {
@@ -116,6 +129,7 @@ export class StructureReconciler {
   }
 
   async reconcile(structure: EffectiveStructure): Promise<ReconcileResult> {
+    structure = verifyEffectiveStructure(structure)
     const result = this.#reconcileTail.then(
       () => this.#reconcile(structure),
       () => this.#reconcile(structure),
@@ -133,7 +147,7 @@ export class StructureReconciler {
     )
     let graph: PluginGraph
     try {
-      graph = await this.#factories.createGraph(structure)
+      graph = await this.#factories.createGraph(structure, this.#catalog)
     } catch (error) {
       await this.#writer.run(() =>
         appendStructureLifecycleEvent(this.#store, {

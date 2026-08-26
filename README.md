@@ -14,7 +14,7 @@
 
 ## Project status
 
-Bee Agent v1 is under active development on `feature/kernel-opt`. It is a
+Bee Agent v1 is under active development on `main`. It is a
 clean break from the frozen `v0.11.0-legacy` line: there is no compatibility
 facade for the old TaskRuntime, plugin SDK, process tools, storage modes, or
 external-agent API.
@@ -22,7 +22,8 @@ external-agent API.
 The implemented foundation is a local-first Personal Bee Host with:
 
 - a Cordis-derived Context–Registry–Fiber plugin runtime;
-- immutable StructureGenerations and Turn-scoped generation leases;
+- versioned StructureGenerations, A/B/C reconciliation, and Turn-scoped leases;
+- exact-version trusted PluginCatalog composition and config-source refresh;
 - the Chronicle-backed Thread–Turn–Item protocol;
 - a durable Kanban task plane;
 - budgeted context and lazy Tool/Skill indexes;
@@ -81,22 +82,22 @@ checks enforce this repository-wide.
 
 ## Current capabilities
 
-| Area                | Status    | Current implementation                                                                                                                                                                    |
-| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, Fiber-owned effects, derive/isolate/intercept, generation prepare/activate/drain, leases, restart-required governance |
-| Structure           | Available | EffectiveStructure validation, deterministic digest, factory registry, serialized reconcile, Chronicle lifecycle facts, failed-candidate rollback, restart rebuild                        |
-| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                              |
-| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                            |
-| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                    |
-| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                            |
-| Execution           | Available | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs        |
-| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                            |
-| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                        |
-| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                            |
-| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                                      |
-| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                                      |
-| External agents     | Optional  | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                          |
-| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                              |
+| Area                | Status    | Current implementation                                                                                                                                                             |
+| ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, owned effects, scopes, A/B/C reconcile with rollback, leases, quarantine and Doctor                            |
+| Structure           | Available | Verified EffectiveStructure digest, trusted exact-version PluginCatalog, factory registry, config-source refresh, serialized reconcile, lifecycle facts and restart rebuild        |
+| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                       |
+| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                     |
+| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                             |
+| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                     |
+| Execution           | Available | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs |
+| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                     |
+| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                 |
+| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                     |
+| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                               |
+| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                               |
+| External agents     | Optional  | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                   |
+| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                       |
 
 ## Requirements
 

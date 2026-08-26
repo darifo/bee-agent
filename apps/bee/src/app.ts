@@ -5,6 +5,7 @@ import type { ChronicleStore } from '@bee-agent/knowledge'
 import type {
   EffectiveStructure,
   Kernel,
+  PluginCatalog,
   ReconcileResult,
 } from '@bee-agent/kernel'
 import {
@@ -21,6 +22,8 @@ import type {
   SandboxProvider,
   SecretBroker,
   StructureReconciler,
+  StructureConfigController,
+  ConfigSource,
 } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
@@ -99,6 +102,8 @@ export interface BeeServerOptions {
   readonly effectiveStructure?: EffectiveStructure | undefined
   readonly modelId?: string | undefined
   readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
+  readonly pluginCatalog?: PluginCatalog | undefined
+  readonly configSource?: ConfigSource | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -118,6 +123,7 @@ export interface BeeServer {
   readonly loop: AgentLoopService
   readonly kernel: Kernel
   readonly structures: StructureReconciler
+  readonly configController: StructureConfigController | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -291,9 +297,11 @@ export async function buildBeeServer(
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,
     modelProviders: options.modelProviders,
+    pluginCatalog: options.pluginCatalog,
+    configSource: options.configSource,
     restoreActiveStructure: options.restoreActiveStructure,
   })
-  const { kernel, loop, structures } = runtime
+  const { kernel, loop, structures, configController } = runtime
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
@@ -304,6 +312,7 @@ export async function buildBeeServer(
     loop,
     kernel,
     structures,
+    configController,
   })
 
   if (options.sessionToken !== undefined) {
@@ -341,6 +350,7 @@ export async function buildBeeServer(
     loop,
     kernel,
     structures,
+    configController,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

@@ -6,6 +6,7 @@ import {
   type EffectiveStructure,
   type GenerationLease,
   type Kernel,
+  type PluginCatalog,
   type ReconcileResult,
   type ReplacementTier,
   type RuntimePlugin,
@@ -15,6 +16,7 @@ import type {
   AgentLoopResumeInput,
   AgentLoopRunInput,
   AgentLoopTurnResult,
+  ConfigSource,
   LlmRuntime,
   LlmToolSpec,
   SandboxProvider,
@@ -26,6 +28,7 @@ import {
   AGENT_LOOP_SERVICE,
   PluginFactoryRegistry,
   StructureReconciler,
+  StructureConfigController,
   createAgentLoopPlugin,
   createModelRequestPlugin,
   createToolExecutionPlugin,
@@ -50,12 +53,17 @@ export interface BeeKernelRuntimeOptions {
   readonly modelId?: string | undefined
   /** Additional providers keyed by `<structure model id>@<model version>`. */
   readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
+  /** Trusted external plugins available to Bundle `plugins` entries. */
+  readonly pluginCatalog?: PluginCatalog | undefined
+  /** Optional watched desired-state source; failures retain the current generation. */
+  readonly configSource?: ConfigSource | undefined
   readonly restoreActiveStructure?: boolean | undefined
 }
 
 export interface BeeKernelRuntime {
   readonly kernel: Kernel
   readonly structures: StructureReconciler
+  readonly configController: StructureConfigController | undefined
   readonly loop: AgentLoopService
   reconcile(structure: EffectiveStructure): Promise<ReconcileResult>
   stop(): Promise<void>
@@ -315,6 +323,7 @@ export async function createBeeKernelRuntime(
   const structures = new StructureReconciler({
     store: options.store,
     factories: createHostPluginFactories(options),
+    catalog: options.pluginCatalog,
   })
   const kernel = structures.kernel
   const result =
@@ -330,14 +339,21 @@ export async function createBeeKernelRuntime(
     throw new Error('Initial Bee Host generation unexpectedly requires restart')
   }
   const loop = new PinnedAgentLoop(kernel)
+  const configController =
+    options.configSource === undefined
+      ? undefined
+      : new StructureConfigController(options.configSource, structures)
+  await configController?.start()
   return {
     kernel,
     structures,
+    configController,
     loop,
     async reconcile(structure) {
       return structures.reconcile(structure)
     },
     async stop() {
+      await configController?.stop()
       loop.stop()
       await structures.stop()
     },

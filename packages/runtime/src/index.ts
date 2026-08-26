@@ -118,3 +118,8 @@ export type {
   PluginFactory,
   StructureReconcilerOptions,
 } from './structure-reconciler.ts'
+export {
+  FileEffectiveStructureSource,
+  StructureConfigController,
+} from './config-source.ts'
+export type { ConfigControllerSnapshot, ConfigSource } from './config-source.ts'

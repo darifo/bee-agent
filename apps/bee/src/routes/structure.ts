@@ -10,6 +10,8 @@ export const structureRoutes: FastifyPluginAsync = async (app) => {
     restartRequired: app.bee.kernel.restartRequired,
     restartRequiredPlugins: app.bee.kernel.restartRequiredPlugins,
     generations: app.bee.kernel.inspect(),
+    doctor: app.bee.kernel.doctor(),
+    configSource: app.bee.configController?.inspect() ?? null,
   }))
 
   app.post('/structure/reconcile', async (request) => {

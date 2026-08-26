@@ -26,6 +26,15 @@ export type BundleSource = z.infer<typeof BundleSourceSchema>
 export const BudgetValueSchema = z.union([z.string(), z.number(), z.boolean()])
 export type BudgetValue = z.infer<typeof BudgetValueSchema>
 
+/** One named plugin instance selected from the trusted PluginCatalog. */
+export const BundlePluginSchema = z.object({
+  id: z.string().min(1),
+  ref: StructureRefSchema,
+  enabled: z.boolean().default(true),
+  config: z.unknown().optional(),
+})
+export type BundlePlugin = z.infer<typeof BundlePluginSchema>
+
 /**
  * A bundle: a named, versioned set of structure references that may omit
  * any scalar slot (architecture §14.2). Bundles compose through `includes`:
@@ -45,6 +54,7 @@ export const BundleSchema = z.object({
   evalPolicy: StructureRefSchema.optional(),
   skills: z.array(StructureRefSchema).default([]),
   tools: z.array(StructureRefSchema).default([]),
+  plugins: z.array(BundlePluginSchema).default([]),
   permissions: z.array(z.string().min(1)).default([]),
   budgets: z.record(z.string().min(1), BudgetValueSchema).default({}),
   includes: z.array(StructureRefSchema).default([]),
@@ -68,6 +78,11 @@ export const EffectiveSlotSchema = z.object({
 })
 export type EffectiveSlot = z.infer<typeof EffectiveSlotSchema>
 
+export const EffectivePluginSchema = BundlePluginSchema.extend({
+  source: BundleSourceSchema,
+})
+export type EffectivePlugin = z.infer<typeof EffectivePluginSchema>
+
 const StructureDigestSchema = z
   .string()
   .regex(/^sha256:[0-9a-f]{64}$/, 'expected a sha256:<64 hex> digest')
@@ -89,6 +104,7 @@ export const EffectiveStructureSchema = z.object({
   evalPolicy: EffectiveSlotSchema,
   skills: z.array(EffectiveSlotSchema),
   tools: z.array(EffectiveSlotSchema),
+  plugins: z.array(EffectivePluginSchema),
   permissions: z.array(
     z.object({ name: z.string().min(1), source: BundleSourceSchema }),
   ),
@@ -141,6 +157,19 @@ export function computeStructureDigest(
   return `sha256:${createHash('sha256')
     .update(canonicalJson(structure))
     .digest('hex')}`
+}
+
+/** Parse an externally supplied structure and reject forged/stale digests. */
+export function verifyEffectiveStructure(value: unknown): EffectiveStructure {
+  const structure = EffectiveStructureSchema.parse(value)
+  const { digest, ...digestInput } = structure
+  const expected = computeStructureDigest(digestInput)
+  if (digest !== expected) {
+    throw new Error(
+      `Effective structure digest mismatch: expected '${expected}'`,
+    )
+  }
+  return structure
 }
 
 /** Loads an included bundle by its pinned reference. */
@@ -207,6 +236,7 @@ export async function resolveEffectiveStructure(
   const scalars = new Map<ScalarSlotName, EffectiveSlot>()
   const skills = new Map<string, EffectiveSlot>()
   const tools = new Map<string, EffectiveSlot>()
+  const plugins = new Map<string, EffectivePlugin>()
   const permissions = new Map<string, BundleSource>()
   const budgets = new Map<
     string,
@@ -234,6 +264,9 @@ export async function resolveEffectiveStructure(
     }
     mergeList(skills, bundle.skills, source)
     mergeList(tools, bundle.tools, source)
+    for (const plugin of bundle.plugins) {
+      plugins.set(plugin.id, { ...plugin, source })
+    }
     for (const name of bundle.permissions) {
       permissions.set(name, source)
     }
@@ -266,6 +299,7 @@ export async function resolveEffectiveStructure(
     evalPolicy: pick('evalPolicy'),
     skills: [...skills.values()],
     tools: [...tools.values()],
+    plugins: [...plugins.values()],
     permissions: [...permissions.entries()]
       .map(([name, source]) => ({ name, source }))
       .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
@@ -281,7 +315,7 @@ export async function resolveEffectiveStructure(
 }
 
 export interface StructureProvenanceEntry {
-  /** Slot kind: a scalar slot name, or `skill` / `tool` / `permission` / `budget`. */
+  /** Slot kind: a scalar slot name, or `skill` / `tool` / `plugin` / `permission` / `budget`. */
   readonly kind: string
   readonly id: string
   readonly version: string | undefined
@@ -318,6 +352,14 @@ export function traceStructure(
         source: slot.source,
       })
     }
+  }
+  for (const plugin of structure.plugins) {
+    rows.push({
+      kind: 'plugin',
+      id: plugin.id,
+      version: plugin.ref.version,
+      source: plugin.source,
+    })
   }
   for (const permission of structure.permissions) {
     rows.push({

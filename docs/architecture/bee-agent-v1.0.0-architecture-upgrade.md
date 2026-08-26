@@ -14,6 +14,11 @@
 
 > 2026-08-25 结构驱动落地：ADR 0032 已连接 `EffectiveStructure → PluginFactoryRegistry → PluginGraph → StructureGeneration`，结构生命周期写入 Chronicle，Host 可恢复最后成功激活的结构并通过本地管理入口重载。
 
+> 2026-08-26 插件平台完善：ADR 0032 已扩展 `PluginCatalog`、Bundle 通用插件实例、
+> A/B/C `ReconcilePlan`、A 级 Fiber update/rollback、ConfigSource 自动调和、
+> digest 复算、cleanup quarantine 与 Kernel Doctor。生产环境不执行配置中的任意
+> manifest `entry`，源码 HMR 仅允许作为未来的开发模式能力。
+
 > 2026-08-26 Phase 3 完成：ADR 0023/0034 已落地完整权限交集快照、Linux bwrap CI、ExecutionWorld worktree provider、Secret Service/artifact 防泄漏、bounded delegation、exact-origin network sandbox 与 RemoteAgent v2。所有 effectful capability 保持统一执行边界；Phase 4 可在此基础上启动。
 
 ## 1. 技术结论

@@ -14,14 +14,15 @@
 
 ## 项目状态
 
-Bee Agent v1 正在 `feature/kernel-opt` 分支开发。它与冻结在
+Bee Agent v1 正在 `main` 分支开发。它与冻结在
 `v0.11.0-legacy` 的旧版本 clean break，不保留旧 TaskRuntime、插件 SDK、
 进程工具、存储模式或外部智能体 API 的兼容层。
 
 当前已实现的本地优先 Personal Bee Host 包括：
 
 - Cordis 派生的 Context–Registry–Fiber 插件运行时；
-- 不可变 StructureGeneration 与 Turn 级 generation lease；
+- 版本化 StructureGeneration、A/B/C 调和与 Turn 级 generation lease；
+- 精确版本、受信任的 PluginCatalog 组合与配置源自动刷新；
 - Chronicle 支撑的 Thread–Turn–Item 协议；
 - 持久 Kanban 任务平面；
 - 预算化上下文和 Tool/Skill 延迟解析；
@@ -78,22 +79,22 @@ tool intent
 
 ## 当前能力
 
-| 领域       | 状态   | 当前实现                                                                                                                                                                       |
-| ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Kernel     | 已可用 | Proxy Context、作用域服务、`inject`、Registry/Fiber 生命周期、Fiber-owned effects、derive/isolate/intercept、generation prepare/activate/drain、lease 与 restart-required 治理 |
-| Structure  | 已可用 | EffectiveStructure 校验与摘要、factory registry、串行 reconcile、Chronicle 生命周期事实、失败候选回滚、重启重建                                                                |
-| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复                                                                                        |
-| 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                                                                   |
-| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                                                                           |
-| 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                                                                       |
-| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff                                                 |
-| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                                                               |
-| Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                                                               |
-| Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                                                                            |
-| MCP        | 已可用 | 可选 `mcp__<server>__<tool>`；Host-pinned manifests 与分阶段 JSON-lines initialize/call                                                                                        |
-| 存储       | 已可用 | SQLite Chronicle 与 Kanban adapter；v0 的 PostgreSQL/pgvector 已在 clean break 中删除                                                                                          |
-| 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                                                                      |
-| 记忆与学习 | 计划中 | 包边界已经建立，Phase 4/5 实现尚未成为 Host 能力                                                                                                                               |
+| 领域       | 状态   | 当前实现                                                                                                                        |
+| ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel     | 已可用 | Proxy Context、作用域服务、`inject`、Registry/Fiber、owned effects、A/B/C 调和与回滚、lease、quarantine 和 Doctor               |
+| Structure  | 已可用 | EffectiveStructure 摘要复算、受信任精确版本 PluginCatalog、factory registry、配置源刷新、串行 reconcile、生命周期事实与重启重建 |
+| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复                                         |
+| 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                    |
+| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                            |
+| 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                        |
+| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff  |
+| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                |
+| Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                |
+| Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                             |
+| MCP        | 已可用 | 可选 `mcp__<server>__<tool>`；Host-pinned manifests 与分阶段 JSON-lines initialize/call                                         |
+| 存储       | 已可用 | SQLite Chronicle 与 Kanban adapter；v0 的 PostgreSQL/pgvector 已在 clean break 中删除                                           |
+| 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                       |
+| 记忆与学习 | 计划中 | 包边界已经建立，Phase 4/5 实现尚未成为 Host 能力                                                                                |
 
 ## 环境要求
 

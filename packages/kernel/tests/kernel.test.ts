@@ -7,6 +7,7 @@ import {
   RestrictedServiceAccessError,
   StructureVersionCollisionError,
   createKernel,
+  createReconcilePlan,
 } from '../src/index.ts'
 import type { PluginGraph, RuntimePlugin } from '../src/index.ts'
 import type { Context } from '../src/index.ts'
@@ -145,6 +146,71 @@ describe('Kernel plugin graph', () => {
 })
 
 describe('Kernel generations', () => {
+  it('applies config-only A-tier changes in place and rolls back failures', async () => {
+    const kernel = createKernel()
+    const configurable = (value: string): RuntimePlugin<string> => ({
+      id: 'model',
+      version: '1.0.0',
+      config: value,
+      replacementTier: 'a',
+      provides: ['llm'],
+      apply(ctx, config) {
+        if (config === 'broken') throw new Error('bad config')
+        ctx.provide('llm', config)
+      },
+    })
+    await kernel.reconcile(graph('a', [configurable('a')]))
+    const generationId = kernel.activeGeneration?.id
+    const updated = await kernel.reconcile(graph('b', [configurable('b')]))
+    expect(updated.kind).toBe('updated')
+    expect(kernel.activeGeneration?.id).toBe(generationId)
+    expect(kernel.service('llm')).toBe('b')
+
+    await expect(
+      kernel.reconcile(graph('broken', [configurable('broken')])),
+    ).rejects.toThrow(/bad config/)
+    expect(kernel.activeGeneration?.structureVersion).toBe('b')
+    expect(kernel.service('llm')).toBe('b')
+    await kernel.stop()
+  })
+
+  it('promotes A-tier topology changes to a generation swap', () => {
+    const before = {
+      ...provider('model', 'llm', 'a'),
+      replacementTier: 'a' as const,
+      config: 'a',
+    }
+    const after = { ...before, version: '2.0.0', config: 'b' }
+    expect(createReconcilePlan([before], [after])).toMatchObject({
+      kind: 'generation-swap',
+      changes: [{ pluginId: 'model', kind: 'replaced', tier: 'b' }],
+    })
+  })
+
+  it('uses a generation swap for an A-tier config update pinned by a Turn', async () => {
+    const kernel = createKernel()
+    const configurable = (value: string): RuntimePlugin<string> => ({
+      id: 'model',
+      version: '1',
+      config: value,
+      replacementTier: 'a',
+      provides: ['llm'],
+      apply(ctx, config) {
+        ctx.provide('llm', config)
+      },
+    })
+    await kernel.reconcile(graph('a', [configurable('a')]))
+    const oldTurn = kernel.beginTurn()
+    const oldGenerationId = oldTurn.generation.id
+    const result = await kernel.reconcile(graph('b', [configurable('b')]))
+    expect(result.kind).toBe('activated')
+    expect(kernel.activeGeneration?.id).not.toBe(oldGenerationId)
+    expect(oldTurn.service('llm')).toBe('a')
+    expect(kernel.service('llm')).toBe('b')
+    oldTurn.release()
+    await kernel.stop()
+  })
+
   it('keeps a draining generation alive until its Turn lease releases', async () => {
     const disposed: string[] = []
     const kernel = createKernel()
@@ -198,6 +264,28 @@ describe('Kernel generations', () => {
     ).rejects.toThrow(/failed to activate/)
     expect(kernel.activeGeneration?.structureVersion).toBe('a')
     expect(kernel.service<string>('llm')).toBe('stable')
+    await kernel.stop()
+  })
+
+  it('quarantines cleanup failures without rolling back the activated candidate', async () => {
+    const kernel = createKernel()
+    await kernel.reconcile(
+      graph('a', [
+        provider('model', 'llm', 'a', () => {
+          throw new Error('cleanup failed')
+        }),
+      ]),
+    )
+    const result = await kernel.reconcile(
+      graph('b', [{ ...provider('model', 'llm', 'b'), config: 'b' }]),
+    )
+    expect(result.kind).toBe('activated')
+    expect(kernel.service('llm')).toBe('b')
+    expect(kernel.doctor()).toMatchObject({
+      healthy: false,
+      quarantines: [{ error: expect.stringMatching(/failed to dispose/) }],
+      issues: [{ code: 'cleanup-failed', severity: 'error' }],
+    })
     await kernel.stop()
   })
 

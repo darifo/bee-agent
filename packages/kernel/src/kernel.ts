@@ -45,6 +45,28 @@ export interface RuntimeGraphSnapshot {
   readonly fibers: readonly FiberSnapshot[]
 }
 
+export interface QuarantineSnapshot {
+  readonly generationId: string
+  readonly structureVersion: string
+  readonly error: string
+  readonly recordedAt: string
+}
+
+export interface KernelDoctorIssue {
+  readonly severity: 'warning' | 'error'
+  readonly code: 'restart-required' | 'generation-draining' | 'cleanup-failed'
+  readonly detail: string
+}
+
+export interface KernelDoctorReport {
+  readonly healthy: boolean
+  readonly activeGenerationId: string | null
+  readonly restartRequiredPlugins: readonly string[]
+  readonly generations: readonly RuntimeGraphSnapshot[]
+  readonly quarantines: readonly QuarantineSnapshot[]
+  readonly issues: readonly KernelDoctorIssue[]
+}
+
 export interface PluginGraph {
   readonly structureVersion: string
   readonly plugins: readonly RuntimePlugin[]
@@ -179,8 +201,20 @@ export class ContextScope {
 }
 
 interface MountedPlugin {
-  readonly spec: RuntimePlugin
+  spec: RuntimePlugin
   readonly fiber: Fiber
+}
+
+export interface PluginChange {
+  readonly pluginId: string
+  readonly kind: 'added' | 'removed' | 'configured' | 'replaced'
+  readonly tier: ReplacementTier
+}
+
+export interface ReconcilePlan {
+  readonly kind:
+    'unchanged' | 'live-update' | 'generation-swap' | 'restart-required'
+  readonly changes: readonly PluginChange[]
 }
 
 function configDigest(config: unknown): string {
@@ -270,20 +304,22 @@ export type StructureGenerationState =
   'preparing' | 'active' | 'draining' | 'disposed' | 'failed'
 
 /**
- * One immutable, reference-counted runtime graph. New generations are built
+ * One versioned, reference-counted runtime graph. New generations are built
  * and health-checked before activation; old generations remain alive while
- * Turns still reference them.
+ * Turns still reference them. Only config-only tier-A updates may reuse a
+ * generation, and only while its reference count is zero.
  */
 export class StructureGeneration {
   readonly id = randomUUID()
   readonly context = new Context()
-  readonly structureVersion: string
-  readonly graphDigest: string
-  readonly #plugins: readonly RuntimePlugin[]
+  structureVersion: string
+  graphDigest: string
+  #plugins: readonly RuntimePlugin[]
   readonly #bootstrap: ReadonlyMap<string, unknown>
   readonly #mounted: MountedPlugin[] = []
   readonly #onDisposed:
-    ((generation: StructureGeneration) => void | Promise<void>) | undefined
+    | ((generation: StructureGeneration, error?: Error) => void | Promise<void>)
+    | undefined
   #references = 0
   #state: StructureGenerationState = 'preparing'
   #disposeTask: Promise<void> | undefined
@@ -291,7 +327,10 @@ export class StructureGeneration {
   constructor(
     graph: PluginGraph,
     bootstrap: ReadonlyMap<string, unknown> = new Map(),
-    onDisposed?: (generation: StructureGeneration) => void | Promise<void>,
+    onDisposed?: (
+      generation: StructureGeneration,
+      error?: Error,
+    ) => void | Promise<void>,
   ) {
     this.structureVersion = graph.structureVersion
     this.graphDigest = pluginGraphDigest(graph.plugins)
@@ -407,17 +446,78 @@ export class StructureGeneration {
   }
 
   restartRequiredPlugins(next: readonly RuntimePlugin[]): readonly string[] {
-    const current = new Map(this.#plugins.map((plugin) => [plugin.id, plugin]))
-    const incoming = new Map(next.map((plugin) => [plugin.id, plugin]))
-    const ids = new Set([...current.keys(), ...incoming.keys()])
-    return [...ids].filter((id) => {
-      const before = current.get(id)
-      const after = incoming.get(id)
-      const tier = after?.replacementTier ?? before?.replacementTier
-      if (tier !== 'c') return false
-      if (before === undefined || after === undefined) return true
-      return pluginDescriptorDigest(before) !== pluginDescriptorDigest(after)
-    })
+    return this.plan(next)
+      .changes.filter(({ tier }) => tier === 'c')
+      .map(({ pluginId }) => pluginId)
+  }
+
+  plan(next: readonly RuntimePlugin[]): ReconcilePlan {
+    return createReconcilePlan(this.#plugins, next)
+  }
+
+  /** Apply a config-only A-tier update when no Turn pins this generation. */
+  async updateInPlace(graph: PluginGraph): Promise<void> {
+    const ordered = validateAndOrder(
+      graph.plugins,
+      new Set(this.#bootstrap.keys()),
+    )
+    const plan = this.plan(ordered)
+    if (plan.kind !== 'live-update' || this.#references !== 0) {
+      throw new Error(`Generation '${this.id}' is not eligible for live update`)
+    }
+    const incoming = new Map(ordered.map((plugin) => [plugin.id, plugin]))
+    const updated: Array<{ mounted: MountedPlugin; before: RuntimePlugin }> = []
+    try {
+      for (const mounted of this.#mounted) {
+        const after = incoming.get(mounted.spec.id)
+        if (
+          after === undefined ||
+          pluginDescriptorDigest(after) === pluginDescriptorDigest(mounted.spec)
+        ) {
+          continue
+        }
+        const before = mounted.spec
+        updated.push({ mounted, before })
+        await mounted.fiber.update(after.config, true)
+        mounted.spec = after
+      }
+      for (const mounted of this.#mounted) {
+        await mounted.fiber
+        const health = await mounted.spec.healthCheck?.(mounted.fiber.ctx)
+        if (health?.status === 'unhealthy') {
+          throw new Error(
+            health.detail ?? `Plugin '${mounted.spec.id}' is unhealthy`,
+          )
+        }
+      }
+    } catch (error) {
+      const rollbackFailures: unknown[] = []
+      for (const { mounted, before } of updated.reverse()) {
+        try {
+          await mounted.fiber.update(before.config, true)
+          mounted.spec = before
+        } catch (rollbackError) {
+          rollbackFailures.push(rollbackError)
+        }
+      }
+      for (const mounted of this.#mounted) {
+        try {
+          await mounted.fiber
+        } catch (rollbackError) {
+          rollbackFailures.push(rollbackError)
+        }
+      }
+      if (rollbackFailures.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackFailures],
+          `Generation '${this.id}' live update and rollback failed`,
+        )
+      }
+      throw error
+    }
+    this.#plugins = ordered
+    this.structureVersion = graph.structureVersion
+    this.graphDigest = pluginGraphDigest(graph.plugins)
   }
 
   async #dispose(): Promise<void> {
@@ -425,14 +525,22 @@ export class StructureGeneration {
     for (const { fiber } of [...this.#mounted].reverse()) {
       try {
         await fiber.dispose()
+        failures.push(...fiber.consumeCleanupErrors())
       } catch (error) {
         failures.push(error)
       }
     }
     this.#mounted.length = 0
     this.#state = 'disposed'
+    const disposalError =
+      failures.length > 0
+        ? new AggregateError(
+            failures,
+            `Generation '${this.id}' failed to dispose cleanly`,
+          )
+        : undefined
     try {
-      await this.#onDisposed?.(this)
+      await this.#onDisposed?.(this, disposalError)
     } catch (error) {
       failures.push(error)
     }
@@ -474,7 +582,8 @@ export class GenerationLease implements AsyncDisposable {
 
 export type KernelLifecycleEvent =
   | {
-      readonly type: 'generation.prepared' | 'generation.activated'
+      readonly type:
+        'generation.prepared' | 'generation.activated' | 'generation.updated'
       readonly generationId: string
       readonly structureVersion: string
     }
@@ -513,6 +622,10 @@ export type ReconcileResult =
       readonly generation: StructureGeneration
     }
   | {
+      readonly kind: 'updated'
+      readonly generation: StructureGeneration
+    }
+  | {
       readonly kind: 'restart-required'
       readonly pluginIds: readonly string[]
     }
@@ -525,6 +638,7 @@ export type ReconcileResult =
 export class Kernel {
   readonly #options: KernelOptions
   readonly #generations = new Map<string, StructureGeneration>()
+  readonly #quarantines = new Map<string, QuarantineSnapshot>()
   #active: StructureGeneration | undefined
   #restartRequiredPlugins: readonly string[] = []
 
@@ -549,10 +663,14 @@ export class Kernel {
       if (this.#active.graphDigest !== pluginGraphDigest(graph.plugins)) {
         throw new StructureVersionCollisionError(graph.structureVersion)
       }
+      this.#restartRequiredPlugins = []
       return { kind: 'unchanged', generation: this.#active }
     }
     if (this.#active !== undefined) {
-      const tierC = this.#active.restartRequiredPlugins(graph.plugins)
+      const plan = this.#active.plan(graph.plugins)
+      const tierC = plan.changes
+        .filter(({ tier }) => tier === 'c')
+        .map(({ pluginId }) => pluginId)
       if (tierC.length > 0) {
         this.#restartRequiredPlugins = tierC
         await this.#emit({
@@ -563,13 +681,41 @@ export class Kernel {
         })
         return { kind: 'restart-required', pluginIds: tierC }
       }
+      if (plan.kind === 'live-update' && this.#active.references === 0) {
+        try {
+          await this.#active.updateInPlace(graph)
+        } catch (error) {
+          await this.#emit({
+            type: 'generation.failed',
+            generationId: this.#active.id,
+            structureVersion: graph.structureVersion,
+            error,
+          })
+          throw error
+        }
+        this.#restartRequiredPlugins = []
+        await this.#emit({
+          type: 'generation.updated',
+          generationId: this.#active.id,
+          structureVersion: graph.structureVersion,
+        })
+        return { kind: 'updated', generation: this.#active }
+      }
     }
 
     const candidate = new StructureGeneration(
       graph,
       this.#options.bootstrapServices,
-      async (generation) => {
+      async (generation, disposalError) => {
         this.#generations.delete(generation.id)
+        if (disposalError !== undefined) {
+          this.#quarantines.set(generation.id, {
+            generationId: generation.id,
+            structureVersion: generation.structureVersion,
+            error: disposalError.message,
+            recordedAt: new Date().toISOString(),
+          })
+        }
         await this.#emit({
           type: 'generation.disposed',
           generationId: generation.id,
@@ -600,7 +746,11 @@ export class Kernel {
           generationId: previous.id,
           structureVersion: previous.structureVersion,
         })
-        await previous.drain()
+        try {
+          await previous.drain()
+        } catch (error) {
+          previous.context.logger.error(error)
+        }
       }
       return { kind: 'activated', generation: candidate, previous }
     } catch (error) {
@@ -635,6 +785,43 @@ export class Kernel {
     return [...this.#generations.values()].map((generation) =>
       generation.inspect(),
     )
+  }
+
+  doctor(): KernelDoctorReport {
+    const generations = this.inspect()
+    const quarantines = [...this.#quarantines.values()]
+    const issues: KernelDoctorIssue[] = []
+    if (this.#restartRequiredPlugins.length > 0) {
+      issues.push({
+        severity: 'warning',
+        code: 'restart-required',
+        detail: `Process restart required by: ${this.#restartRequiredPlugins.join(', ')}`,
+      })
+    }
+    for (const generation of generations) {
+      if (generation.state === 'draining' && generation.references > 0) {
+        issues.push({
+          severity: 'warning',
+          code: 'generation-draining',
+          detail: `Generation '${generation.generationId}' is pinned by ${generation.references} Turn(s)`,
+        })
+      }
+    }
+    for (const quarantine of quarantines) {
+      issues.push({
+        severity: 'error',
+        code: 'cleanup-failed',
+        detail: `Generation '${quarantine.generationId}': ${quarantine.error}`,
+      })
+    }
+    return {
+      healthy: issues.every(({ severity }) => severity !== 'error'),
+      activeGenerationId: this.#active?.id ?? null,
+      restartRequiredPlugins: [...this.#restartRequiredPlugins],
+      generations,
+      quarantines,
+      issues,
+    }
   }
 
   async stop(): Promise<void> {
@@ -677,6 +864,71 @@ function pluginDescriptor(plugin: RuntimePlugin): unknown {
 
 function pluginDescriptorDigest(plugin: RuntimePlugin): string {
   return configDigest(pluginDescriptor(plugin))
+}
+
+function replacementTier(
+  before: RuntimePlugin | undefined,
+  after: RuntimePlugin | undefined,
+): ReplacementTier {
+  const tiers = [before?.replacementTier ?? 'b', after?.replacementTier ?? 'b']
+  if (tiers.includes('c')) return 'c'
+  if (tiers.includes('b')) return 'b'
+  return 'a'
+}
+
+function topologyDescriptor(plugin: RuntimePlugin): unknown {
+  return {
+    id: plugin.id,
+    version: plugin.version,
+    inject: plugin.inject,
+    provides: plugin.provides,
+  }
+}
+
+export function createReconcilePlan(
+  current: readonly RuntimePlugin[],
+  incoming: readonly RuntimePlugin[],
+): ReconcilePlan {
+  const beforeById = new Map(current.map((plugin) => [plugin.id, plugin]))
+  const afterById = new Map(incoming.map((plugin) => [plugin.id, plugin]))
+  const ids = new Set([...beforeById.keys(), ...afterById.keys()])
+  const changes: PluginChange[] = []
+  for (const pluginId of ids) {
+    const before = beforeById.get(pluginId)
+    const after = afterById.get(pluginId)
+    if (
+      before !== undefined &&
+      after !== undefined &&
+      pluginDescriptorDigest(before) === pluginDescriptorDigest(after)
+    ) {
+      continue
+    }
+    let tier = replacementTier(before, after)
+    let kind: PluginChange['kind']
+    if (before === undefined) kind = 'added'
+    else if (after === undefined) kind = 'removed'
+    else if (
+      canonicalJson(topologyDescriptor(before)) ===
+      canonicalJson(topologyDescriptor(after))
+    ) {
+      kind = 'configured'
+    } else {
+      kind = 'replaced'
+      if (tier === 'a') tier = 'b'
+    }
+    if ((kind === 'added' || kind === 'removed') && tier === 'a') tier = 'b'
+    changes.push({ pluginId, kind, tier })
+  }
+  if (changes.length === 0) return { kind: 'unchanged', changes }
+  if (changes.some(({ tier }) => tier === 'c')) {
+    return { kind: 'restart-required', changes }
+  }
+  if (
+    changes.every(({ tier, kind }) => tier === 'a' && kind === 'configured')
+  ) {
+    return { kind: 'live-update', changes }
+  }
+  return { kind: 'generation-swap', changes }
 }
 
 export function createKernel(options: KernelOptions = {}): Kernel {

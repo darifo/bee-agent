@@ -7,6 +7,7 @@ import {
   STRUCTURE_ACTIVATION_FAILED_EVENT_TYPE,
   STRUCTURE_RESOLVED_EVENT_TYPE,
   STRUCTURE_STREAM_ID,
+  STRUCTURE_UPDATED_EVENT_TYPE,
   StructureResolvedPayloadSchema,
   appendResolvedStructure,
   appendStructureLifecycleEvent,
@@ -184,5 +185,29 @@ describe('structure lineage in Chronicle', () => {
         (event) => event.eventType === STRUCTURE_RESOLVED_EVENT_TYPE,
       ),
     ).toHaveLength(1)
+  })
+
+  it('rebuilds a structure activated by an in-place tier-A update', async () => {
+    const store = createRegistryStore()
+    const before = await resolveVariant({})
+    const after = await resolveVariant({ permissions: ['net:fetch'] })
+    const generationId = '11111111-1111-4111-8111-111111111111'
+    await appendResolvedStructure(store, before)
+    await appendStructureLifecycleEvent(store, {
+      type: 'generation.activated',
+      generationId,
+      structureVersion: before.digest,
+    })
+    await appendResolvedStructure(store, after)
+    await appendStructureLifecycleEvent(store, {
+      type: 'generation.updated',
+      generationId,
+      structureVersion: after.digest,
+    })
+
+    expect(await readActiveStructure(store)).toEqual(after)
+    expect((await collectStructureEvents(store)).at(-1)?.eventType).toBe(
+      STRUCTURE_UPDATED_EVENT_TYPE,
+    )
   })
 })

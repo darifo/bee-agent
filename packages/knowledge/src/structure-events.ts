@@ -13,6 +13,7 @@ export const STRUCTURE_STREAM_ID = 'structure'
 export const STRUCTURE_RESOLVED_EVENT_TYPE = 'structure.resolved'
 export const STRUCTURE_PREPARED_EVENT_TYPE = 'structure.prepared'
 export const STRUCTURE_ACTIVATED_EVENT_TYPE = 'structure.activated'
+export const STRUCTURE_UPDATED_EVENT_TYPE = 'structure.updated'
 export const STRUCTURE_ACTIVATION_FAILED_EVENT_TYPE =
   'structure.activation_failed'
 export const STRUCTURE_DRAINING_EVENT_TYPE = 'structure.draining'
@@ -27,7 +28,7 @@ const StructureLifecycleBaseSchema = z.object({
 
 export const StructureLifecyclePayloadSchema =
   StructureLifecycleBaseSchema.extend({
-    phase: z.enum(['prepared', 'activated', 'draining', 'disposed']),
+    phase: z.enum(['prepared', 'activated', 'updated', 'draining', 'disposed']),
   })
 export type StructureLifecyclePayload = z.infer<
   typeof StructureLifecyclePayloadSchema
@@ -76,6 +77,7 @@ export function registerStructureChronicleEvents(
   for (const eventType of [
     STRUCTURE_PREPARED_EVENT_TYPE,
     STRUCTURE_ACTIVATED_EVENT_TYPE,
+    STRUCTURE_UPDATED_EVENT_TYPE,
     STRUCTURE_DRAINING_EVENT_TYPE,
     STRUCTURE_DISPOSED_EVENT_TYPE,
   ]) {
@@ -140,6 +142,13 @@ export function structureLifecycleEvent(
         actor: { type: 'system', id: 'kernel' },
         structureVersion: event.structureVersion,
         payload: { ...base, phase: 'activated' },
+      })
+    case 'generation.updated':
+      return newChronicleEvent({
+        eventType: STRUCTURE_UPDATED_EVENT_TYPE,
+        actor: { type: 'system', id: 'kernel' },
+        structureVersion: event.structureVersion,
+        payload: { ...base, phase: 'updated' },
       })
     case 'generation.failed':
       return newChronicleEvent({
@@ -263,7 +272,10 @@ export async function readActiveStructure(
     if (event.eventType === STRUCTURE_RESOLVED_EVENT_TYPE) {
       const payload = StructureResolvedPayloadSchema.parse(event.payload)
       resolved.set(payload.digest, payload.structure)
-    } else if (event.eventType === STRUCTURE_ACTIVATED_EVENT_TYPE) {
+    } else if (
+      event.eventType === STRUCTURE_ACTIVATED_EVENT_TYPE ||
+      event.eventType === STRUCTURE_UPDATED_EVENT_TYPE
+    ) {
       const payload = StructureLifecyclePayloadSchema.parse(event.payload)
       activeDigest = payload.digest
     }
