@@ -5,357 +5,235 @@
 <h1 align="center">Bee Agent</h1>
 
 <p align="center">
-  <strong>Cordis-based, Plugin-composed, Modular, Traceable, Extensible, Self-evolving Agent</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/darifo/bee-agent/actions/workflows/ci.yml">
-    <img src="https://github.com/darifo/bee-agent/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" />
-  </a>
-  <a href="https://nodejs.org/">
-    <img src="https://img.shields.io/badge/node-%3E%3D22-green.svg" alt="Node" />
-  </a>
-  <a href="https://www.typescriptlang.org/">
-    <img src="https://img.shields.io/badge/TypeScript-strict-3178C6.svg" alt="TypeScript" />
-  </a>
-  <img src="https://img.shields.io/badge/readiness-engineering%20preview-orange.svg" alt="Engineering preview" />
+  <strong>Plugin-composed, traceable, sandboxed personal agent runtime</strong>
 </p>
 
 <p align="center">
   English | <a href="./README-ZH.md">简体中文</a>
 </p>
 
----
-
 ## Project status
 
-**v0.11 is in maintenance mode.** Active development happens on the
-`feature/v1.0.0` branch, which rebuilds Bee Agent as a local-first personal
-super agent: the Thread–Turn–Item interaction protocol, durable Kanban tasks,
-Chronicle event sourcing, budgeted context, sandboxed execution, and governed
-background learning. `main` only receives critical v0 fixes, and the v0 line is
-frozen at the `v0.11.0-legacy` tag. The v1 architecture plan and refactor
-development plan live in [`docs/architecture`](./docs/architecture) (Chinese).
+Bee Agent v1 is under active development on `feature/kernel-opt`. It is a
+clean break from the frozen `v0.11.0-legacy` line: there is no compatibility
+facade for the old TaskRuntime, plugin SDK, process tools, storage modes, or
+external-agent API.
 
-## Overview
+The implemented foundation is a local-first Personal Bee Host with:
 
-Bee Agent is an open-source, Cordis-based agent composed from plugins. It
-assembles agent runtimes, tools, policies, storage adapters, and external
-workers without coupling them to one monolithic core. It is designed around
-explicit lifecycle management, append-only execution history, stable plugin
-contracts, and interchangeable infrastructure.
+- a Cordis-derived Context–Registry–Fiber plugin runtime;
+- immutable StructureGenerations and Turn-scoped generation leases;
+- the Chronicle-backed Thread–Turn–Item protocol;
+- a durable Kanban task plane;
+- budgeted context and lazy Tool/Skill indexes;
+- durable model requests and recoverable AgentLoop checkpoints;
+- a deny-by-default ExecutionWorld with approval, secret, sandbox, audit, and
+  idempotency boundaries;
+- sandboxed Command, Python, and manifest-pinned MCP adapters.
 
-The project aims to support coding, research, office automation, data analysis,
-and content workflows through a shared runtime that can be inspected, tested,
-paused, resumed, and extended.
-
-## Why Bee Agent?
-
-- **Modular by design** — runtime capabilities live behind package and plugin
-  boundaries instead of accumulating in a single core.
-- **Traceable execution** — task events are append-only, ordered, and replayable.
-- **Lifecycle safety** — Cordis-derived Context/Registry/Fiber ownership manages
-  services and effects; reference-counted structure generations keep live Turns stable.
-- **Storage portability** — domain contracts keep SQLite and PostgreSQL details
-  out of runtime code.
-- **Schema-first contracts** — Zod schemas provide runtime validation and strict
-  TypeScript types across packages.
-- **Extensible capabilities** — the architecture reserves clean boundaries for
-  tools, policies, models, MCP integrations, Python workers, and external agents.
-- **Self-evolving composition** — the agent grows by mounting, replacing, and
-  upgrading plugins behind stable contracts instead of rewriting a core.
+The authoritative design and implementation status live in
+[`docs/architecture`](./docs/architecture); architectural decisions live in
+[`docs/adr`](./docs/adr).
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-  clients["Clients<br/>Web · CLI · Desktop"]
-  server["Bee Host<br/>HTTP · SSE · Plugin Graph"]
-  kernel["Bee Kernel<br/>Context · Registry · Fiber · Generations"]
-  runtime["Agent Runtime<br/>Thread · Turn · Item · AgentLoop"]
-  storage["Chronicle + Storage<br/>Facts · Projections"]
-  plugins["Capability Plugins<br/>Tools · Models · Policies"]
-  adapters["External Adapters<br/>MCP · Python · Agent Harnesses"]
+  clients["CLI · Web · API clients"]
+  host["Personal Bee Host<br/>Fastify · auth · SSE"]
+  kernel["Kernel<br/>Context · Registry · Fiber · Generations"]
+  runtime["Runtime plugins<br/>AgentLoop · ModelRequest · ToolExecution"]
+  domains["Thread · Kanban · Context · Chronicle"]
+  world["ExecutionWorld<br/>policy · approval · secrets · audit"]
+  sandbox["PlatformSandbox<br/>Seatbelt · bubblewrap"]
+  adapters["Tool adapters<br/>Command · Python · MCP"]
 
-  clients --> server
-  server --> kernel
+  clients --> host
+  host --> kernel
   kernel --> runtime
-  runtime --> storage
-  runtime --> plugins
-  plugins --> adapters
+  runtime --> domains
+  runtime --> world
+  world --> sandbox
+  adapters --> world
 ```
 
-The Web client shown above is a planned layer. The server, Client SDK, and CLI
-are implemented today, alongside the kernel, core runtimes, contracts, storage
-abstractions, and SQLite Event Store.
+The kernel owns live plugin composition. Chronicle owns durable facts. A Turn
+pins one StructureGeneration, so a configuration change cannot swap its model,
+tools, policies, or AgentLoop halfway through execution.
+
+External effects follow one route:
+
+```text
+tool intent
+  → ToolAdapter.describe()
+  → canonical ActionRequest
+  → deny / ask / allow
+  → durable approval
+  → late-bound secrets
+  → enforcing SandboxProvider
+  → snapshot / execute / diff / verify
+  → durable result
+  → ToolAdapter.present()
+```
+
+Only `packages/execution` may import Node process-spawn APIs. Static boundary
+checks enforce this repository-wide.
 
 ## Current capabilities
 
-| Area                     | Status    | Details                                                                                                                                                                                                                                                              |
-| ------------------------ | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo toolchain       | Available | pnpm workspaces, strict TypeScript, ESLint, Prettier, Vitest, Changesets, and CI                                                                                                                                                                                     |
-| Shared contracts         | Available | Task, event, tool, approval, memory, embedding, vector-search, API, and SSE schemas                                                                                                                                                                                  |
-| Cordis-derived kernel    | Available | Proxy Context, inject-driven Registry/Fiber activation, Fiber-owned effects, scoped service isolation, immutable StructureGeneration switching, Turn leases, monotonic ContextPolicy, and restart-required governance                                                |
-| Structure reconciliation | Available | EffectiveStructure-driven PluginFactoryRegistry, serialized candidate activation, Chronicle lifecycle facts, failed-candidate rollback, active-structure restart rebuild, and local inspect/reconcile endpoints                                                      |
-| Core runtime             | Available | Chronicle-backed Thread–Turn–Item AgentLoop, tool execution and approval suspension/recovery seams, plus Goal/Plan support; AgentLoop is exposed as a Kernel-managed plugin service                                                                                  |
-| SQLite storage           | Available | Migration, transactions, rollback, append-only events, atomic task sequences, and replay, verified by the shared storage contract suite                                                                                                                              |
-| Server                   | Available | Fastify composition root: REST commands with task listing, SSE event streaming with `Last-Event-ID` resume, approval decisions, CORS (including hijacked streams), error envelopes with mapped statuses                                                              |
-| Client SDK and CLI       | Available | `@bee-agent/client` (REST + SSE streaming with abort support, browser-safe fetch) and the `bee` CLI for task list/create/run/watch/cancel and approval decide                                                                                                        |
-| Web UI                   | Available | React 19 + Vite console on the Client SDK: task creation, live SSE event feed, approval approve/deny with reasons, cancellation, jsdom component tests                                                                                                               |
-| PostgreSQL storage       | Available | Pooled adapter on the shared contract suite: transactions that join when re-entered, atomic sequence allocation, JSONB events, oldest-first task listing, single-dialect server mode                                                                                 |
-| pgvector store           | Available | Vector Store adapter on pgvector: embedding-space registry that validates dimensions and freezes model/metric, cosine/euclidean/inner-product search with workspace scoping and metadata filters, contract-tested; the memory runtime that feeds it is a later stage |
-| Memory runtime           | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                      |
-| Model providers          | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted       |
-| Command tool             | Available | Opt-in `command_run` adapter: Host-allowlisted native executables and workspace-confined paths; exact ActionRequest approval; execution only through Seatbelt/bwrap with empty env, timeout/output limits, and process-tree cancellation                             |
-| Python tool              | Available | Opt-in `python_run` adapter: a fixed native interpreter, JSON stdin contract, isolated one-shot process, workspace-confined paths, approval and resource bounds; no adapter-side process creation                                                                    |
-| MCP tool                 | Available | Opt-in manifest-pinned stdio adapters: staged initialize/call JSON-RPC, static model schemas, declared executable/path/secret scope, exact approval, and process lifecycle exclusively through ExecutionWorld and Seatbelt/bwrap                                     |
-| External agents          | Planned   | v0 RemoteAgent/CommandAgent paths were removed by the clean break. Replacement adapters must preserve Thread–Turn–Item, approval, cancellation, and trajectory lineage                                                                                               |
+| Area                | Status    | Current implementation                                                                                                                                                                           |
+| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, Fiber-owned effects, derive/isolate/intercept, generation prepare/activate/drain, leases, restart-required governance        |
+| Structure           | Available | EffectiveStructure validation, deterministic digest, factory registry, serialized reconcile, Chronicle lifecycle facts, failed-candidate rollback, restart rebuild                               |
+| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                                     |
+| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                                   |
+| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                           |
+| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                                   |
+| Execution           | Available | ActionRequest validation, deny-by-default policy, durable approvals, idempotency collision/reconciliation handling, SecretBroker seam, routing sandboxes, snapshots/diffs                        |
+| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, capability probing, empty child environment, process-group cancellation, timeout/input/output bounds; Linux real-host CI coverage remains pending |
+| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                               |
+| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                                   |
+| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                                             |
+| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                                             |
+| External agents     | Planned   | Delegation/trajectory contracts and a network-enforcing provider must land before RemoteAgent returns                                                                                            |
+| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                                     |
 
 ## Requirements
 
-- [Node.js](https://nodejs.org/) 22 or newer
-- [pnpm](https://pnpm.io/) 10
+- Node.js 22 or newer
+- pnpm 10
+- macOS with `/usr/bin/sandbox-exec`, or Linux with bubblewrap, for external
+  process tools; unavailable isolation fails closed
 
-## Quick start
-
-Clone the repository and install its dependencies:
+## Build and verify
 
 ```bash
-git clone git@github.com:darifo/bee-agent.git
-cd bee-agent
 pnpm install
-```
-
-Run the full local verification suite:
-
-```bash
 pnpm build
 pnpm typecheck
 pnpm lint
+pnpm format:check
 pnpm test
 ```
 
-Start the server and drive it from the CLI or the Web console:
+## Start the Host
+
+The Host requires an OpenAI-compatible model. A session token is generated and
+logged when omitted; set one explicitly when also starting CLI/Web clients.
 
 ```bash
-pnpm --filter @bee-agent/server start          # http://127.0.0.1:3000
+export BEE_AGENT_MODEL_API_KEY='<key>'
+export BEE_AGENT_MODEL_NAME='<model>'
+export BEE_AGENT_MODEL_BASE_URL='https://api.deepseek.com'
+export BEE_AGENT_SESSION_TOKEN='local-development-token'
 
-export BEE_AGENT_URL=http://127.0.0.1:3000
-bee() { pnpm --filter @bee-agent/cli bee -- "$@"; }
-bee task create -i "hello"                     # prints the task id
-bee task run <taskId>                          # streams events until the task finishes
-
-pnpm --filter @bee-agent/web dev               # http://localhost:5173
-```
-
-### Running with real models (DeepSeek and other OpenAI-compatible providers)
-
-The mock agent is the default; point the server at any OpenAI-compatible
-provider with environment variables (ADR 0013 — keys never touch the
-repository):
-
-```bash
-BEE_AGENT_MODEL_PROVIDER=openai-compatible \
-BEE_AGENT_MODEL_BASE_URL=https://api.deepseek.com \
-BEE_AGENT_MODEL_API_KEY=$DEEPSEEK_API_KEY \
-BEE_AGENT_MODEL_NAME=deepseek-chat \
-pnpm --filter @bee-agent/server start
-
-bee task create -i "compute 12*7+15 with the calculator" -a agent.deepseek
-bee task run <taskId>    # the model calls the calculator tool, then answers
-```
-
-The same pattern configures a real embedder for memory
-(`BEE_AGENT_EMBEDDING_PROVIDER/BASE_URL/API_KEY/MODEL/DIMENSIONS`).
-
-### Enabling the command tool
-
-`command_run` is opt-in. The Host accepts only the comma-separated native
-executables configured at startup; every call is constrained to the configured
-workspace and requires approval over the expanded executable, argv, paths, and
-effects. Interpreter scripts are rejected as entrypoints—allow the interpreter
-binary and pass the script as an argument instead.
-
-```bash
-BEE_AGENT_COMMAND_EXECUTABLES=/bin/echo,/usr/bin/git \
-BEE_AGENT_COMMAND_WORKSPACE="$PWD" \
-BEE_AGENT_COMMAND_MAX_TIMEOUT_MS=30000 \
-BEE_AGENT_COMMAND_MAX_OUTPUT_BYTES=1048576 \
 pnpm --filter @bee-agent/bee start
 ```
 
-Enable one-shot Python separately by selecting one native interpreter and its
-workspace boundary:
+The default address is `http://127.0.0.1:3000`. Binding a non-loopback address
+without `BEE_AGENT_SESSION_TOKEN` is rejected.
+
+Use the CLI:
 
 ```bash
-BEE_AGENT_PYTHON_EXECUTABLE=/absolute/path/to/native/python3 \
-BEE_AGENT_PYTHON_WORKSPACE="$PWD" \
-BEE_AGENT_PYTHON_RUNTIME_READ_PATHS=/path/to/python/runtime \
-BEE_AGENT_PYTHON_MAX_INPUT_BYTES=1048576 \
-BEE_AGENT_PYTHON_MAX_TIMEOUT_MS=30000 \
-BEE_AGENT_PYTHON_MAX_OUTPUT_BYTES=1048576 \
-pnpm --filter @bee-agent/bee start
+export BEE_AGENT_URL='http://127.0.0.1:3000'
+pnpm --filter @bee-agent/cli build
+
+pnpm --filter @bee-agent/cli bee -- chat
+pnpm --filter @bee-agent/cli bee -- thread create --title 'Research'
+pnpm --filter @bee-agent/cli bee -- kanban list
 ```
 
-`BEE_AGENT_PYTHON_RUNTIME_READ_PATHS` is a comma-separated Host allowlist for
-the interpreter's standard library and native modules (for example its
-Homebrew prefix or Xcode Python framework). It is read-only and never
-model-controlled. On macOS, select the real interpreter binary rather than the
-`/usr/bin/python3` developer-tools shim.
-
-When the environment variable is absent, the tool is not registered in the
-EffectiveStructure or model context.
-
-### Enabling manifest-pinned MCP tools
-
-`BEE_AGENT_MCP_MANIFESTS` accepts a JSON array of stdio server manifests. Tool
-schemas are pinned by the Host rather than discovered with an unapproved
-startup process. Each tool becomes `mcp__<server>__<tool>` and each call starts
-a fresh, network-denied server inside the platform sandbox:
+Run the Web client:
 
 ```bash
-BEE_AGENT_MCP_MANIFESTS='[{"name":"local","protocolVersion":"2024-11-05","executable":"/absolute/path/to/native/node","arguments":["/workspace/server.mjs"],"workspaceRoot":"/workspace","runtimeReadPaths":["/absolute/path/to/node/runtime"],"readPaths":["server.mjs"],"writePaths":[],"tools":[{"name":"lookup","description":"Look up local data","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}}]}]' \
-pnpm --filter @bee-agent/bee start
+VITE_BEE_AGENT_URL='http://127.0.0.1:3000' \
+VITE_BEE_AGENT_SESSION_TOKEN="$BEE_AGENT_SESSION_TOKEN" \
+pnpm --filter @bee-agent/web dev
 ```
 
-The executable, server code/runtime roots, filesystem effects, secret refs,
-protocol version, and tool schemas are all Host-controlled. Networked MCP
-transports remain disabled until an enforcing network sandbox provider exists.
+## Optional external tools
 
-### Running on PostgreSQL
+All external tools are absent from EffectiveStructure and model context unless
+explicitly configured.
 
-One storage dialect per instance (ADR 0004); pick it with environment
-variables — SQLite is the default:
+### Command
 
 ```bash
-docker run -d --name bee-agent-pg \
-  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=bee_agent \
-  -p 127.0.0.1:5432:5432 pgvector/pgvector:pg17
-
-BEE_AGENT_STORAGE_DIALECT=postgres \
-BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent \
-BEE_AGENT_VECTOR_STORE=pgvector \
-pnpm --filter @bee-agent/server start
+export BEE_AGENT_COMMAND_EXECUTABLES='/bin/echo,/usr/bin/git'
+export BEE_AGENT_COMMAND_WORKSPACE="$PWD"
+export BEE_AGENT_COMMAND_MAX_TIMEOUT_MS=30000
+export BEE_AGENT_COMMAND_MAX_OUTPUT_BYTES=1048576
 ```
 
-`BEE_AGENT_VECTOR_STORE=pgvector` mounts the Vector Store plugin (ADR 0005)
-under the kernel's `vector-store` service key; it requires the PostgreSQL
-dialect and keeps vectors in dedicated tables (ADR 0006). It also enables
-workspace memory over the same store:
+Entrypoints must be native executables. For a script, allowlist its native
+interpreter and pass the script as argv.
+
+### Python
 
 ```bash
-bee memory remember -w docs -t "the cat sat on the mat"
-bee memory recall -w docs -q "cat mat"
+export BEE_AGENT_PYTHON_EXECUTABLE='/absolute/path/to/native/python3'
+export BEE_AGENT_PYTHON_WORKSPACE="$PWD"
+export BEE_AGENT_PYTHON_RUNTIME_READ_PATHS='/absolute/path/to/python/runtime'
+export BEE_AGENT_PYTHON_MAX_INPUT_BYTES=1048576
+export BEE_AGENT_PYTHON_MAX_TIMEOUT_MS=30000
+export BEE_AGENT_PYTHON_MAX_OUTPUT_BYTES=1048576
 ```
 
-The PostgreSQL integration tests need the same URL and skip without it:
+Runtime paths are a comma-separated, Host-controlled read-only allowlist for
+the interpreter's standard library and native modules. On macOS, do not use
+the `/usr/bin/python3` developer-tools shim as the configured executable.
+
+### MCP stdio
+
+`BEE_AGENT_MCP_MANIFESTS` is a JSON array. Tool schemas and all executable,
+path, secret, and resource scope are pinned by the Host; startup performs no
+implicit, unapproved discovery.
 
 ```bash
-BEE_AGENT_STORAGE_POSTGRES_URL=postgres://postgres:postgres@127.0.0.1:5432/bee_agent pnpm test
+export BEE_AGENT_MCP_MANIFESTS='[{"name":"local","protocolVersion":"2024-11-05","executable":"/absolute/path/to/native/node","arguments":["/workspace/server.mjs"],"workspaceRoot":"/workspace","runtimeReadPaths":["/absolute/path/to/node/runtime"],"readPaths":["server.mjs"],"writePaths":[],"tools":[{"name":"lookup","description":"Look up local data","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"],"additionalProperties":false}}]}]'
 ```
+
+The current PlatformSandbox denies network access and does not support network
+allowlists, so only networkless stdio servers are enabled.
 
 ## Repository structure
 
 ```text
-bee-agent/
-├── apps/
-│   ├── bee/                 # Fastify Host; composes core services as a Kernel plugin graph
-│   └── web/                 # React client
-├── packages/
-│   ├── kernel/              # Cordis-derived runtime + Bee StructureGeneration governance
-│   ├── knowledge/           # Chronicle contracts and structure events
-│   ├── thread/              # Thread–Turn–Item protocol
-│   ├── runtime/             # AgentLoop and runtime plugins
-│   ├── context/             # ContextManifest, budgets, lazy Skills/Tools
-│   ├── kanban/              # Durable task plane
-│   ├── execution/           # Execution boundary contracts
-│   └── model-providers/     # OpenAI-compatible LLM providers
-├── adapters/
-│   ├── storage/sqlite/      # SQLite Chronicle and Kanban stores
-│   └── tools/
-│       ├── command/         # command_run declaration; execution stays in execution/
-│       ├── python/          # python_run one-shot JSON/stdin declaration
-│       └── mcp/             # manifest-pinned staged stdio declarations
-├── tests/                   # Shared integration and E2E suites
-└── docs/                    # ADRs and the v1 architecture/refactor plans
+apps/
+  bee/                    Personal Bee Host and composition root
+  cli/                    Thread/Kanban CLI on @bee-agent/client
+  web/                    React conversation and Kanban console
+packages/
+  kernel/                 Context–Registry–Fiber + StructureGeneration
+  knowledge/              Chronicle contracts and durable schemas
+  thread/                 Thread–Turn–Item protocol
+  kanban/                 Durable task plane
+  context/                Context budgets and lazy Tool/Skill indexes
+  execution/              Authorization, secrets, sandbox and audit pipeline
+  runtime/                AgentLoop, ModelRequest and ToolExecution plugins
+  model-providers/         OpenAI-compatible LLM provider
+  client/                 REST/SSE client SDK
+  storage/                Storage primitives
+adapters/
+  storage/sqlite/          Chronicle and Kanban SQLite implementation
+  tools/command/           command_run declaration
+  tools/python/            python_run declaration
+  tools/mcp/               manifest-pinned MCP stdio declarations
 ```
-
-## Development
-
-| Command             | Purpose                                           |
-| ------------------- | ------------------------------------------------- |
-| `pnpm build`        | Build all implemented workspace packages          |
-| `pnpm typecheck`    | Run strict TypeScript checks across the workspace |
-| `pnpm lint`         | Run ESLint                                        |
-| `pnpm test`         | Run all package tests                             |
-| `pnpm format`       | Format supported files with Prettier              |
-| `pnpm format:check` | Verify formatting without modifying files         |
-| `pnpm changeset`    | Describe a package-level release change           |
-
-### Workspace rules
-
-- Import other workspaces only through their package exports; never import their
-  internal `src/` paths.
-- Keep core packages independent of concrete plugins.
-- Keep database-specific behavior inside storage adapters.
-- Give every package and plugin its own manifest and public boundary.
-- Add tests for public contracts and lifecycle-sensitive behavior.
-
-## Database model
-
-SQLite is the only working database adapter at this stage. Its Event Store uses
-a transaction and a per-task sequence row to allocate monotonically increasing
-event sequences. It does not use an unsafe `MAX(sequence) + 1` allocation.
-
-SQLite and PostgreSQL are separate runtime modes: Bee Agent will never dual-write
-to both databases. Vector data is also kept outside task event tables through a
-dedicated Vector Store contract.
 
 ## Roadmap
 
-- [x] Initialize the pnpm TypeScript monorepo and quality toolchain
-- [x] Define shared contracts and plugin SDK boundaries
-- [x] Implement the Cordis kernel and task-scope cleanup
-- [x] Implement and test the SQLite Event Store
-- [x] Add the task state machine, policy engine, calculator tool, and mock agent
-- [x] Add the HTTP/SSE server, Client SDK, and CLI
-- [x] Add the React Web UI
-- [x] Implement PostgreSQL using the shared storage contract suite
-- [x] Implement pgvector and embedding-space validation
-- [x] Add the memory runtime on the Vector Store
-- [x] Add real model providers over OpenAI-compatible HTTP
-- [x] Add MCP tool servers over the stdio bridge
-- [x] Add the opt-in Python worker tool
-- [x] Add external agents behind the Agent contract
-- [x] v1 Phase 0: freeze v0, core ADRs, new package skeletons, and CI gates
-- [x] v1 Phase 1: Cordis-derived base and the Thread–Turn–Item protocol
-- [x] v1 Phase 2: Kanban, context budgets, and lazy Skills/Tools
-- [x] Kernel optimization: Registry/Fiber single source, StructureGeneration, Turn pinning, Host plugin graph
-- [ ] v1 Phase 3: unified ExecutionWorld and sandbox boundaries
-- [ ] v1 Phase 4: personal memory, world model, and the long-running host
-- [ ] v1 Phase 5: background learning and governed improvement
-- [ ] v1 Phase 6: experience convergence and the 1.0.0 release
-
-Architecture decisions and their constraints are recorded in
-[`docs/adr`](./docs/adr); the v1 plans are in
-[`docs/architecture`](./docs/architecture).
-
-## Contributing
-
-Contributions are welcome while the architecture is taking shape.
-
-1. Open an issue to discuss substantial behavior or public API changes.
-2. Fork the repository and create a focused branch.
-3. Add or update tests with your change.
-4. Run `pnpm build`, `pnpm typecheck`, `pnpm lint`, and `pnpm test`.
-5. Submit a pull request describing the motivation, behavior, and trade-offs.
-
-Please keep changes within package boundaries and record significant
-architectural decisions as ADRs.
+- [x] Phase 1: clean-break kernel, Chronicle, Thread–Turn–Item and Host
+- [x] Phase 2: durable Kanban, context budgets and lazy Tool/Skill resolution
+- [x] Phase 3 core: ExecutionWorld, approvals, secrets, Seatbelt/bwrap,
+      Command/Python/MCP adapters
+- [ ] Phase 3 completion: full permission intersection, Linux sandbox CI,
+      worktree provider, bounded delegation and RemoteAgent replacement
+- [ ] Phase 4: memory, world model and long-running workflows
+- [ ] Phase 5: background learning and governed improvement
+- [ ] Phase 6: experience convergence and v1 release
 
 ## License
 
-Bee Agent is available under the [MIT License](./LICENSE).
+Bee Agent is released under the [MIT License](./LICENSE).

@@ -4,9 +4,11 @@
 >
 > 分支：`feature/kernel-opt`
 >
-> 日期：2026-08-25
+> 初版日期：2026-08-25；最近同步：2026-08-26
 >
 > 迁移策略：clean break；不保留旧 Kernel、Context、EventBus、TaskScope、PluginHandle 或 testing 子路径兼容层
+
+> 当前验证基线：19 workspace projects（18 个可构建/测试项目），build、typecheck、lint/package-boundaries、format 全绿，298 tests 通过。ExecutionWorld 已接入 Command、Python、manifest-pinned MCP；下一内核相关工作是完整权限交集、Linux sandbox CI、worktree provider 和 delegation/RemoteAgent 边界，而不是再次替换 Context–Registry–Fiber。
 
 ## 1. 结论
 

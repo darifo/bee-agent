@@ -1,38 +1,38 @@
 # Web
 
-React 19 + Vite single-page console for Bee Agent, built entirely on
-`@bee-agent/client` (ADR 0011). All server access goes through the Client
-SDK; components never call `fetch` directly.
+React 19 + Vite console built on `@bee-agent/client`. Components do not call
+the Host with ad-hoc `fetch`; conversation, approval, SSE, and Kanban traffic
+goes through the client SDK.
 
 ## Run
 
-Start the API server first, then point the dev server at it:
+Start the v1 Personal Bee Host, then pass the same explicit session token to
+the Web build:
 
 ```bash
-pnpm --filter @bee-agent/server start                        # :3000
-VITE_BEE_AGENT_URL=http://127.0.0.1:3000 \
-  pnpm --filter @bee-agent/web dev                            # :5173
+BEE_AGENT_MODEL_API_KEY='<key>' \
+BEE_AGENT_MODEL_NAME='<model>' \
+BEE_AGENT_SESSION_TOKEN='local-development-token' \
+pnpm --filter @bee-agent/bee start
+
+VITE_BEE_AGENT_URL='http://127.0.0.1:3000' \
+VITE_BEE_AGENT_SESSION_TOKEN='local-development-token' \
+pnpm --filter @bee-agent/web dev
 ```
 
-`VITE_BEE_AGENT_URL` is baked in at build time (default
-`http://127.0.0.1:3000`); `pnpm --filter @bee-agent/web build` produces the
-production bundle in `dist/`.
+`VITE_BEE_AGENT_URL` defaults to `http://127.0.0.1:3000`. Both Vite variables
+are baked in at build time.
 
-The server enables CORS (reflect-any-origin by default, allowlist via the
-`corsOrigin` build option), including on the hijacked SSE stream.
+## Current UI
 
-## Features
+- Thread creation and multi-Turn conversation.
+- SSE Item replay followed by live updates.
+- Approval/rejection and suspended-Turn resume.
+- Durable Kanban board backed by the same Host store.
+- Chat/board view switching.
 
-- Create tasks and start them with the mock agent (or any registered agent
-  id).
-- Task list with state badges, inputs, and event counts, backed by
-  `GET /tasks`.
-- Detail pane: live SSE event feed — recorded events replay first, then live
-  events arrive and the stream closes at terminal states.
-- Approve/deny panels with optional reasons while a task is suspended in
-  `waiting_approval`; cancellation for pending, running, or suspended tasks.
-
-Component tests run in jsdom with an injected fake client:
+The Host defaults to a loopback-only CORS policy and never reflects arbitrary
+origins. Component tests use an injected fake client:
 
 ```bash
 pnpm --filter @bee-agent/web test

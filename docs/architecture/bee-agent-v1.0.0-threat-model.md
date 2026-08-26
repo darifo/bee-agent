@@ -1,9 +1,11 @@
 # Bee Agent v1.0.0 威胁模型与个人数据目录设计
 
-> 状态：Proposed
+> 状态：Implementing（Phase 1 安全默认与 Phase 3 执行边界已部分落地）
 > 上游文档：[bee-agent-v1.0.0-architecture-upgrade.md](./bee-agent-v1.0.0-architecture-upgrade.md) §13、§16；[重构开发计划](./bee-agent-v1.0.0-refactor-development-plan.md) 任务 P0-7
-> 日期：2026-08-24
+> 初版日期：2026-08-24；实现快照：2026-08-26
 > 本文档是 v1 各阶段安全实现的共同参照：Phase 1（安全默认值先行）、Phase 3（ExecutionWorld/沙箱）、Phase 4（数据目录与导出）、Phase 6（发布验收 §20.6）从这里取验收口径。
+
+> 当前已落地：loopback 默认监听、session token、loopback-only CORS、StructureGeneration/lease、仓库级 spawn 禁令、canonical path、空子进程环境、Keychain SecretBroker、deny-by-default authorization、持久审批、Seatbelt/bwrap capability probing、timeout/output/process-group cancellation，以及 Command/Python/MCP sandbox adapters。尚未落地：完整 hard-deny∩grant∩declaration∩task-scope 权限快照、网络 allowlist/DNS 防护、Linux 真机契约、artifact/log secret 扫描、统一个人数据目录、worktree/ExperimentWorld、memory/learning/export。
 
 ## 1. 范围与安全目标
 

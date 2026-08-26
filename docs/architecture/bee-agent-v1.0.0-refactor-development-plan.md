@@ -2,7 +2,7 @@
 
 > 状态：Active
 > 上游文档：[bee-agent-v1.0.0-architecture-upgrade.md](./bee-agent-v1.0.0-architecture-upgrade.md)（下称"方案"）
-> 目标分支：`feature/v1.0.0`
+> 当前实施分支：`feature/kernel-opt`
 > 基线：Bee Agent v0.11.0（commit `1eb2a1a`）
 > 日期：2026-08-24
 > 排期约定：本计划不含日历排期；任务只标注依赖关系与相对规模（S/M/L），S 为单次专注会话可完成，M 为数个工作日，L 为需要多次会话且应再拆分
@@ -10,6 +10,8 @@
 > 2026-08-25 内核实施覆盖：本文件 Phase 1 中关于最小 Context、EffectScope、PluginHandle 和 ReplacementCoordinator 的完成描述已由 ADR 0030 取代。当前实现是 Cordis 派生 Context–Registry–Fiber + Bee StructureGeneration；旧近似层已删除。内核的现行开发规则以 `kernel-opt-development-plan.md` 为准。
 
 > 2026-08-25 结构协调覆盖：ADR 0032 已完成 EffectiveStructure 驱动、插件工厂注册表、Chronicle 生命周期事实、失败候选回滚、C-tier restart-required 与 Host 重启重建。
+
+> 2026-08-26 Phase 3 快照：ADR 0033/0034、ExecutionWorld、Seatbelt/bwrap、Keychain SecretBroker、Command/Python/MCP adapters 已落地；完整 build/typecheck/lint/format 与 298 tests 通过。P3-5 仅余 bounded delegation / RemoteAgent replacement；P3-2、P3-4、P3-6 的剩余项见对应状态列。
 
 ## 1. 计划定位与使用方式
 
@@ -24,10 +26,10 @@
 
 冲突裁决规则：若本计划与方案出现冲突，以方案为准并立即修订本计划；若实施中发现两者都不再成立，先改方案（或补充 ADR），再同步本计划。
 
-### 1.2 分支与版本策略
+### 1.2 分支与版本策略（原计划与现行覆盖）
 
-- **每个 Phase 对应一个小版本分支**：Phase 0 = `feature/v1.0.0`、Phase 1 = `feature/v1.1.0`、Phase 2 = `feature/v1.2.0`、Phase 3 = `feature/v1.3.0`、Phase 4 = `feature/v1.4.0`、Phase 5 = `feature/v1.5.0`、Phase 6 = `feature/v1.6.0`；
-- 每个阶段完成即提交并推送当前分支，然后从该分支迁出下一阶段分支；分支链保持线性，上一阶段分支的末端即下一阶段的基线；最终发布版本号在 Phase 6 验收时确定；
+- 原计划为每个 Phase 建立一个小版本分支；实际实施已收敛到 `feature/kernel-opt` 连续提交，避免跨分支保留半迁移架构。后续以本文件状态列、ADR 和提交历史为事实，不再创建 `feature/v1.x.0` 分支链；
+- 每个可验证切片独立提交；最终发布版本号在 Phase 6 验收时确定；
 - v0.11.0 在基线 commit 上冻结为 legacy tag（任务 P0-1）；`main` 进入维护模式，只接收 v0 的关键缺陷修复，不接收新功能，降低合并压力；
 - clean break：各阶段**末尾**删除旧路径（旧 API、旧运行时、旧事件类型），不保留兼容 facade；删除动作是阶段退出条件的一部分，不允许"新旧并存渡过下个阶段"；
 - changesets 纪律延续（ADR 0008）：每个包级变更附 `.changeset/*.md`；发布时统一消费积压的 changeset。
@@ -283,7 +285,7 @@ packages/client   → thread（仅协议类型）
 - **WF6-B 管理界面**：记忆管理、Skill 管理、Timeline、后台资源控制。
 - **WF6-C v0 导入**：P0-7 设计的 export/import 工具实现（v0 SQLite/PG → v1 Chronicle 显式导入）。
 - **WF6-D 文档**：用户手册、插件开发文档、示例 bundle；README/README-ZH 全面重写。
-- **WF6-E 发布**：方案 §20 验收全项通过；changeset 消费与 1.0.0 版本发布；`feature/v1.0.0` 合入 `main`。
+- **WF6-E 发布**：方案 §20 验收全项通过；changeset 消费与 1.0.0 版本发布；当前实施分支经最终审计后合入 `main`。
 - **退出条件**（方案 §19）：新用户无需部署数据库或理解内部架构即可完成真实任务。
 
 ### 5.8 ADR 分配总表

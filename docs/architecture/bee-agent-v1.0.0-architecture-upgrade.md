@@ -1,14 +1,20 @@
 # Bee Agent v1.0.0：个人超级智能体架构升级方案
 
-> 状态：Proposed  
-> 目标分支：`feature/v1.0.0`  
-> 基线：Bee Agent v0.11.0（commit `1eb2a1a`）  
-> 日期：2026-08-24  
+> 状态：Implementing（Phase 1/2 完成，Phase 3 收尾中）
+>
+> 当前实施分支：`feature/kernel-opt`
+>
+> 基线：Bee Agent v0.11.0（commit `1eb2a1a`）
+>
+> 初版日期：2026-08-24；实现快照：2026-08-26
+>
 > 迁移策略：允许破坏性重构，不承诺 v0 API、事件、存储或插件兼容
 
 > 2026-08-25 实施校正：内核不再采用“最小自有 Context”折中方案。ADR 0030 已落地 Cordis 派生的 Context–Registry–Fiber 源码移植，并由 Bee `StructureGeneration`、`GenerationLease`、`ContextPolicy` 和 B/C 替换治理包裹；旧内核与兼容出口已删除。实现细节与开发模板见 `kernel-opt-development-plan.md`。
 
 > 2026-08-25 结构驱动落地：ADR 0032 已连接 `EffectiveStructure → PluginFactoryRegistry → PluginGraph → StructureGeneration`，结构生命周期写入 Chronicle，Host 可恢复最后成功激活的结构并通过本地管理入口重载。
+
+> 2026-08-26 ExecutionWorld 落地：ADR 0033/0034 已完成持久 ModelRequest、可恢复 AgentLoop、ActionRequest 幂等/审批/secret/sandbox 审计管线，以及 Command、Python、manifest-pinned MCP adapters。当前全量门禁为 build/typecheck/lint/format 全绿、298 tests；Phase 3 尚余完整权限交集、Linux 真机 sandbox CI、worktree provider、bounded delegation 与 RemoteAgent replacement。
 
 ## 1. 技术结论
 
@@ -909,7 +915,7 @@ Scheduler 支持：
 
 v1 应主动控制包数量。以下九个高内聚模块比“一个概念一个包”更适合个人超级智能体；Kanban 因拥有独立的状态机、存储契约和调度职责而单独成包，其余模块内部再以目录隔离领域。
 
-### 18.1 新内核模块
+### 18.1 当前核心模块
 
 | 建议模块             | 责任                                                                                |
 | -------------------- | ----------------------------------------------------------------------------------- |
@@ -920,18 +926,18 @@ v1 应主动控制包数量。以下九个高内聚模块比“一个概念一�
 | `packages/context`   | Prompt、Context Budget、压缩、Skill Registry、Tool Index/Resolver                   |
 | `packages/knowledge` | Chronicle、World/Structure、MemoryProvider、Claim、Representation                   |
 | `packages/execution` | Capability、Permission、Secret、ExecutionWorld、Sandbox、Artifact                   |
-| `packages/learning`  | Deriver、Consolidator、Skill learning、Proposal、Experiment、Eval                   |
-| `packages/storage`   | embedded store、PostgreSQL adapter contracts、migration/export                      |
+| `packages/learning`  | Phase 5 边界占位；Deriver、Skill learning、Proposal、Experiment、Eval 尚未落地      |
+| `packages/storage`   | 存储原语；当前具体实现只有 `adapters/storage/sqlite`                                |
 
-### 18.2 适配器
+### 18.2 适配器状态
 
-- `adapters/models/*`：DeepSeek、OpenAI-compatible 等；
-- `plugins/memory-bee`：默认内嵌记忆实现；
-- `plugins/memory-remote`：Honcho 及其他外部记忆服务的统一入口；
-- `adapters/sandbox/seatbelt`、`bwrap`、`oci`、`remote`；
-- `adapters/tools/mcp`、`python`、`command`；
-- `adapters/agents/local`、`remote`、`command`；
-- `adapters/storage/sqlite`、`postgres`、`artifact/*`。
+- 已实现：`packages/model-providers`（OpenAI-compatible LLM）；
+- 已实现：`packages/execution` 内的 Seatbelt/bwrap platform providers；
+- 已实现：`adapters/tools/{command,python,mcp}`，且 adapter 内没有进程 API；
+- 已实现：`adapters/storage/sqlite`（Chronicle + Kanban）；
+- 待实现：memory-bee / memory-remote；
+- 待实现：bounded local delegation 与 remote-agent replacement；
+- 待实现：PostgreSQL、artifact、OCI/remote sandbox providers。
 
 ### 18.3 重写或移除
 
@@ -954,7 +960,7 @@ v1 应主动控制包数量。以下九个高内聚模块比“一个概念一�
 
 **退出条件：** 任一新模块都能回答“它是否让 Bee 更简单、更聪明或更安全”；不能回答的模块不进入 v1。
 
-### Phase 1：Cordis 基座与 Thread 协议（3 周）
+### Phase 1：Cordis 基座与 Thread 协议（已完成）
 
 - Kernel service slots、inject、event modes、reversible effects；
 - Bundle 与唯一 `bee` Profile 的组合、effective tree、分级热换和 fail-loud 激活审计；
@@ -963,7 +969,7 @@ v1 应主动控制包数量。以下九个高内聚模块比“一个概念一�
 
 **退出条件：** 安装后一个命令启动；用户能连续对话、暂停、恢复和查看 Item；替换模型插件不改 Loop。
 
-### Phase 2：Kanban、Context Budget、Skills 与延迟加载工具（3 周）
+### Phase 2：Kanban、Context Budget、Skills 与延迟加载工具（已完成）
 
 - `@bee-agent/kanban`、嵌入式 Kanban Store、状态机、依赖、claim/lease 和 Dispatcher；
 - CLI/Web/Agent tools 使用同一任务板；任务可跨 Thread、跨重启阻塞、复核和恢复；
@@ -974,7 +980,7 @@ v1 应主动控制包数量。以下九个高内聚模块比“一个概念一�
 
 **退出条件：** Kanban Task 可从对话创建、由后台认领并跨重启完成；在相同任务集上，上下文 token 明显低于全量加载基线，同时任务成功率不下降。
 
-### Phase 3：统一执行世界、工作树与安全边界（3 周）
+### Phase 3：统一执行世界、工作树与安全边界（进行中）
 
 - Capability、Permission、Approval、SecretBroker 和 ExecutionWorld；
 - Seatbelt 与 bwrap/OCI provider；

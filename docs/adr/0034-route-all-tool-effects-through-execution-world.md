@@ -1,6 +1,6 @@
 # ADR 0034: Route all tool effects through ExecutionWorld
 
-- Status: Accepted
+- Status: Accepted and implemented (core pipeline plus Command/Python/MCP)
 - Date: 2026-08-26
 
 ## Context

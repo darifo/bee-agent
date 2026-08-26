@@ -9,9 +9,17 @@
 
 Data-processing tasks often need Python; the tool pipeline so far only runs in-process JavaScript (calculator) or external MCP servers.
 
-## Decision
+## Legacy decision (v0)
 
 Add `plugins/tools/python`: a `tools.python` Tool that runs caller-supplied Python in a fresh one-shot child process per call. The payload (`{ code, args }`) arrives as JSON on stdin, the interpreter bootstrap exposes `args` to the code, `stdout` is the output (JSON text is parsed into structured results), and non-zero exits, stderr, timeouts, and oversized output become tool errors. The composition root enables it only when explicitly opted in (`pythonTool` option / `BEE_AGENT_ENABLE_PYTHON`).
+
+## v1 replacement
+
+`adapters/tools/python` exposes `python_run` only when the Host configures a
+native interpreter, canonical workspace, explicit runtime read roots, and
+resource bounds. The adapter declares bounded JSON stdin and cannot create a
+process; ExecutionWorld authorizes the concrete request and PlatformSandbox
+owns process creation, isolation, cancellation, and output capture.
 
 ## Reasons
 

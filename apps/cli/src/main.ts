@@ -105,9 +105,9 @@ program
     }
   })
 
-program
-  .command('kanban')
-  .description('Manage the kanban board')
+const kanban = program.command('kanban').description('Manage the kanban board')
+
+kanban
   .command('create')
   .description('Create a task')
   .requiredOption('-t, --title <title>', 'task title')
@@ -141,8 +141,7 @@ program
     },
   )
 
-program
-  .command('kanban')
+kanban
   .command('list')
   .description('List tasks')
   .option('--status <status>', 'filter by status')
@@ -167,8 +166,7 @@ program
     }
   })
 
-program
-  .command('kanban')
+kanban
   .command('show')
   .description('Show a task')
   .argument('<id>', 'task id')
@@ -187,8 +185,7 @@ program
     }
   })
 
-program
-  .command('kanban')
+kanban
   .command('update')
   .description('Update a task')
   .argument('<id>', 'task id')
@@ -219,8 +216,7 @@ program
     },
   )
 
-program
-  .command('kanban')
+kanban
   .command('block')
   .description('Block a task')
   .argument('<id>', 'task id')
@@ -240,8 +236,7 @@ program
     }
   })
 
-program
-  .command('kanban')
+kanban
   .command('comment')
   .description('Comment on a task')
   .argument('<id>', 'task id')
@@ -272,8 +267,7 @@ program
     },
   )
 
-program
-  .command('kanban')
+kanban
   .command('complete')
   .description('Complete a task')
   .argument('<id>', 'task id')
@@ -292,8 +286,7 @@ program
     }
   })
 
-program
-  .command('kanban')
+kanban
   .command('cancel')
   .description('Cancel a task')
   .argument('<id>', 'task id')

@@ -8,11 +8,13 @@
 
 The tool pipeline is local (calculator); real deployments need the broader MCP ecosystem of external tool servers.
 
-## Decision
+## Legacy decision (v0)
 
 Add `plugins/tools/mcp`: a hand-rolled, zero-dependency MCP client over the stdio transport (newline-delimited JSON-RPC 2.0) that spawns each configured server as its own child process, completes the `initialize` handshake, discovers tools via `tools/list`, and adapts them to the runtime `Tool` contract under `mcp.<server>.<tool>` ids. The composition root mounts servers from `BEE_AGENT_MCP` (a JSON array validated by the exported `McpServerConfigSchema`) and registers the discovered tools into the task runtime.
 
-For v1, `BEE_AGENT_MCP_MANIFESTS` supplies the protocol version and pinned tool
+## v1 replacement
+
+`BEE_AGENT_MCP_MANIFESTS` supplies the protocol version and pinned tool
 schemas. Adapters emit `mcp__<server>__<tool>` specs and staged JSON-lines stdio
 requirements. PlatformSandbox starts the native executable, waits for the
 initialize response, sends the initialized notification and tool call, then

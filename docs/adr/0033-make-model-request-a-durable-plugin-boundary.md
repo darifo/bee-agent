@@ -1,6 +1,6 @@
 # ADR 0033: Make ModelRequest a durable plugin boundary
 
-- Status: Accepted
+- Status: Accepted and implemented
 - Date: 2026-08-25
 
 ## Context

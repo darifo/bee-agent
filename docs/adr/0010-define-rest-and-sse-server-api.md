@@ -1,34 +1,45 @@
 # ADR 0010: Define the REST and SSE server API
 
+> Status: Replaced for v1 by the Thread–Turn–Item and Kanban APIs. The v0
+> `/tasks` runtime and global approval endpoints were deleted in the clean
+> break.
+
 ## Background
 
-ADR 0003 chose REST commands plus SSE streaming and required clients to go through a Client SDK. The concrete resource model, status codes, and resume semantics were still undefined.
+ADR 0003 chose REST commands plus sequence-addressed SSE and required clients
+to use a shared SDK. v1 subsequently replaced the one-shot TaskRuntime with a
+conversation protocol and separated durable background work into Kanban.
 
-## Decision
+## v1 decision
 
-Serve a small REST + SSE surface from the Fastify composition root (`@bee-agent/server`), with `@bee-agent/client` as the only supported client:
+The Fastify composition root is `@bee-agent/bee`; `@bee-agent/client` remains
+the supported client boundary.
 
-- `POST /tasks` (201) creates a task; `GET /tasks/:id` (200) returns the replayed snapshot; `POST /tasks/:id/run` (202) starts the run in the background and returns the snapshot after the run began; `POST /tasks/:id/cancel` (200) cancels; `GET /tasks/:id/events?after=` (200) lists recorded events.
-- `GET /approvals?taskId=` (200) lists pending requests; `POST /approvals/:requestId/decision` (200) decides one and resumes the task.
-- `GET /tasks/:id/events/stream` is an SSE channel: recorded events after `Last-Event-ID` (or `?after=`) are replayed first, then live events follow; `id` is the event sequence, `event` is the event type, `data` is the full event JSON. The server closes the stream at a terminal state and sends heartbeat comments.
-- Errors use the shared error envelope with mapped statuses: unknown task/approval 404, invalid state or concurrent run 409, validation failures 400.
+- `POST /threads` creates a Thread.
+- `POST /threads/:threadId/turns` runs a Turn through the generation-pinned
+  AgentLoop.
+- `POST /threads/:threadId/turns/:turnId/approvals/:approvalId` records a
+  decision and resumes the suspended Turn.
+- `GET /threads/:threadId/items` is the replay-then-live SSE Item stream and
+  accepts `Last-Event-ID` or `?after=`.
+- `/kanban/tasks` and task-specific update/block/comment/complete/cancel routes
+  expose the durable task plane.
+- `GET /structure` and `POST /structure/reconcile` expose local structure
+  inspection and reconciliation.
+- `GET /health` is the only route exempt from session-token authentication.
+
+The Host binds to loopback by default, applies a loopback-only CORS policy, and
+rejects non-loopback binding without an explicit session token. Errors use the
+shared envelope and route handlers remain thin over domain/runtime services.
 
 ## Reasons
 
-REST + sequence-addressed SSE reuses the append-only event stream as the transport: replay and live delivery are the same mechanism, and reconnects resume exactly where the client stopped.
+Thread owns user interaction, Kanban owns cross-time tasks, and Chronicle
+sequences make replay and live delivery one transport. Approval identity is
+scoped to the suspended Turn instead of a global in-memory inbox.
 
-## Alternatives
+## Consequences
 
-WebSocket, JSON-RPC, or polling snapshots.
-
-## Positive impact
-
-The CLI and future Web UI share one SDK; the API is testable without a browser; resume works across restarts because sequences are durable.
-
-## Negative impact
-
-No client-to-server streaming; SSE requires connection-per-task for live updates.
-
-## Follow-up constraints
-
-Do not add transport features outside the Client SDK; keep handlers thin (validation + runtime calls) so business rules stay in the runtimes; the run route must surface pre-start failures (for example 409) instead of silently timing out.
+Old `/tasks`, `/approvals`, task snapshots, task event names, and the
+`@bee-agent/server` package are not compatibility surfaces. CLI and Web must
+use `@bee-agent/client`, including for authentication and SSE resume.

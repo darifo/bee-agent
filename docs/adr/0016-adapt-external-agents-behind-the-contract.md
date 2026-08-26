@@ -8,9 +8,17 @@
 
 The `Agent` contract so far has in-process implementations (mock, OpenAI-compatible chat); the roadmap's last mile is reaching agents outside this process — other Bee Agent servers and arbitrary command-line programs.
 
-## Decision
+## Legacy decision (v0)
 
 Add `adapters/agents` (`@bee-agent/agent-adapters`) with two adapters behind the existing `Agent` contract: `RemoteAgent` delegates a run to another Bee Agent server through the Client SDK (create → run → stream → final snapshot), mirrors remote `agent.message` events into the local event log, and propagates local cancellation to the remote task; `CommandAgent` wraps any executable — the task input arrives via a `{input}` argv placeholder or stdin and the program's stdout becomes the reply — with timeouts, env control, and error mapping. The composition root registers either via `buildServer({ agents })`; `BEE_AGENT_COMMAND_AGENTS` (a validated JSON array) configures command agents from the environment.
+
+## v1 direction
+
+No external-agent adapter is currently registered. Local harness delegation
+must be Episode-scoped and bounded by depth, concurrency, budget, world scope,
+generation lease, and trajectory lineage. A remote transport additionally
+requires an enforcing network provider and explicit schema/redaction/
+permission translation; it may not reuse unrestricted Host HTTP access.
 
 ## Reasons
 
