@@ -25,5 +25,6 @@ The first platform provider uses macOS Seatbelt or Linux bubblewrap. It probes w
 - Tool plugins must provide concrete declarations; undeclared capabilities are denied.
 - Approval text is derived from the expanded action, not from model prose.
 - Logical Kanban tools remain in process; command, Python, MCP, browser, and remote-agent adapters must declare resources so routing selects an enforcing provider.
+- The first migrated external adapter is `command_run`: it accepts only Host-allowlisted native executables, confines declared paths to one canonical workspace, defaults to `ask`, and throws if anything attempts to invoke its in-process `execute()` path.
 - Network allowlists, recursive filesystem diffs, non-macOS credential stores, and adapter migration remain Phase 3 deliverables. Until then their requested capabilities fail closed.
 - Imports of `child_process` outside `@bee-agent/execution` are rejected by static package-boundary checks.

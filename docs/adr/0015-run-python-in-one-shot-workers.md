@@ -1,5 +1,9 @@
 # ADR 0015: Run Python in one-shot workers
 
+> Status: Superseded by the v1 clean break and ADR 0034. The direct-spawn
+> implementation described below was deleted; a replacement Python adapter must
+> execute through ExecutionWorld and an enforcing sandbox provider.
+
 ## Background
 
 Data-processing tasks often need Python; the tool pipeline so far only runs in-process JavaScript (calculator) or external MCP servers.

@@ -15,6 +15,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
   runtime: ['kernel', 'thread', 'kanban', 'context', 'knowledge', 'execution'],
   learning: ['kernel', 'knowledge', 'runtime', 'context'],
   'model-providers': ['runtime'],
+  'tool-command': ['knowledge', 'runtime'],
   client: ['thread'],
   'storage-sqlite': ['kanban', 'knowledge'],
   bee: [
@@ -25,6 +26,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
     'runtime',
     'storage-sqlite',
     'thread',
+    'tool-command',
   ],
 }
 
@@ -129,6 +131,10 @@ async function scanWorkspace(rootDir) {
       packageName: 'storage-sqlite',
       directory: join(rootDir, 'adapters', 'storage', 'sqlite'),
     },
+    {
+      packageName: 'tool-command',
+      directory: join(rootDir, 'adapters', 'tools', 'command'),
+    },
   ]
 
   for (const { packageName, directory } of targets) {
@@ -217,8 +223,16 @@ export function getEslintBoundaryConfigs() {
       `${INTERNAL_PREFIX}${name}`,
       `${INTERNAL_PREFIX}${name}/*`,
     ])
+    const directory =
+      packageName === 'bee'
+        ? 'apps/bee'
+        : packageName === 'storage-sqlite'
+          ? 'adapters/storage/sqlite'
+          : packageName === 'tool-command'
+            ? 'adapters/tools/command'
+            : `packages/${packageName}`
     return {
-      files: [`packages/${packageName}/**/*.ts`],
+      files: [`${directory}/**/*.ts`],
       rules: {
         'no-restricted-imports': [
           'error',

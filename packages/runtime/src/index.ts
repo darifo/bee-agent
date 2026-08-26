@@ -49,6 +49,7 @@ export type {
 export { InProcessToolSandbox, ToolExecutionService } from './tool-execution.ts'
 export type {
   ToolActionDescriptor,
+  ToolAdapter,
   ToolAuthorizationRule,
   ToolExecutionCall,
   ToolExecutionOutcome,

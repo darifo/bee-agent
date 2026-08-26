@@ -1,5 +1,9 @@
 # ADR 0016: Adapt external agents behind the contract
 
+> Status: Superseded by the v1 clean break. The former CommandAgent and
+> RemoteAgent implementations were deleted; replacements must preserve the
+> Thread–Turn–Item protocol and route effects through ExecutionWorld.
+
 ## Background
 
 The `Agent` contract so far has in-process implementations (mock, OpenAI-compatible chat); the roadmap's last mile is reaching agents outside this process — other Bee Agent servers and arbitrary command-line programs.

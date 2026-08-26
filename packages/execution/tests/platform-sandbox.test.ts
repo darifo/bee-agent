@@ -195,4 +195,19 @@ describe('platform sandbox policies', () => {
       await rm(directory, { recursive: true, force: true })
     }
   })
+
+  it.runIf(
+    process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
+  )('returns bounded stderr as model-visible error content', async () => {
+    const sandbox = new PlatformCommandSandbox()
+    if (!(await sandbox.capabilities()).processIsolation) return
+    const outcome = await sandbox.execute(
+      request({
+        commands: [['/bin/bash', '-c', 'echo command-failed >&2; exit 7']],
+      }),
+      { secrets: new Map() },
+    )
+    expect(outcome.isError).toBe(true)
+    expect(outcome.content).toContain('command-failed\n')
+  })
 })

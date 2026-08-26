@@ -6,7 +6,7 @@ import type {
   ResourceRequirements,
   SandboxProvider,
 } from '@bee-agent/execution'
-import type { LlmToolCall } from './llm-runtime.ts'
+import type { LlmToolCall, LlmToolSpec } from './llm-runtime.ts'
 
 export interface ToolActionDescriptor {
   readonly capability: string
@@ -28,6 +28,12 @@ export interface ToolExecutor {
   /** Expands model intent into the concrete resources and effects to authorize. */
   describe(call: LlmToolCall): ToolActionDescriptor
   execute(input: ToolExecutionCall): Promise<ActionResult>
+}
+
+/** One coherent tool plugin binding: model schema, policy default, and resolver. */
+export interface ToolAdapter extends ToolExecutor {
+  readonly spec: LlmToolSpec
+  readonly authorization: ToolAuthorizationRule
 }
 
 export type ToolExecutionOutcome =

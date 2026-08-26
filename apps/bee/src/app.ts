@@ -14,6 +14,7 @@ import {
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
   ToolAuthorizationRule,
+  ToolAdapter,
   ToolExecutor,
   LlmRuntime,
   LlmToolSpec,
@@ -86,8 +87,10 @@ export interface BeeServerOptions {
   /** The kanban store shared by the REST API, agent tools, and dispatcher. */
   readonly kanban: KanbanStore
   readonly llm: LlmRuntime
-  /** Declares and executes non-Kanban capabilities behind ExecutionWorld. */
-  readonly toolExecutor: ToolExecutor
+  /** Coherent non-Kanban tool bindings; specs and rules are derived from them. */
+  readonly toolAdapters?: readonly ToolAdapter[] | undefined
+  /** Custom fallback for dynamically supplied test or embedding tools. */
+  readonly toolExecutor?: ToolExecutor | undefined
   readonly toolAuthorization?: readonly ToolAuthorizationRule[] | undefined
   readonly sandboxProvider?: SandboxProvider | undefined
   readonly secretBroker?: SecretBroker | undefined
@@ -141,12 +144,33 @@ function toFastifyCorsOrigin(
  */
 function compositeToolExecutor(
   kanban: KanbanStore,
-  fallback: ToolExecutor,
+  adapters: readonly ToolAdapter[],
+  fallback: ToolExecutor | undefined,
 ): ToolExecutor {
   const executor = createKanbanToolExecutor(kanban)
+  const registered = new Map<string, ToolAdapter>()
+  for (const adapter of adapters) {
+    if (adapter.authorization.toolId !== adapter.spec.id) {
+      throw new Error(
+        `Tool adapter '${adapter.spec.id}' authorization targets '${adapter.authorization.toolId}'`,
+      )
+    }
+    if (
+      adapter.spec.id.startsWith('kanban_') ||
+      registered.has(adapter.spec.id)
+    ) {
+      throw new Error(`Duplicate tool adapter '${adapter.spec.id}'`)
+    }
+    registered.set(adapter.spec.id, adapter)
+  }
   return {
     describe(call) {
-      if (!call.toolId.startsWith('kanban_')) return fallback.describe(call)
+      if (!call.toolId.startsWith('kanban_')) {
+        const adapter = registered.get(call.toolId)
+        if (adapter !== undefined) return adapter.describe(call)
+        if (fallback !== undefined) return fallback.describe(call)
+        throw new Error(`Tool '${call.toolId}' is not registered`)
+      }
       return {
         capability: `tool:${call.toolId}`,
         requirements: {
@@ -162,7 +186,10 @@ function compositeToolExecutor(
     },
     async execute(call) {
       if (!call.call.toolId.startsWith('kanban_')) {
-        return fallback.execute(call)
+        const adapter = registered.get(call.call.toolId)
+        if (adapter !== undefined) return adapter.execute(call)
+        if (fallback !== undefined) return fallback.execute(call)
+        throw new Error(`Tool '${call.call.toolId}' is not registered`)
       }
       try {
         const result = await executor.execute({
@@ -192,6 +219,18 @@ function compositeToolExecutor(
   }
 }
 
+function assertUniqueToolIds(
+  bindings: readonly { readonly id: string }[],
+  label: string,
+): void {
+  const seen = new Set<string>()
+  for (const binding of bindings) {
+    if (seen.has(binding.id))
+      throw new Error(`Duplicate ${label} '${binding.id}'`)
+    seen.add(binding.id)
+  }
+}
+
 /**
  * The Personal Bee Host (architecture §9.1) minimal form: one Fastify
  * process serving the Thread–Turn–Item API over a Chronicle store. Security
@@ -202,8 +241,10 @@ export async function buildBeeServer(
   options: BeeServerOptions,
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
+  const toolAdapters = options.toolAdapters ?? []
   const toolExecutor = compositeToolExecutor(
     options.kanban,
+    toolAdapters,
     options.toolExecutor,
   )
   const toolSpecs = [
@@ -212,8 +253,23 @@ export async function buildBeeServer(
       description: definition.description,
       inputSchema: definition.inputSchema,
     })),
+    ...toolAdapters.map((adapter) => adapter.spec),
     ...(options.toolSpecs ?? []),
   ]
+  assertUniqueToolIds(toolSpecs, 'tool spec')
+  const toolAuthorization = [
+    ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
+      toolId: definition.id,
+      decision: 'allow' as const,
+      reason: 'Built-in local Kanban capability',
+    })),
+    ...toolAdapters.map((adapter) => adapter.authorization),
+    ...(options.toolAuthorization ?? []),
+  ]
+  assertUniqueToolIds(
+    toolAuthorization.map((rule) => ({ id: rule.toolId })),
+    'tool authorization',
+  )
   const runtime = await createBeeKernelRuntime({
     store,
     kanban: options.kanban,
@@ -221,14 +277,7 @@ export async function buildBeeServer(
     toolExecutor,
     sandboxProvider: options.sandboxProvider,
     secretBroker: options.secretBroker,
-    toolAuthorization: [
-      ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
-        toolId: definition.id,
-        decision: 'allow' as const,
-        reason: 'Built-in local Kanban capability',
-      })),
-      ...(options.toolAuthorization ?? []),
-    ],
+    toolAuthorization,
     toolSpecs,
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,

@@ -15,7 +15,12 @@ import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
-import type { LlmRuntime, ToolExecutor } from '@bee-agent/runtime'
+import type {
+  LlmRuntime,
+  ToolAdapter,
+  ToolExecutionPort,
+  ToolExecutor,
+} from '@bee-agent/runtime'
 import {
   buildBeeServer,
   createBeeKernelRuntime,
@@ -74,6 +79,18 @@ const tools: ToolExecutor = {
   },
 }
 
+function adapter(id: string): ToolAdapter {
+  return {
+    spec: { id, description: `Adapter ${id}`, inputSchema: { type: 'object' } },
+    authorization: {
+      toolId: id,
+      decision: 'ask',
+      reason: `Approve ${id}`,
+    },
+    ...tools,
+  }
+}
+
 async function structureEventTypes(
   store: MemoryChronicleStore,
 ): Promise<readonly string[]> {
@@ -85,6 +102,78 @@ async function structureEventTypes(
 }
 
 describe('Bee Host structure runtime', () => {
+  it('derives specs and authorization from coherent tool adapters', async () => {
+    const bound = adapter('adapter_test')
+    const server = await buildBeeServer({
+      store: chronicle(),
+      kanban: kanban(),
+      llm: createFakeLlmRuntime({ script: [] }),
+      toolAdapters: [bound],
+      logger: false,
+    })
+    const inspection = await server.app.inject({
+      method: 'GET',
+      url: '/structure',
+    })
+    const structure = inspection.json() as {
+      activeStructure: {
+        tools: Array<{ ref: { id: string; version: string } }>
+      }
+    }
+    expect(structure.activeStructure.tools).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref: { id: 'adapter_test', version: '1.0.0' },
+        }),
+      ]),
+    )
+    const toolExecution =
+      server.kernel.service<ToolExecutionPort>('toolExecution')
+    const execution = {
+      call: { callId: 'adapter-call', toolId: 'adapter_test', input: {} },
+      threadId: 'adapter-thread',
+      turnId: 'adapter-turn',
+      itemId: crypto.randomUUID(),
+    }
+    await expect(toolExecution.execute(execution)).resolves.toMatchObject({
+      kind: 'approval-required',
+    })
+    await expect(
+      toolExecution.execute({ ...execution, approval: 'approved' }),
+    ).resolves.toMatchObject({
+      kind: 'result',
+      result: { content: 'ok' },
+    })
+    await server.app.close()
+
+    await expect(
+      buildBeeServer({
+        store: chronicle(),
+        kanban: kanban(),
+        llm: createFakeLlmRuntime({ script: [] }),
+        toolAdapters: [bound, bound],
+        logger: false,
+      }),
+    ).rejects.toThrow("Duplicate tool adapter 'adapter_test'")
+
+    await expect(
+      buildBeeServer({
+        store: chronicle(),
+        kanban: kanban(),
+        llm: createFakeLlmRuntime({ script: [] }),
+        toolAdapters: [
+          {
+            ...bound,
+            authorization: { ...bound.authorization, toolId: 'wrong_tool' },
+          },
+        ],
+        logger: false,
+      }),
+    ).rejects.toThrow(
+      "Tool adapter 'adapter_test' authorization targets 'wrong_tool'",
+    )
+  })
+
   it('switches model generations, records failures/C-tier changes, and restores active structure', async () => {
     const store = chronicle()
     const board = kanban()

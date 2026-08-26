@@ -1,5 +1,9 @@
 # ADR 0014: Expose MCP servers as tools
 
+> Status: Superseded by the v1 clean break and ADR 0034. The direct stdio
+> process implementation was deleted; replacement MCP transports must execute
+> through ExecutionWorld and declare process, network, path, and secret scope.
+
 ## Background
 
 The tool pipeline is local (calculator); real deployments need the broader MCP ecosystem of external tool servers.

@@ -290,7 +290,7 @@ export class PlatformCommandSandbox implements SandboxProvider {
       const result = await runProcess({
         executable: sandboxExecutable,
         args,
-        cwd: request.requirements.workingDirectory,
+        cwd: request.requirements.workingDirectory ?? '/',
         env,
         signal: options.signal,
         timeoutMs: remainingTimeoutMs,
@@ -300,7 +300,14 @@ export class PlatformCommandSandbox implements SandboxProvider {
         Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)
       results.push(result)
     }
-    const content = results.map((result) => result.stdout).join('')
+    const content = results
+      .map((result) => {
+        if (result.stderr === '') return result.stdout
+        if (result.stdout === '') return result.stderr
+        const separator = result.stdout.endsWith('\n') ? '' : '\n'
+        return `${result.stdout}${separator}[stderr]\n${result.stderr}`
+      })
+      .join('')
     const failed = results.some((result) => result.exitCode !== 0)
     return {
       output: { commands: results },

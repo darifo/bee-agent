@@ -691,6 +691,8 @@ interface ExecutionWorld {
 
 首版 provider 默认完全关闭网络，不接受域名 allowlist；声明网络目标的动作因此会在能力交集阶段被拒绝。Keychain SecretBroker 只把请求声明的引用映射到指定环境变量，secret value 不进入 ActionRequest、审批内容或 Chronicle 普通事件。
 
+首个迁移完成的外部能力是 `adapters/tools/command`。`ToolAdapter` 将 model spec、默认 authorization 与 resolver/executor 绑定为一个不可拆分的 Host 注册单元，重复 id 在激活前失败。Command adapter 向模型提供 `command_run`，但不持有任何进程 API：Host 启动时给出 native executable allowlist 和唯一 workspace root；adapter 将相对路径解析并验证在 canonical workspace 内、限制 timeout/output、默认生成 `ask` 规则，再由 request-scoped router 选择平台 provider。未配置 `BEE_AGENT_COMMAND_EXECUTABLES` 时，该工具不会进入 EffectiveStructure 或模型上下文。脚本入口必须显式改写为“允许 interpreter binary + script argv”，避免 shebang 隐式扩大 executable 集合。
+
 ### 13.5 最小安全边界
 
 - 文件：workspace allowlist、只读/读写分离、symlink 和 path traversal 防护；

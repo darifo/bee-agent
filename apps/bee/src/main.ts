@@ -10,11 +10,11 @@ import {
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
+import { CommandToolAdapter } from '@bee-agent/tool-command'
 import {
   registerRuntimeChronicleEvents,
   MacOSKeychainSecretBroker,
   PlatformCommandSandbox,
-  type ToolExecutor,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 
@@ -60,31 +60,22 @@ const llm = new OpenAIChatRuntime({
     : {}),
 })
 
-// A placeholder tool seam until real tools land (P1-13 minimal form): tool
-// calls resolve to an echo result so a bare conversation can run end to end.
-const toolExecutor: ToolExecutor = {
-  describe(call) {
-    return {
-      capability: `tool:${call.toolId}`,
-      requirements: {
-        readPaths: [],
-        writePaths: [],
-        networkTargets: [],
-        commands: [],
-        secretEnv: {},
-      },
-      expectedEffects: ['Return the supplied input without host side effects'],
-      verification: ['Output equals input'],
-    }
-  },
-  async execute({ call }) {
-    return {
-      output: call.input,
-      content: JSON.stringify(call.input),
-      verification: ['Output equals input'],
-    }
-  },
-}
+const commandExecutables = (process.env.BEE_AGENT_COMMAND_EXECUTABLES ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value !== '')
+const commandTool =
+  commandExecutables.length === 0
+    ? undefined
+    : new CommandToolAdapter({
+        workspaceRoot: process.env.BEE_AGENT_COMMAND_WORKSPACE ?? process.cwd(),
+        allowedExecutables: commandExecutables,
+        maxTimeoutMs: envNumber('BEE_AGENT_COMMAND_MAX_TIMEOUT_MS', 30_000),
+        maxOutputBytes: envNumber(
+          'BEE_AGENT_COMMAND_MAX_OUTPUT_BYTES',
+          1_048_576,
+        ),
+      })
 
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
@@ -102,7 +93,7 @@ const server = await buildBeeServer({
   store,
   kanban,
   llm,
-  toolExecutor,
+  toolAdapters: commandTool === undefined ? [] : [commandTool],
   sandboxProvider: new PlatformCommandSandbox(),
   ...(process.platform === 'darwin'
     ? { secretBroker: new MacOSKeychainSecretBroker() }

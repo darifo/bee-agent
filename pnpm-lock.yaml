@@ -61,14 +61,30 @@ importers:
         specifier: ^4.1.13
         version: 4.4.3
 
+  adapters/tools/command:
+    dependencies:
+      '@bee-agent/runtime':
+        specifier: workspace:*
+        version: link:../../../packages/runtime
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../../../packages/knowledge
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
+
   apps/bee:
     dependencies:
-      '@bee-agent/kernel':
-        specifier: workspace:*
-        version: link:../../packages/kernel
       '@bee-agent/kanban':
         specifier: workspace:*
         version: link:../../packages/kanban
+      '@bee-agent/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       '@bee-agent/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
@@ -84,6 +100,9 @@ importers:
       '@bee-agent/thread':
         specifier: workspace:*
         version: link:../../packages/thread
+      '@bee-agent/tool-command':
+        specifier: workspace:*
+        version: link:../../adapters/tools/command
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
