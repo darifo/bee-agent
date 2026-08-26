@@ -19,6 +19,7 @@ import { PythonToolAdapter } from '@bee-agent/tool-python'
 import {
   registerRuntimeChronicleEvents,
   MacOSKeychainSecretBroker,
+  LinuxSecretServiceBroker,
   PlatformCommandSandbox,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
@@ -138,7 +139,9 @@ const server = await buildBeeServer({
   sandboxProvider: new PlatformCommandSandbox(),
   ...(process.platform === 'darwin'
     ? { secretBroker: new MacOSKeychainSecretBroker() }
-    : {}),
+    : process.platform === 'linux'
+      ? { secretBroker: new LinuxSecretServiceBroker() }
+      : {}),
   sessionToken: effectiveToken,
 })
 server.app.log.info(

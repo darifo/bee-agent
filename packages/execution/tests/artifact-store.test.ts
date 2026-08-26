@@ -1,11 +1,13 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ArtifactSecretLeakError,
   ArtifactNotFoundError,
   InvalidArtifactDigestError,
   LocalArtifactStore,
+  SecretScanningArtifactStore,
 } from '../src/index.ts'
 
 let root: string
@@ -65,5 +67,22 @@ describe('LocalArtifactStore', () => {
     await expect(store.get('md5:abc')).rejects.toBeInstanceOf(
       InvalidArtifactDigestError,
     )
+  })
+})
+
+describe('SecretScanningArtifactStore', () => {
+  it('rejects secret-bearing bytes before durable storage', async () => {
+    const inner = {
+      put: vi.fn(async () => ({ digest: `sha256:${'0'.repeat(64)}`, size: 0 })),
+      get: vi.fn(),
+      has: vi.fn(),
+    }
+    const store = new SecretScanningArtifactStore(inner, {
+      redact: (value) => value.replaceAll('secret-value', '[REDACTED]'),
+    })
+    await expect(store.put('token=secret-value')).rejects.toBeInstanceOf(
+      ArtifactSecretLeakError,
+    )
+    expect(inner.put).not.toHaveBeenCalled()
   })
 })

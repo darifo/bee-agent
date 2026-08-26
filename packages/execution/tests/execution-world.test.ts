@@ -7,6 +7,7 @@ import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import {
   ExecutionWorld,
   IdempotencyKeyCollisionError,
+  IntersectionAuthorizationPolicy,
   StaticAuthorizationPolicy,
   canonicalizeActionRequest,
   executionStreamId,
@@ -202,10 +203,83 @@ describe('ExecutionWorld', () => {
     expect(sandbox.calls).toBe(1)
     expect(await eventTypes(chronicle, action.idempotencyKey)).toEqual([
       'execution.requested',
+      'execution.permission_snapshot',
       'execution.authorized',
       'execution.started',
       'execution.completed',
     ])
+  })
+
+  it('materializes a deny-first monotonic permission intersection', async () => {
+    const chronicle = store()
+    const sandbox = new FakeSandbox()
+    const policy = new IntersectionAuthorizationPolicy([
+      {
+        id: 'hard-safety',
+        rules: [{ capability: '*', decision: 'allow', reason: 'safe' }],
+      },
+      {
+        id: 'plugin-declaration',
+        rules: [
+          {
+            capability: 'tool:calculator',
+            decision: 'allow',
+            reason: 'declared',
+          },
+        ],
+      },
+      { id: 'task-scope', rules: [] },
+    ])
+    const action = request()
+    const outcome = await new ExecutionWorld({
+      store: chronicle,
+      policy,
+      sandbox,
+    }).execute(action)
+    expect(outcome).toMatchObject({ kind: 'denied' })
+    const payloads: unknown[] = []
+    for await (const item of chronicle.readStream(
+      executionStreamId(action.idempotencyKey),
+    )) {
+      if (item.eventType === 'execution.permission_snapshot')
+        payloads.push(item.payload)
+    }
+    expect(payloads).toHaveLength(1)
+    expect(payloads[0]).toMatchObject({
+      snapshot: {
+        decision: 'deny',
+        sandbox: { provider: 'fake' },
+        layers: [
+          { id: 'hard-safety', decision: 'allow' },
+          { id: 'plugin-declaration', decision: 'allow' },
+          { id: 'task-scope', decision: 'deny' },
+        ],
+      },
+    })
+  })
+
+  it('lets an exact hard deny override a wildcard grant', () => {
+    const policy = new IntersectionAuthorizationPolicy([
+      {
+        id: 'hard-safety',
+        rules: [
+          {
+            capability: 'tool:calculator',
+            decision: 'deny',
+            reason: 'immutable deny',
+          },
+          { capability: '*', decision: 'allow', reason: 'otherwise safe' },
+        ],
+      },
+      {
+        id: 'user-grant',
+        rules: [{ capability: '*', decision: 'allow', reason: 'granted' }],
+      },
+    ])
+    expect(policy.authorize(request())).toEqual({
+      decision: 'deny',
+      reason: 'immutable deny',
+    })
   })
 
   it('persists concrete approval details and executes only after approval', async () => {

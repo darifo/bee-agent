@@ -123,6 +123,24 @@ describe('platform sandbox policies', () => {
   })
 
   it.runIf(
+    process.platform === 'linux' && process.env.BEE_REQUIRE_BWRAP === '1',
+  )('enforces the real bubblewrap filesystem boundary', async () => {
+    const sandbox = new PlatformCommandSandbox()
+    await expect(sandbox.capabilities()).resolves.toMatchObject({
+      provider: 'bubblewrap',
+      filesystemIsolation: true,
+      networkIsolation: false,
+      processIsolation: true,
+    })
+    const outcome = await sandbox.execute(
+      request({ commands: [['/bin/cat', '/etc/passwd']] }),
+      { secrets: new Map() },
+    )
+    expect(outcome.isError).toBe(true)
+    expect(outcome.content).not.toContain('root:x:')
+  })
+
+  it.runIf(
     process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
   )(
     'executes under Seatbelt or reports that nesting is unavailable',
@@ -186,8 +204,9 @@ describe('platform sandbox policies', () => {
   })
 
   it.runIf(
-    process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
-  )('kills the complete Seatbelt process group on cancellation', async () => {
+    (process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec')) ||
+      (process.platform === 'linux' && process.env.BEE_REQUIRE_BWRAP === '1'),
+  )('kills the complete sandbox process group on cancellation', async () => {
     const sandbox = new PlatformCommandSandbox()
     if (!(await sandbox.capabilities()).processIsolation) return
 

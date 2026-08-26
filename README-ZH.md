@@ -86,13 +86,13 @@ tool intent
 | 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                                                                   |
 | 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                                                                           |
 | 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                                                                       |
-| 执行       | 已可用 | ActionRequest 校验、默认拒绝策略、持久审批、幂等冲突/重建处理、SecretBroker、sandbox routing、snapshot/diff                                                                    |
-| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、能力探测、空子进程环境、进程组取消、输入/超时/输出上限；Linux 真机 CI 尚待补齐                                                             |
+| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff                                                 |
+| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                                                               |
 | Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                                                               |
 | Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                                                                            |
 | MCP        | 已可用 | 可选 `mcp__<server>__<tool>`；Host-pinned manifests 与分阶段 JSON-lines initialize/call                                                                                        |
 | 存储       | 已可用 | SQLite Chronicle 与 Kanban adapter；v0 的 PostgreSQL/pgvector 已在 clean break 中删除                                                                                          |
-| 外部智能体 | 计划中 | 必须先完成 delegation/trajectory 契约和可强制网络策略，RemoteAgent 才能恢复                                                                                                    |
+| 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                                                                      |
 | 记忆与学习 | 计划中 | 包边界已经建立，Phase 4/5 实现尚未成为 Host 能力                                                                                                                               |
 
 ## 环境要求
@@ -220,10 +220,8 @@ adapters/
 
 - [x] Phase 1：clean-break kernel、Chronicle、Thread–Turn–Item 与 Host
 - [x] Phase 2：持久 Kanban、上下文预算与 Tool/Skill 延迟解析
-- [x] Phase 3 核心：ExecutionWorld、审批、secret、Seatbelt/bwrap、
-      Command/Python/MCP adapters
-- [ ] Phase 3 收尾：完整权限交集、Linux sandbox CI、worktree provider、
-      bounded delegation 与 RemoteAgent 替代实现
+- [x] Phase 3：ExecutionWorld、权限快照/审批、系统凭据、Seatbelt/bwrap、
+      Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2
 - [ ] Phase 4：记忆、世界模型与长时工作流
 - [ ] Phase 5：后台学习与受治理改进
 - [ ] Phase 6：体验收敛与 v1 发布

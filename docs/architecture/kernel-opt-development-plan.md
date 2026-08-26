@@ -8,7 +8,7 @@
 >
 > 迁移策略：clean break；不保留旧 Kernel、Context、EventBus、TaskScope、PluginHandle 或 testing 子路径兼容层
 
-> 当前验证基线：19 workspace projects（18 个可构建/测试项目），build、typecheck、lint/package-boundaries、format 全绿，298 tests 通过。ExecutionWorld 已接入 Command、Python、manifest-pinned MCP；下一内核相关工作是完整权限交集、Linux sandbox CI、worktree provider 和 delegation/RemoteAgent 边界，而不是再次替换 Context–Registry–Fiber。
+> 当前验证基线：19 workspace projects（18 个可构建/测试项目），build、typecheck、lint/package-boundaries、format 全绿。Phase 3 已完成权限交集快照、Linux sandbox CI、worktree、delegation 与 RemoteAgent v2；下一阶段是在稳定的 Context–Registry–Fiber/ExecutionWorld 底座上推进个人记忆与长时运行。
 
 ## 1. 结论
 
@@ -310,16 +310,13 @@ LLM tool intent
 - `MacOSKeychainSecretBroker` 使用 `keychain:<service>/<account>` 引用，通过 `/usr/bin/security` 晚绑定并对结果、diff 和错误统一脱敏；
 - 静态包边界禁止 `packages/execution` 之外导入 `child_process`，新增执行能力不能绕过 ExecutionWorld。
 
-当前完成的是 ExecutionWorld 核心契约、逻辑工具 provider、Seatbelt/bwrap 首版、进程树取消、Keychain SecretBroker、Host/AgentLoop 路由，以及正式的 `command_run` / `python_run` / MCP stdio adapters。新的 `ToolAdapter` 契约把 model spec、默认 authorization 和 executor/resolver 绑定为单一注册单元，Host 自动派生 Structure 和规则并拒绝重名，避免三份配置漂移。Command adapter 收敛 executable/workspace/resources；Python adapter 固定 native interpreter 并声明 bounded JSON stdin；MCP adapter 固定 Host-reviewed manifest，并用通用 staged JSON-lines 描述完成 initialize→initialized→tools/call。所有 adapter 的 `execute()` 都 fail closed，stdin pipe、协议推进与真实进程只能由平台 provider 创建；纯 `present()` 负责把已持久化的沙箱结果映射成模型内容。沙箱外 macOS 契约覆盖 approval、Seatbelt、stdin/staged stdio 和进程组回收。Linux bwrap 仍需在 Linux CI 做真实契约验收，RemoteAgent 尚未迁入，因此 Phase 3 还不能标记完成。
+ExecutionWorld 已形成完整 Phase 3 契约：逻辑工具、Command、Python、MCP stdio、worktree 与 RemoteAgent v2 共用声明/执行分离；完整权限层与 sandbox report 形成持久快照；Seatbelt/bwrap、进程树取消、Keychain/Secret Service、artifact 防泄漏和 exact-origin 网络 provider 均有契约覆盖。Ubuntu CI 强制真实 bwrap 测试。Adapter 不持有进程或网络原语，`present()` 只映射已持久化结果，Host 边界不能退化为执行旁路。
 
 ## 11. 后续开发边界
 
 本次内核 clean break 已完成。以下是建立在新内核上的后续产品工作，不应重新引入第二套内核抽象：
 
-- 完成 hard deny、Structure permission、task scope、plugin declaration 与 sandbox capability 的完整交集权限快照；
 - 把 ContextBudget 的压缩决策直接接入 ModelRequestService，而非只记录最终 bundle；
-- 以同一声明/执行分离模式完成 RemoteAgent adapter，并补 Linux bwrap、网络逃逸与跨平台孤儿进程 CI 契约测试；
-- 扩展 SecretBroker 的 artifact/日志扫描，并实现非 macOS 的系统凭据 provider；
 - 完成多 tool-call 的并行调度、失败隔离和 batch 级 checkpoint；
 - 为 generation/Fiber 增加 doctor 输出、故障注入和长时泄漏测试。
 

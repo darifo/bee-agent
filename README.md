@@ -81,22 +81,22 @@ checks enforce this repository-wide.
 
 ## Current capabilities
 
-| Area                | Status    | Current implementation                                                                                                                                                                           |
-| ------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, Fiber-owned effects, derive/isolate/intercept, generation prepare/activate/drain, leases, restart-required governance        |
-| Structure           | Available | EffectiveStructure validation, deterministic digest, factory registry, serialized reconcile, Chronicle lifecycle facts, failed-candidate rollback, restart rebuild                               |
-| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                                     |
-| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                                   |
-| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                           |
-| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                                   |
-| Execution           | Available | ActionRequest validation, deny-by-default policy, durable approvals, idempotency collision/reconciliation handling, SecretBroker seam, routing sandboxes, snapshots/diffs                        |
-| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, capability probing, empty child environment, process-group cancellation, timeout/input/output bounds; Linux real-host CI coverage remains pending |
-| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                               |
-| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                                   |
-| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                                             |
-| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                                             |
-| External agents     | Planned   | Delegation/trajectory contracts and a network-enforcing provider must land before RemoteAgent returns                                                                                            |
-| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                                     |
+| Area                | Status    | Current implementation                                                                                                                                                                    |
+| ------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, Fiber-owned effects, derive/isolate/intercept, generation prepare/activate/drain, leases, restart-required governance |
+| Structure           | Available | EffectiveStructure validation, deterministic digest, factory registry, serialized reconcile, Chronicle lifecycle facts, failed-candidate rollback, restart rebuild                        |
+| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                              |
+| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                            |
+| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                    |
+| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                            |
+| Execution           | Available | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs        |
+| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                            |
+| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                        |
+| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                            |
+| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                                      |
+| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                                      |
+| External agents     | Optional  | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                          |
+| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                              |
 
 ## Requirements
 
@@ -226,10 +226,9 @@ adapters/
 
 - [x] Phase 1: clean-break kernel, Chronicle, Thread–Turn–Item and Host
 - [x] Phase 2: durable Kanban, context budgets and lazy Tool/Skill resolution
-- [x] Phase 3 core: ExecutionWorld, approvals, secrets, Seatbelt/bwrap,
-      Command/Python/MCP adapters
-- [ ] Phase 3 completion: full permission intersection, Linux sandbox CI,
-      worktree provider, bounded delegation and RemoteAgent replacement
+- [x] Phase 3: ExecutionWorld, permission snapshots/approvals, system
+      credentials, Seatbelt/bwrap, Command/Python/MCP, worktrees, bounded
+      delegation and RemoteAgent v2
 - [ ] Phase 4: memory, world model and long-running workflows
 - [ ] Phase 5: background learning and governed improvement
 - [ ] Phase 6: experience convergence and v1 release

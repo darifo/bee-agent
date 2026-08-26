@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-26
 >
-> Branch: `feature/kernel-opt`
+> Branch: `main`
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -60,10 +60,14 @@ Turns retain their original lease until completion, failure, or cancellation.
 - Canonical ActionRequest and ResourceRequirements validation.
 - Deny-by-default capability policy and durable approval details over expanded
   executable, argv, paths, secret refs, expected effects, and verification.
+- Materialized monotonic permission snapshots spanning hard safety, active
+  Structure grants, user grants, Bee policy, plugin declarations, task scope,
+  and the selected sandbox capability report.
 - Idempotent replay, collision detection, and reconciliation-required handling
   after ambiguous crashes.
 - SecretBroker seam, macOS Keychain provider, minimal env injection, and
   result/error/diff redaction.
+- Linux Freedesktop Secret Service provider and secret-scanning artifact store.
 - Platform capability probing; fail closed without required filesystem,
   process, or network enforcement.
 - macOS Seatbelt and Linux bubblewrap policies, empty child environment,
@@ -77,6 +81,9 @@ Turns retain their original lease until completion, failure, or cancellation.
   and deterministic result presentation.
 - Repository scanner and ESLint boundary prevent process spawning outside
   `packages/execution`.
+- ExecutionWorld-routed Git worktree lifecycle, exact-origin network sandbox,
+  declarative RemoteAgent v2, and episode-scoped delegation bounded by depth,
+  concurrency, children, time, tokens, cost, and world actions.
 
 ### Host and clients
 
@@ -86,20 +93,18 @@ Turns retain their original lease until completion, failure, or cancellation.
 - `@bee-agent/client`, Thread/Kanban CLI, and React conversation/Kanban UI.
 - SQLite Chronicle and Kanban adapter.
 
-## Pending before Phase 3 completion
+## Phase 3 completion
 
-- Materialized permission snapshot covering hard denies, Structure grants,
-  plugin declarations, task scope, and sandbox capabilities as one monotonic
-  intersection.
-- Linux real-host bubblewrap contract CI, network/path escape matrix, and
-  cross-platform orphan-process tests.
-- Worktree provider and coding-bundle defaults.
-- Episode-scoped bounded delegation with depth/concurrency/token/time/cost/
-  world limits and parent/child trajectory lineage.
-- RemoteAgent replacement. It additionally requires an enforcing network
-  provider, schema/redaction translation, and cancellation propagation; Host
-  network access must not become an execution bypass.
-- Artifact/log secret scanning and non-macOS system credential providers.
+Phase 3 is complete. Ubuntu CI installs bubblewrap and requires the real
+filesystem boundary plus cross-platform process-group cancellation contracts.
+The macOS suite retains Seatbelt coverage. Network execution is separated from
+the command sandbox and requires an exact-origin, Host-injected transport;
+unsupported network requests continue to fail closed.
+
+The current default Host has no implicit RemoteAgent or coding checkout. Those
+capabilities activate only when an reviewed manifest/bundle supplies a network
+transport or repository/worktree roots. This is configuration, not unfinished
+execution infrastructure.
 
 ## Later phases
 
@@ -121,8 +126,5 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 298 tests, including real macOS Seatbelt Command, Python, and staged MCP
-  integration contracts.
-
-Linux bubblewrap behavior still requires a real Linux CI runner before Phase 3
-can be declared complete.
+- 312 tests, including real macOS Seatbelt Command/Python/MCP
+  contracts and mandatory Ubuntu bubblewrap contracts in CI.

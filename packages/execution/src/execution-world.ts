@@ -163,6 +163,22 @@ export interface AuthorizationPolicy {
   authorize(request: ActionRequest): AuthorizationDecision
 }
 
+export interface PermissionSnapshot {
+  readonly capability: string
+  readonly decision: AuthorizationDecision['decision']
+  readonly reason: string
+  readonly layers: readonly {
+    readonly id: string
+    readonly decision: AuthorizationDecision['decision']
+    readonly reason: string
+  }[]
+  readonly sandbox?: SandboxCapabilityReport | undefined
+}
+
+export interface SnapshotAuthorizationPolicy extends AuthorizationPolicy {
+  snapshot(request: ActionRequest): PermissionSnapshot
+}
+
 export type CapabilityRule = AuthorizationDecision & {
   readonly capability: string
 }
@@ -184,6 +200,75 @@ export class StaticAuthorizationPolicy implements AuthorizationPolicy {
         reason: `Capability '${request.capability}' is not declared`,
       }
     )
+  }
+}
+
+export interface PermissionLayer {
+  readonly id: string
+  readonly rules: readonly CapabilityRule[]
+}
+
+/**
+ * Computes the monotonic intersection of hard safety, user, Bee, plugin and
+ * task grants. Every layer must match; a deny wins and an ask is preserved.
+ */
+export class IntersectionAuthorizationPolicy implements SnapshotAuthorizationPolicy {
+  readonly #layers: readonly PermissionLayer[]
+
+  constructor(layers: readonly PermissionLayer[]) {
+    if (layers.length === 0)
+      throw new Error('At least one permission layer is required')
+    const ids = new Set<string>()
+    for (const layer of layers) {
+      if (ids.has(layer.id))
+        throw new Error(`Duplicate permission layer '${layer.id}'`)
+      ids.add(layer.id)
+    }
+    this.#layers = layers
+  }
+
+  authorize(request: ActionRequest): AuthorizationDecision {
+    const { decision, reason } = this.snapshot(request)
+    return { decision, reason } as AuthorizationDecision
+  }
+
+  snapshot(request: ActionRequest): PermissionSnapshot {
+    const layers = this.#layers.map((layer) => {
+      const matches = layer.rules.filter(
+        (candidate) =>
+          candidate.capability === request.capability ||
+          candidate.capability === '*',
+      )
+      const rule =
+        matches.find((candidate) => candidate.decision === 'deny') ??
+        matches.find((candidate) => candidate.decision === 'ask') ??
+        matches[0]
+      return {
+        id: layer.id,
+        decision: rule?.decision ?? ('deny' as const),
+        reason:
+          rule?.reason ??
+          `Layer '${layer.id}' does not grant '${request.capability}'`,
+      }
+    })
+    const denied = layers.find((layer) => layer.decision === 'deny')
+    if (denied !== undefined) {
+      return {
+        capability: request.capability,
+        decision: 'deny',
+        reason: denied.reason,
+        layers,
+      }
+    }
+    const asked = layers.find((layer) => layer.decision === 'ask')
+    return {
+      capability: request.capability,
+      decision: asked === undefined ? 'allow' : 'ask',
+      reason:
+        asked?.reason ??
+        `All ${layers.length} permission layers grant '${request.capability}'`,
+      layers,
+    }
   }
 }
 
@@ -254,6 +339,29 @@ const DecisionPayloadSchema = z.object({
   decision: z.enum(['allow', 'ask', 'deny']),
   reason: z.string().min(1),
 })
+const PermissionSnapshotPayloadSchema = z.object({
+  requestId: z.uuid(),
+  snapshot: z.object({
+    capability: z.string().min(1),
+    decision: z.enum(['allow', 'ask', 'deny']),
+    reason: z.string().min(1),
+    layers: z.array(
+      z.object({
+        id: z.string().min(1),
+        decision: z.enum(['allow', 'ask', 'deny']),
+        reason: z.string().min(1),
+      }),
+    ),
+    sandbox: z
+      .object({
+        provider: z.string().min(1),
+        filesystemIsolation: z.boolean(),
+        networkIsolation: z.boolean(),
+        processIsolation: z.boolean(),
+      })
+      .optional(),
+  }),
+})
 const ApprovalPayloadSchema = z.object({
   requestId: z.uuid(),
   approvalId: z.string().min(1),
@@ -272,6 +380,7 @@ const FailedPayloadSchema = z.object({
 
 export const EXECUTION_EVENT_TYPES = [
   'execution.requested',
+  'execution.permission_snapshot',
   'execution.authorized',
   'execution.approval_required',
   'execution.denied',
@@ -284,6 +393,9 @@ export function registerExecutionChronicleEvents(
   registry: ChronicleSchemaRegistry,
 ): void {
   registry.register('execution.requested', { payload: RequestedPayloadSchema })
+  registry.register('execution.permission_snapshot', {
+    payload: PermissionSnapshotPayloadSchema,
+  })
   registry.register('execution.authorized', { payload: DecisionPayloadSchema })
   registry.register('execution.approval_required', {
     payload: ApprovalPayloadSchema,
@@ -428,7 +540,42 @@ export class ExecutionWorld {
       ])
     }
 
-    const decision = this.#policy.authorize(request)
+    const policySnapshot =
+      'snapshot' in this.#policy &&
+      typeof (this.#policy as Partial<SnapshotAuthorizationPolicy>).snapshot ===
+        'function'
+        ? (this.#policy as SnapshotAuthorizationPolicy).snapshot(request)
+        : undefined
+    const decision = policySnapshot ?? this.#policy.authorize(request)
+    const capabilities = await this.#sandbox.capabilities(request)
+    const permissionSnapshot: PermissionSnapshot =
+      policySnapshot === undefined
+        ? {
+            capability: request.capability,
+            decision: decision.decision,
+            reason: decision.reason,
+            layers: [
+              {
+                id: 'policy',
+                decision: decision.decision,
+                reason: decision.reason,
+              },
+            ],
+            sandbox: capabilities,
+          }
+        : { ...policySnapshot, sandbox: capabilities }
+    if (
+      !existing.some(
+        (item) => item.eventType === 'execution.permission_snapshot',
+      )
+    ) {
+      await this.#append(streamId, [
+        event('execution.permission_snapshot', request, {
+          requestId: request.id,
+          snapshot: permissionSnapshot,
+        }),
+      ])
+    }
     if (decision.decision === 'deny' || options.approval === 'rejected') {
       const reason =
         options.approval === 'rejected'
@@ -479,7 +626,6 @@ export class ExecutionWorld {
       return { kind: 'denied', reason }
     }
 
-    const capabilities = await this.#sandbox.capabilities(request)
     const unsupported = [
       request.requirements.readPaths.length > 0 &&
       !capabilities.filesystemIsolation

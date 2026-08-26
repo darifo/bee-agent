@@ -38,6 +38,44 @@ export interface ArtifactStore {
   has(digest: string): Promise<boolean>
 }
 
+export interface SecretScanner {
+  redact(value: string): string
+}
+
+export class ArtifactSecretLeakError extends Error {
+  constructor() {
+    super('Artifact content contains materialized secret data')
+    this.name = 'ArtifactSecretLeakError'
+  }
+}
+
+/** Rejects secret-bearing artifacts before bytes reach durable storage. */
+export class SecretScanningArtifactStore implements ArtifactStore {
+  readonly #inner: ArtifactStore
+  readonly #scanner: SecretScanner
+
+  constructor(inner: ArtifactStore, scanner: SecretScanner) {
+    this.#inner = inner
+    this.#scanner = scanner
+  }
+
+  put(data: Uint8Array | string): Promise<ArtifactRef> {
+    const content =
+      typeof data === 'string' ? data : new TextDecoder().decode(data)
+    if (this.#scanner.redact(content) !== content)
+      return Promise.reject(new ArtifactSecretLeakError())
+    return this.#inner.put(data)
+  }
+
+  get(digest: string): Promise<Uint8Array> {
+    return this.#inner.get(digest)
+  }
+
+  has(digest: string): Promise<boolean> {
+    return this.#inner.has(digest)
+  }
+}
+
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/
 
 export function isValidArtifactDigest(digest: string): boolean {

@@ -180,6 +180,7 @@ export async function createDefaultBeeStructure(
         id: tool.id,
         version: '1.0.0',
       })),
+      permissions: options.toolSpecs.map((tool) => `tool:${tool.id}`),
     }),
   )
 }
@@ -255,6 +256,9 @@ function createHostPluginFactories(
       return createToolExecutionPlugin({
         rules: options.toolAuthorization.filter((rule) =>
           enabled.has(rule.toolId),
+        ),
+        structureGrants: structure.permissions.map(
+          (permission) => permission.name,
         ),
         sandbox: options.sandboxProvider,
         secrets: options.secretBroker,

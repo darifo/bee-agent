@@ -11,7 +11,7 @@
 
 > 2026-08-25 结构协调覆盖：ADR 0032 已完成 EffectiveStructure 驱动、插件工厂注册表、Chronicle 生命周期事实、失败候选回滚、C-tier restart-required 与 Host 重启重建。
 
-> 2026-08-26 Phase 3 快照：ADR 0033/0034、ExecutionWorld、Seatbelt/bwrap、Keychain SecretBroker、Command/Python/MCP adapters 已落地；完整 build/typecheck/lint/format 与 298 tests 通过。P3-5 仅余 bounded delegation / RemoteAgent replacement；P3-2、P3-4、P3-6 的剩余项见对应状态列。
+> 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
 ## 1. 计划定位与使用方式
 
@@ -250,15 +250,15 @@ packages/client   → thread（仅协议类型）
 
 ### 5.4 Phase 3：统一执行世界与安全边界（任务级）
 
-| ID   | 任务              | 内容                                                                                                                                                                                 | 依赖       | 规模 | 验收标准                                            | 状态                                                                                                                                                                                                                                                          |
-| ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ---- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P3-1 | Capability 管线   | execution 包实现 `resolve→validate→authorize→materialize secrets→sandbox→execute→capture diff→verify→emit` 统一管线；ActionRequest 声明全集（方案 §13.2）                            | P1-7       | L    | 管线契约测试通过；ActionRequest 校验                | done（ActionRequest/ResourceRequirements schema；ToolExecutor.describe resolve；ExecutionWorld 授权、secret seam、sandbox、snapshot/diff、结果验证字段与全生命周期事件；幂等 replay/collision/ambiguous crash 测试）                                          |
-| P3-2 | 权限与审批持久化  | 交集权限计算（deny∩grant∩policy∩declaration∩scope∩sandbox）；deny→ask→allow 决策顺序；Approval 持久化 Inbox Item + lease 跨重启恢复；审批展示展开后的真实路径/域名/命令/secret scope | P3-1       | L    | 审批跨重启恢复；展示展开后的真实副作用              | doing（deny-by-default StaticAuthorizationPolicy；EffectiveStructure tools ∩ Host grants；ExecutionWorld ask + Thread Approval Item + lease 跨重启；详情展示 canonical input/resources/effects。待补 hard deny/task scope/plugin declaration 的完整权限快照） |
-| P3-3 | SecretBroker      | 晚绑定、最小注入、输出脱敏、默认不继承 process.env（白名单基线）                                                                                                                     | P3-1       | M    | secret 不落普通事件/artifact；脱敏测试通过          | doing（Keychain provider + `keychain:<service>/<account>` 引用、`secretEnv` 最小注入、空白子进程环境和 result/output/worldDiff/error 脱敏已完成；待 artifact/log 扫描及非 macOS provider）                                                                    |
-| P3-4 | SandboxProvider   | SandboxProvider 契约 + capability report；macOS Seatbelt 与 Linux bwrap 首发实现；平台无法强制的限制 fail closed；fake sandbox 入契约套件                                            | P3-1       | L    | 双平台契约测试通过；secret/network/path escape 测试 | doing（request-scoped provider、路由、Seatbelt/bwrap policy、真实可用性探测、无 shell、空 env、timeout/输出上限已完成；当前宿主嵌套 Seatbelt fail closed，待 Linux CI 与 symlink/network escape 契约）                                                        |
-| P3-5 | 工具与 Agent 迁入 | calculator/command/python/mcp/remote-agent 全部经 ExecutionWorld；删除全部直接 spawn（§4 静态规则 (b) 生效）；RemoteAgent 完成接线                                                   | P3-1, P3-4 | L    | spawn 禁令 lint 全绿；无允许的直接执行绕行          | doing（逻辑工具、`command_run`、`python_run`、manifest-pinned MCP stdio 已迁移；JSON stdin 与 staged JSON-lines 会话只由平台 provider 驱动，adapter 无进程 API；待 remote-agent adapter）                                                                     |
-| P3-6 | worktree 与进程树 | Coding bundle 默认 worktree 隔离；取消能终止完整进程树、无孤儿                                                                                                                       | P3-4, P3-5 | M    | 取消后无孤儿进程                                    | doing（detached process group + AbortSignal/timeout SIGKILL 已实现；待 worktree provider 和跨平台无孤儿契约测试）                                                                                                                                             |
-| P3-7 | 阶段验收          | 对照 §7.1 Phase 3 退出条件；撰写 ADR 0023/0030；细化 Phase 4                                                                                                                         | 全部       | S    | 退出条件逐项核验；ADR 0023/0030 合入                | todo                                                                                                                                                                                                                                                          |
+| ID   | 任务              | 内容                                                                                                                                                                                 | 依赖       | 规模 | 验收标准                                            | 状态                                                                                                                                                                                                                 |
+| ---- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ---- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P3-1 | Capability 管线   | execution 包实现 `resolve→validate→authorize→materialize secrets→sandbox→execute→capture diff→verify→emit` 统一管线；ActionRequest 声明全集（方案 §13.2）                            | P1-7       | L    | 管线契约测试通过；ActionRequest 校验                | done（ActionRequest/ResourceRequirements schema；ToolExecutor.describe resolve；ExecutionWorld 授权、secret seam、sandbox、snapshot/diff、结果验证字段与全生命周期事件；幂等 replay/collision/ambiguous crash 测试） |
+| P3-2 | 权限与审批持久化  | 交集权限计算（deny∩grant∩policy∩declaration∩scope∩sandbox）；deny→ask→allow 决策顺序；Approval 持久化 Inbox Item + lease 跨重启恢复；审批展示展开后的真实路径/域名/命令/secret scope | P3-1       | L    | 审批跨重启恢复；展示展开后的真实副作用              | done（`IntersectionAuthorizationPolicy` + `execution.permission_snapshot` 持久化完整层级与 sandbox report；Structure grant 已接 Host；审批保持 canonical detail 与跨重启 lease）                                     |
+| P3-3 | SecretBroker      | 晚绑定、最小注入、输出脱敏、默认不继承 process.env（白名单基线）                                                                                                                     | P3-1       | M    | secret 不落普通事件/artifact；脱敏测试通过          | done（macOS Keychain + Linux Secret Service；空环境/最小 DBus 地址；result/diff/error 脱敏；`SecretScanningArtifactStore` 写前拒绝泄漏）                                                                             |
+| P3-4 | SandboxProvider   | SandboxProvider 契约 + capability report；macOS Seatbelt 与 Linux bwrap 首发实现；平台无法强制的限制 fail closed；fake sandbox 入契约套件                                            | P3-1       | L    | 双平台契约测试通过；secret/network/path escape 测试 | done（Seatbelt/bwrap、symlink canonicalization、exact-origin network provider、fail closed capability report；Ubuntu CI 强制真实 bwrap 与进程树契约）                                                                |
+| P3-5 | 工具与 Agent 迁入 | calculator/command/python/mcp/remote-agent 全部经 ExecutionWorld；删除全部直接 spawn（§4 静态规则 (b) 生效）；RemoteAgent 完成接线                                                   | P3-1, P3-4 | L    | spawn 禁令 lint 全绿；无允许的直接执行绕行          | done（逻辑工具、Command、Python、MCP stdio 与 RemoteAgent v2 均声明/执行分离；RemoteAgent 无网络 API，只能由 allowlisted network sandbox transport 执行）                                                            |
+| P3-6 | worktree 与进程树 | Coding bundle 默认 worktree 隔离；取消能终止完整进程树、无孤儿                                                                                                                       | P3-4, P3-5 | M    | 取消后无孤儿进程                                    | done（worktree create/remove 均为 ExecutionWorld Git action；名称/root containment；detached process-group Abort/timeout 回收在 macOS/Linux 契约覆盖）                                                               |
+| P3-7 | 阶段验收          | 对照 §7.1 Phase 3 退出条件；撰写 ADR 0023/0030；细化 Phase 4                                                                                                                         | 全部       | S    | 退出条件逐项核验；ADR 0023/0030 合入                | done（无允许的直接执行绕行；低风险自动执行、高风险 canonical 副作用审批；ADR 0023 新增，0030/0034 保持实施事实；Phase 4 任务见 §5.5）                                                                                |
 
 ### 5.5 Phase 4：记忆、世界与长时运行（工作流级）
 
@@ -292,23 +292,23 @@ packages/client   → thread（仅协议类型）
 
 15 个 ADR 全部纳入（方案 §22），沿用现有 7 节模板（Background/Decision/Reasons/Alternatives/Positive impact/Negative impact/Follow-up constraints），文件名 `NNNN-kebab-case.md`：
 
-| ADR  | 主题                                                                               | 阶段 | 撰写时机   |
-| ---- | ---------------------------------------------------------------------------------- | ---- | ---------- |
-| 0017 | Position Bee Agent as a simple, learning Personal Super Agent                      | P0   | P0-2       |
-| 0018 | Adopt a Cordis-style reversible plugin microkernel                                 | P0   | P0-2       |
-| 0031 | Make v1 a clean break from v0 contracts and storage semantics                      | P0   | P0-2       |
-| 0019 | Use Thread–Turn–Item as the public interaction protocol                            | P1   | P1-18      |
-| 0020 | Use Chronicle as the temporal source of truth                                      | P1   | P1-18      |
-| 0028 | Keep exactly one root Profile named bee                                            | P1   | P1-18      |
-| 0022 | Budget context and lazily resolve Skills and Tools                                 | P2   | P2-11      |
-| 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2   | P2-11      |
-| 0023 | Route every capability through ExecutionWorld and sandbox providers                | P3   | 阶段验收时 |
-| 0030 | Classify plugin replacement as live, Turn-boundary, or restart-required            | P3   | 阶段验收时 |
-| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | 阶段验收时 |
-| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | 阶段验收时 |
-| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | 阶段验收时 |
-| 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时 |
-| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时 |
+| ADR  | 主题                                                                               | 阶段 | 撰写时机             |
+| ---- | ---------------------------------------------------------------------------------- | ---- | -------------------- |
+| 0017 | Position Bee Agent as a simple, learning Personal Super Agent                      | P0   | P0-2                 |
+| 0018 | Adopt a Cordis-style reversible plugin microkernel                                 | P0   | P0-2                 |
+| 0031 | Make v1 a clean break from v0 contracts and storage semantics                      | P0   | P0-2                 |
+| 0019 | Use Thread–Turn–Item as the public interaction protocol                            | P1   | P1-18                |
+| 0020 | Use Chronicle as the temporal source of truth                                      | P1   | P1-18                |
+| 0028 | Keep exactly one root Profile named bee                                            | P1   | P1-18                |
+| 0022 | Budget context and lazily resolve Skills and Tools                                 | P2   | P2-11                |
+| 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2   | P2-11                |
+| 0023 | Route every capability through ExecutionWorld and sandbox providers                | P3   | accepted/implemented |
+| 0030 | Adopt Cordis-derived Context–Registry–Fiber and governed replacement boundaries    | P3   | accepted/implemented |
+| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | 阶段验收时           |
+| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | 阶段验收时           |
+| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | 阶段验收时           |
+| 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时           |
+| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时           |
 
 ## 6. 任务依赖图（Phase 0–2）
 

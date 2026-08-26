@@ -1,6 +1,6 @@
 # ADR 0034: Route all tool effects through ExecutionWorld
 
-- Status: Accepted and implemented (core pipeline plus Command/Python/MCP)
+- Status: Accepted and implemented (Phase 3 complete)
 - Date: 2026-08-26
 
 ## Context
@@ -26,5 +26,7 @@ The first platform provider uses macOS Seatbelt or Linux bubblewrap. It probes w
 - Approval text is derived from the expanded action, not from model prose.
 - Logical Kanban tools remain in process; command, Python, MCP, browser, and remote-agent adapters must declare resources so routing selects an enforcing provider.
 - The first migrated external adapter is `command_run`: it accepts only Host-allowlisted native executables, confines declared paths to one canonical workspace, defaults to `ask`, and throws if anything attempts to invoke its in-process `execute()` path.
-- Network allowlists, recursive filesystem diffs, non-macOS credential stores, and adapter migration remain Phase 3 deliverables. Until then their requested capabilities fail closed.
+- Exact-origin network execution is available through an injected `AllowlistedNetworkSandbox`; the platform command sandbox still rejects network allowlists rather than inheriting Host networking.
+- `ExecutionWorktreeProvider`, bounded episode delegation, and `RemoteAgentAdapter` complete the remaining Phase 3 migrations without adding direct process or network primitives to adapters.
+- Linux uses a fail-closed Freedesktop Secret Service broker; secret-scanning artifact storage rejects materialized credentials before persistence. Recursive content-level filesystem diffs remain a later observability enhancement, not an execution bypass.
 - Imports of `child_process` outside `@bee-agent/execution` are rejected by static package-boundary checks.

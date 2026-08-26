@@ -5,8 +5,8 @@ import type { LlmRuntime } from './llm-runtime.ts'
 import type { ChronicleStore } from '@bee-agent/knowledge'
 import {
   ExecutionWorld,
+  IntersectionAuthorizationPolicy,
   RoutingSandboxProvider,
-  StaticAuthorizationPolicy,
   type SandboxProvider,
   type SecretBroker,
 } from '@bee-agent/execution'
@@ -64,6 +64,11 @@ export function createAgentLoopPlugin(
 
 export interface ToolExecutionPluginOptions {
   readonly rules: readonly ToolAuthorizationRule[]
+  readonly structureGrants?: readonly string[] | undefined
+  readonly hardDenies?: readonly string[] | undefined
+  readonly userGrants?: readonly string[] | undefined
+  readonly pluginDeclarations?: readonly string[] | undefined
+  readonly taskScope?: readonly string[] | undefined
   readonly sandbox?: SandboxProvider | undefined
   readonly secrets?: SecretBroker | undefined
   readonly version?: string | undefined
@@ -81,7 +86,14 @@ export function createToolExecutionPlugin(
     id: 'bee.tool-execution',
     version: options.version ?? '1.0.0',
     replacementTier: 'b',
-    config: options.rules,
+    config: {
+      rules: options.rules,
+      structureGrants: options.structureGrants ?? [],
+      hardDenies: options.hardDenies ?? [],
+      userGrants: options.userGrants ?? [],
+      pluginDeclarations: options.pluginDeclarations ?? [],
+      taskScope: options.taskScope ?? [],
+    },
     inject: ['chronicle', 'toolExecutor'],
     provides: ['toolExecution'],
     apply(ctx) {
@@ -103,12 +115,53 @@ export function createToolExecutionPlugin(
             })
       const world = new ExecutionWorld({
         store: services.chronicle,
-        policy: new StaticAuthorizationPolicy(
-          options.rules.map(({ toolId, ...decision }) => ({
-            capability: `tool:${toolId}`,
-            ...decision,
+        policy: new IntersectionAuthorizationPolicy([
+          {
+            id: 'hard-safety',
+            rules: [
+              ...(options.hardDenies ?? []).map((capability) => ({
+                capability,
+                decision: 'deny' as const,
+                reason: 'Capability is blocked by immutable hard safety',
+              })),
+              {
+                capability: '*',
+                decision: 'allow',
+                reason: 'No immutable hard deny matched',
+              },
+            ],
+          },
+          {
+            id: 'structure-grant',
+            rules: (options.structureGrants ?? []).map((capability) => ({
+              capability,
+              decision: 'allow' as const,
+              reason: 'Capability is granted by the active Structure',
+            })),
+          },
+          ...[
+            ['user-grant', options.userGrants],
+            ['plugin-declaration', options.pluginDeclarations],
+            ['task-scope', options.taskScope],
+          ].map(([id, configured]) => ({
+            id: id as string,
+            rules: (
+              (configured as readonly string[] | undefined) ??
+              options.rules.map(({ toolId }) => `tool:${toolId}`)
+            ).map((capability) => ({
+              capability,
+              decision: 'allow' as const,
+              reason: `${id} includes the enabled tool`,
+            })),
           })),
-        ),
+          {
+            id: 'bee-policy',
+            rules: options.rules.map(({ toolId, ...decision }) => ({
+              capability: `tool:${toolId}`,
+              ...decision,
+            })),
+          },
+        ]),
         sandbox,
         secrets: options.secrets,
       })

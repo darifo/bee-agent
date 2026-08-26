@@ -65,6 +65,8 @@ export {
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'
+export * from './delegation-supervisor.ts'
+export * from './remote-agent.ts'
 export {
   AGENT_LOOP_SERVICE,
   createAgentLoopPlugin,
@@ -83,9 +85,13 @@ export {
   ExecutionWorld,
   IdempotencyKeyCollisionError,
   MacOSKeychainSecretBroker,
+  LinuxSecretServiceBroker,
   PlatformCommandSandbox,
   ResourceRequirementsSchema,
   RoutingSandboxProvider,
+  AllowlistedNetworkSandbox,
+  ExecutionWorktreeProvider,
+  IntersectionAuthorizationPolicy,
   StaticAuthorizationPolicy,
   executionStreamId,
   registerExecutionChronicleEvents,

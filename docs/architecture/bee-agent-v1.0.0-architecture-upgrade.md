@@ -1,6 +1,6 @@
 # Bee Agent v1.0.0：个人超级智能体架构升级方案
 
-> 状态：Implementing（Phase 1/2 完成，Phase 3 收尾中）
+> 状态：Implementing（Phase 1/2/3 完成，Phase 4 待启动）
 >
 > 当前实施分支：`feature/kernel-opt`
 >
@@ -14,7 +14,7 @@
 
 > 2026-08-25 结构驱动落地：ADR 0032 已连接 `EffectiveStructure → PluginFactoryRegistry → PluginGraph → StructureGeneration`，结构生命周期写入 Chronicle，Host 可恢复最后成功激活的结构并通过本地管理入口重载。
 
-> 2026-08-26 ExecutionWorld 落地：ADR 0033/0034 已完成持久 ModelRequest、可恢复 AgentLoop、ActionRequest 幂等/审批/secret/sandbox 审计管线，以及 Command、Python、manifest-pinned MCP adapters。当前全量门禁为 build/typecheck/lint/format 全绿、298 tests；Phase 3 尚余完整权限交集、Linux 真机 sandbox CI、worktree provider、bounded delegation 与 RemoteAgent replacement。
+> 2026-08-26 Phase 3 完成：ADR 0023/0034 已落地完整权限交集快照、Linux bwrap CI、ExecutionWorld worktree provider、Secret Service/artifact 防泄漏、bounded delegation、exact-origin network sandbox 与 RemoteAgent v2。所有 effectful capability 保持统一执行边界；Phase 4 可在此基础上启动。
 
 ## 1. 技术结论
 
@@ -980,7 +980,7 @@ v1 应主动控制包数量。以下九个高内聚模块比“一个概念一�
 
 **退出条件：** Kanban Task 可从对话创建、由后台认领并跨重启完成；在相同任务集上，上下文 token 明显低于全量加载基线，同时任务成功率不下降。
 
-### Phase 3：统一执行世界、工作树与安全边界（进行中）
+### Phase 3：统一执行世界、工作树与安全边界（已完成）
 
 - Capability、Permission、Approval、SecretBroker 和 ExecutionWorld；
 - Seatbelt 与 bwrap/OCI provider；
