@@ -693,6 +693,8 @@ interface ExecutionWorld {
 
 首个迁移完成的外部能力是 `adapters/tools/command`。`ToolAdapter` 将 model spec、默认 authorization 与 resolver/executor 绑定为一个不可拆分的 Host 注册单元，重复 id 在激活前失败。Command adapter 向模型提供 `command_run`，但不持有任何进程 API：Host 启动时给出 native executable allowlist 和唯一 workspace root；adapter 将相对路径解析并验证在 canonical workspace 内、限制 timeout/output、默认生成 `ask` 规则，再由 request-scoped router 选择平台 provider。未配置 `BEE_AGENT_COMMAND_EXECUTABLES` 时，该工具不会进入 EffectiveStructure 或模型上下文。脚本入口必须显式改写为“允许 interpreter binary + script argv”，避免 shebang 隐式扩大 executable 集合。
 
+`adapters/tools/python` 复用同一契约提供 `python_run`：Host 固定一个 native CPython executable、只读 runtime roots 和 workspace root，模型只能提供 code、JSON-compatible args、workspace 内路径与有上限的资源参数。adapter 将 `{code,args}` 作为有大小上限的 `commandStdin` 声明，命令固定为隔离模式 bootstrap；ExecutionWorld 在审批与幂等摘要前记录完整执行描述，PlatformSandbox 才拥有 stdin pipe 和进程创建权。解释器标准库/动态模块路径由 `BEE_AGENT_PYTHON_RUNTIME_READ_PATHS` 显式给出，不从模型输入或宿主环境推断；未配置 `BEE_AGENT_PYTHON_EXECUTABLE` 时，该能力不会被注册。
+
 ### 13.5 最小安全边界
 
 - 文件：workspace allowlist、只读/读写分离、symlink 和 path traversal 防护；

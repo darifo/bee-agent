@@ -146,4 +146,8 @@ test('allowedInternalImports reflects the v1 dependency DAG', () => {
     allowedInternalImports('tool-command'),
     new Set(['knowledge', 'runtime']),
   )
+  assert.deepEqual(
+    allowedInternalImports('tool-python'),
+    new Set(['knowledge', 'runtime']),
+  )
 })

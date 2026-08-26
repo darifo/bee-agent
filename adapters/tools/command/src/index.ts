@@ -1,13 +1,9 @@
-import { closeSync, openSync, readSync, realpathSync, statSync } from 'node:fs'
-import {
-  basename,
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-} from 'node:path'
 import { z } from 'zod'
+import {
+  canonicalNativeExecutable,
+  canonicalWorkspaceRoot,
+  resolveWorkspacePath,
+} from '@bee-agent/runtime'
 import type {
   LlmToolCall,
   LlmToolSpec,
@@ -36,60 +32,6 @@ export interface CommandToolOptions {
   readonly maxOutputBytes?: number | undefined
 }
 
-function canonicalExistingPath(path: string, label: string): string {
-  if (!isAbsolute(path)) throw new Error(`${label} must be absolute`)
-  try {
-    return realpathSync(path)
-  } catch {
-    throw new Error(`${label} does not exist`)
-  }
-}
-
-function canonicalExecutable(path: string): string {
-  const executable = canonicalExistingPath(path, 'Command executable')
-  const stat = statSync(executable)
-  if (!stat.isFile() || (stat.mode & 0o111) === 0) {
-    throw new Error(`Command executable '${executable}' is not executable`)
-  }
-  const prefix = Buffer.alloc(2)
-  const descriptor = openSync(executable, 'r')
-  try {
-    readSync(descriptor, prefix, 0, prefix.byteLength, 0)
-  } finally {
-    closeSync(descriptor)
-  }
-  if (prefix.toString() === '#!') {
-    throw new Error(
-      `Command executable '${executable}' is an interpreter script; allow the interpreter and pass this path as an argument`,
-    )
-  }
-  return executable
-}
-
-function canonicalPath(path: string): string {
-  try {
-    return realpathSync(path)
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code !== 'ENOENT' && code !== 'ENOTDIR') throw error
-    const parent = dirname(path)
-    if (parent === path) return path
-    return join(canonicalPath(parent), basename(path))
-  }
-}
-
-function workspacePath(root: string, input: string, label: string): string {
-  const candidate = canonicalPath(resolve(root, input))
-  const fromRoot = relative(root, candidate)
-  if (
-    fromRoot === '..' ||
-    fromRoot.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)
-  ) {
-    throw new Error(`${label} escapes the command workspace`)
-  }
-  return candidate
-}
-
 /**
  * Declares a command action; actual process creation belongs exclusively to
  * PlatformCommandSandbox after authorization.
@@ -108,15 +50,12 @@ export class CommandToolAdapter implements ToolAdapter {
   }
 
   constructor(options: CommandToolOptions) {
-    this.#workspaceRoot = canonicalExistingPath(
+    this.#workspaceRoot = canonicalWorkspaceRoot(
       options.workspaceRoot,
       'Command workspaceRoot',
     )
-    if (!statSync(this.#workspaceRoot).isDirectory()) {
-      throw new Error('Command workspaceRoot must be a directory')
-    }
     const executables = options.allowedExecutables.map((path) =>
-      canonicalExecutable(path),
+      canonicalNativeExecutable(path, 'Command executable'),
     )
     if (executables.length === 0) {
       throw new Error('Command tool requires at least one allowed executable')
@@ -185,19 +124,26 @@ export class CommandToolAdapter implements ToolAdapter {
       throw new Error(`Command adapter cannot describe tool '${call.toolId}'`)
     }
     const input = CommandInputSchema.parse(call.input)
-    const executable = canonicalExecutable(input.executable)
+    const executable = canonicalNativeExecutable(
+      input.executable,
+      'Command executable',
+    )
     if (!this.#executables.has(executable)) {
       throw new Error(`Command executable '${executable}' is not allowed`)
     }
-    const cwd = workspacePath(this.#workspaceRoot, input.cwd, 'Command cwd')
+    const cwd = resolveWorkspacePath(
+      this.#workspaceRoot,
+      input.cwd,
+      'Command cwd',
+    )
     const readPaths = [
       cwd,
       ...input.readPaths.map((path) =>
-        workspacePath(this.#workspaceRoot, path, 'Command readPath'),
+        resolveWorkspacePath(this.#workspaceRoot, path, 'Command readPath'),
       ),
     ]
     const writePaths = input.writePaths.map((path) =>
-      workspacePath(this.#workspaceRoot, path, 'Command writePath'),
+      resolveWorkspacePath(this.#workspaceRoot, path, 'Command writePath'),
     )
     const timeoutMs = Math.min(
       input.timeoutMs ?? this.#maxTimeoutMs,

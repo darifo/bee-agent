@@ -1,8 +1,9 @@
 # ADR 0015: Run Python in one-shot workers
 
-> Status: Superseded by the v1 clean break and ADR 0034. The direct-spawn
-> implementation described below was deleted; a replacement Python adapter must
-> execute through ExecutionWorld and an enforcing sandbox provider.
+> Status: Replaced for v1 by `adapters/tools/python` and ADR 0034. The old
+> direct-spawn implementation was deleted; the replacement declares one fixed
+> interpreter command and bounded JSON stdin for ExecutionWorld to authorize and
+> run through an enforcing sandbox provider.
 
 ## Background
 
@@ -26,8 +27,12 @@ Agents gain the entire Python data ecosystem behind one tool id; the policy engi
 
 ## Negative impact
 
-This is crash isolation, not a security sandbox — the code runs with the server's privileges; interpreter startup costs a few tens of milliseconds per call; only CPython with stdlib JSON is assumed.
+The v0 implementation provided crash isolation but not a security sandbox. The
+v1 replacement requires an enforcing platform provider, does not inherit the
+Host environment, and denies network access; interpreter startup cost remains,
+and only CPython with stdlib JSON is assumed.
 
 ## Follow-up constraints
 
-Hostile workloads require container-level isolation around the server or a sandboxing executor behind the same Tool contract; the stdout/stderr contract stays stable so worker implementations can change.
+The stdout/stderr contract stays stable so stronger worker implementations can
+replace Seatbelt/bwrap behind the same SandboxProvider contract.

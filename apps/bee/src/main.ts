@@ -11,6 +11,7 @@ import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import { CommandToolAdapter } from '@bee-agent/tool-command'
+import { PythonToolAdapter } from '@bee-agent/tool-python'
 import {
   registerRuntimeChronicleEvents,
   MacOSKeychainSecretBroker,
@@ -77,6 +78,28 @@ const commandTool =
         ),
       })
 
+const pythonExecutable = process.env.BEE_AGENT_PYTHON_EXECUTABLE?.trim()
+const pythonRuntimeReadPaths = (
+  process.env.BEE_AGENT_PYTHON_RUNTIME_READ_PATHS ?? ''
+)
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value !== '')
+const pythonTool =
+  pythonExecutable === undefined || pythonExecutable === ''
+    ? undefined
+    : new PythonToolAdapter({
+        workspaceRoot: process.env.BEE_AGENT_PYTHON_WORKSPACE ?? process.cwd(),
+        executable: pythonExecutable,
+        runtimeReadPaths: pythonRuntimeReadPaths,
+        maxInputBytes: envNumber('BEE_AGENT_PYTHON_MAX_INPUT_BYTES', 1_048_576),
+        maxTimeoutMs: envNumber('BEE_AGENT_PYTHON_MAX_TIMEOUT_MS', 30_000),
+        maxOutputBytes: envNumber(
+          'BEE_AGENT_PYTHON_MAX_OUTPUT_BYTES',
+          1_048_576,
+        ),
+      })
+
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
@@ -93,7 +116,10 @@ const server = await buildBeeServer({
   store,
   kanban,
   llm,
-  toolAdapters: commandTool === undefined ? [] : [commandTool],
+  toolAdapters: [commandTool, pythonTool].filter(
+    (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>
+      adapter !== undefined,
+  ),
   sandboxProvider: new PlatformCommandSandbox(),
   ...(process.platform === 'darwin'
     ? { secretBroker: new MacOSKeychainSecretBroker() }

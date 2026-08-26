@@ -90,7 +90,7 @@ describe('CommandToolAdapter', () => {
           toolId: COMMAND_TOOL_ID,
           input: { executable: echo, cwd: '..' },
         }),
-      ).toThrow('escapes the command workspace')
+      ).toThrow('escapes the configured workspace')
 
       const outside = await mkdtemp(join(tmpdir(), 'bee-command-outside-'))
       try {
@@ -101,7 +101,7 @@ describe('CommandToolAdapter', () => {
             toolId: COMMAND_TOOL_ID,
             input: { executable: echo, readPaths: ['outside-link'] },
           }),
-        ).toThrow('escapes the command workspace')
+        ).toThrow('escapes the configured workspace')
       } finally {
         await rm(outside, { recursive: true, force: true })
       }
@@ -133,7 +133,7 @@ describe('CommandToolAdapter', () => {
             workspaceRoot: workspace,
             allowedExecutables: [script],
           }),
-      ).toThrow('allow the interpreter')
+      ).toThrow('configure its native interpreter')
     } finally {
       await rm(workspace, { recursive: true, force: true })
     }

@@ -30,6 +30,8 @@ export const ResourceRequirementsSchema = z.object({
         }),
     )
     .default([]),
+  /** Standard input for a single declared command. */
+  commandStdin: z.string().optional(),
   secretEnv: z
     .record(z.string().regex(/^[A-Z_][A-Z0-9_]*$/), z.string().min(1))
     .default({}),
@@ -77,6 +79,12 @@ export async function canonicalizeActionRequest(
   candidate: ActionRequest,
 ): Promise<ActionRequest> {
   const request = ActionRequestSchema.parse(candidate)
+  if (
+    request.requirements.commandStdin !== undefined &&
+    request.requirements.commands.length !== 1
+  ) {
+    throw new Error('Command stdin requires exactly one command')
+  }
   const [readPaths, writePaths, commands, workingDirectory] = await Promise.all(
     [
       Promise.all(request.requirements.readPaths.map(canonicalPath)),

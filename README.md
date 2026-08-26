@@ -110,7 +110,8 @@ abstractions, and SQLite Event Store.
 | Memory runtime           | Available | Workspace semantic memory (ADR 0012): word-boundary chunking, pluggable `Embedder` (deterministic mock until real providers), recall ranked by vector proximity, `remember`/`recall`/`forget` over REST/SDK/CLI                                                      |
 | Model providers          | Available | OpenAI-compatible HTTP providers (ADR 0013): `OpenAIChatAgent` with a bounded tool-calling loop and `OpenAIEmbedder` with declared dimensions; DeepSeek/OpenAI/compatible gateways via `BEE_AGENT_MODEL_*` / `BEE_AGENT_EMBEDDING_*` env, keys never persisted       |
 | Command tool             | Available | Opt-in `command_run` adapter: Host-allowlisted native executables and workspace-confined paths; exact ActionRequest approval; execution only through Seatbelt/bwrap with empty env, timeout/output limits, and process-tree cancellation                             |
-| MCP and Python tools     | Planned   | The unsafe v0 direct-spawn implementations were removed. New adapters must declare resources and execute through ExecutionWorld; they are not currently exposed by the Host                                                                                          |
+| Python tool              | Available | Opt-in `python_run` adapter: a fixed native interpreter, JSON stdin contract, isolated one-shot process, workspace-confined paths, approval and resource bounds; no adapter-side process creation                                                                    |
+| MCP tool                 | Planned   | The unsafe v0 direct-spawn implementation was removed. A replacement adapter must declare resources and execute through ExecutionWorld; it is not currently exposed by the Host                                                                                      |
 | External agents          | Planned   | v0 RemoteAgent/CommandAgent paths were removed by the clean break. Replacement adapters must preserve Thread–Turn–Item, approval, cancellation, and trajectory lineage                                                                                               |
 
 ## Requirements
@@ -186,9 +187,28 @@ BEE_AGENT_COMMAND_MAX_OUTPUT_BYTES=1048576 \
 pnpm --filter @bee-agent/bee start
 ```
 
+Enable one-shot Python separately by selecting one native interpreter and its
+workspace boundary:
+
+```bash
+BEE_AGENT_PYTHON_EXECUTABLE=/absolute/path/to/native/python3 \
+BEE_AGENT_PYTHON_WORKSPACE="$PWD" \
+BEE_AGENT_PYTHON_RUNTIME_READ_PATHS=/path/to/python/runtime \
+BEE_AGENT_PYTHON_MAX_INPUT_BYTES=1048576 \
+BEE_AGENT_PYTHON_MAX_TIMEOUT_MS=30000 \
+BEE_AGENT_PYTHON_MAX_OUTPUT_BYTES=1048576 \
+pnpm --filter @bee-agent/bee start
+```
+
+`BEE_AGENT_PYTHON_RUNTIME_READ_PATHS` is a comma-separated Host allowlist for
+the interpreter's standard library and native modules (for example its
+Homebrew prefix or Xcode Python framework). It is read-only and never
+model-controlled. On macOS, select the real interpreter binary rather than the
+`/usr/bin/python3` developer-tools shim.
+
 When the environment variable is absent, the tool is not registered in the
-EffectiveStructure or model context. MCP, Python, and external-agent adapters
-remain disabled until their ExecutionWorld migrations land.
+EffectiveStructure or model context. MCP and external-agent adapters remain
+disabled until their ExecutionWorld migrations land.
 
 ### Running on PostgreSQL
 
@@ -240,7 +260,9 @@ bee-agent/
 │   └── model-providers/     # OpenAI-compatible LLM providers
 ├── adapters/
 │   ├── storage/sqlite/      # SQLite Chronicle and Kanban stores
-│   └── tools/command/       # command_run declaration; execution stays in execution/
+│   └── tools/
+│       ├── command/         # command_run declaration; execution stays in execution/
+│       └── python/          # python_run one-shot JSON/stdin declaration
 ├── tests/                   # Shared integration and E2E suites
 └── docs/                    # ADRs and the v1 architecture/refactor plans
 ```

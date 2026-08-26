@@ -46,6 +46,8 @@ describe('platform sandbox policies', () => {
     )
     expect(profile).toContain('(deny default)')
     expect(profile).toContain('(literal "/bin/echo")')
+    expect(profile).toContain('(allow file-read-metadata (literal "/bin"))')
+    expect(profile).toContain('(literal "/dev/urandom")')
     expect(profile).toContain('(subpath "/tmp/input")')
     expect(profile).toContain('(subpath "/tmp/output")')
     expect(profile).not.toContain('(allow network')
@@ -140,6 +142,21 @@ describe('platform sandbox policies', () => {
       expect(outcome.content).toBe('hello\n')
     },
   )
+
+  it.runIf(
+    process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),
+  )('delivers declared standard input to one sandboxed command', async () => {
+    const sandbox = new PlatformCommandSandbox()
+    if (!(await sandbox.capabilities()).processIsolation) return
+    const outcome = await sandbox.execute(
+      request({
+        commands: [['/bin/cat']],
+        commandStdin: 'input-through-sandbox\n',
+      }),
+      { secrets: new Map() },
+    )
+    expect(outcome.content).toBe('input-through-sandbox\n')
+  })
 
   it.runIf(
     process.platform === 'darwin' && existsSync('/usr/bin/sandbox-exec'),

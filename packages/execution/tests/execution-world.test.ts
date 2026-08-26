@@ -140,6 +140,23 @@ describe('ExecutionWorld', () => {
     ).rejects.toThrow()
   })
 
+  it('allows stdin only for exactly one declared command', async () => {
+    await expect(
+      canonicalizeActionRequest(
+        request({
+          requirements: {
+            readPaths: [],
+            writePaths: [],
+            networkTargets: [],
+            commands: [],
+            commandStdin: 'orphan input',
+            secretEnv: {},
+          },
+        }),
+      ),
+    ).rejects.toThrow('exactly one command')
+  })
+
   it('authorizes, records, executes once, and replays the durable result', async () => {
     const chronicle = store()
     const sandbox = new FakeSandbox()

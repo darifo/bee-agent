@@ -16,6 +16,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
   learning: ['kernel', 'knowledge', 'runtime', 'context'],
   'model-providers': ['runtime'],
   'tool-command': ['knowledge', 'runtime'],
+  'tool-python': ['knowledge', 'runtime'],
   client: ['thread'],
   'storage-sqlite': ['kanban', 'knowledge'],
   bee: [
@@ -27,6 +28,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
     'storage-sqlite',
     'thread',
     'tool-command',
+    'tool-python',
   ],
 }
 
@@ -134,6 +136,10 @@ async function scanWorkspace(rootDir) {
     {
       packageName: 'tool-command',
       directory: join(rootDir, 'adapters', 'tools', 'command'),
+    },
+    {
+      packageName: 'tool-python',
+      directory: join(rootDir, 'adapters', 'tools', 'python'),
     },
   ]
 

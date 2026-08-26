@@ -56,6 +56,12 @@ export type {
   ToolExecutionPort,
   ToolExecutor,
 } from './tool-execution.ts'
+export {
+  canonicalExistingPath,
+  canonicalNativeExecutable,
+  canonicalWorkspaceRoot,
+  resolveWorkspacePath,
+} from './tool-adapter-paths.ts'
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'

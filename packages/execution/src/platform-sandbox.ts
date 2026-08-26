@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
 import { lstat } from 'node:fs/promises'
-import { isAbsolute } from 'node:path'
+import { dirname, isAbsolute } from 'node:path'
 import type {
   ActionRequest,
   ActionResult,
@@ -92,6 +92,7 @@ async function runProcess(input: {
   readonly args: readonly string[]
   readonly cwd?: string | undefined
   readonly env: Readonly<Record<string, string>>
+  readonly stdin?: string | undefined
   readonly signal?: AbortSignal | undefined
   readonly timeoutMs: number
   readonly maxOutputBytes: number
@@ -105,7 +106,7 @@ async function runProcess(input: {
       cwd: input.cwd,
       env: { ...input.env },
       detached: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
@@ -138,6 +139,10 @@ async function runProcess(input: {
     }
     child.stdout.on('data', (chunk: Buffer) => append(stdout, chunk))
     child.stderr.on('data', (chunk: Buffer) => append(stderr, chunk))
+    child.stdin.on('error', (error) => {
+      if ((error as NodeJS.ErrnoException).code !== 'EPIPE') finishError(error)
+    })
+    child.stdin.end(input.stdin)
     child.once('error', finishError)
     child.once('close', (exitCode, signal) => {
       if (settled) return
@@ -165,6 +170,16 @@ function quoteScheme(value: string): string {
   return JSON.stringify(value)
 }
 
+function pathAncestors(path: string): string[] {
+  const ancestors: string[] = []
+  let parent = dirname(path)
+  while (parent !== '/') {
+    ancestors.push(parent)
+    parent = dirname(parent)
+  }
+  return ancestors
+}
+
 export function buildSeatbeltProfile(
   request: ActionRequest,
   command: readonly string[] | undefined = undefined,
@@ -184,12 +199,19 @@ export function buildSeatbeltProfile(
   const executableRules = executables
     .map((path) => `(literal ${quoteScheme(path)})`)
     .join(' ')
+  const executableParentRules = [...new Set(executables.flatMap(pathAncestors))]
+    .map((path) => `(literal ${quoteScheme(path)})`)
+    .join(' ')
   return [
     '(version 1)',
     '(deny default)',
     '(allow process-fork)',
     `(allow process-exec ${executableRules})`,
+    ...(executableParentRules === ''
+      ? []
+      : [`(allow file-read-metadata ${executableParentRules})`]),
     '(allow file-read* (literal "/") (subpath "/System") (subpath "/usr/lib") (subpath "/usr/share") (subpath "/private/var/db"))',
+    '(allow file-read* (literal "/dev/random") (literal "/dev/urandom"))',
     `(allow file-read* ${executableRules})`,
     ...request.requirements.readPaths.map(
       (path) =>
@@ -292,6 +314,7 @@ export class PlatformCommandSandbox implements SandboxProvider {
         args,
         cwd: request.requirements.workingDirectory ?? '/',
         env,
+        stdin: request.requirements.commandStdin,
         signal: options.signal,
         timeoutMs: remainingTimeoutMs,
         maxOutputBytes: remainingOutputBytes,
