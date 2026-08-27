@@ -119,3 +119,46 @@ export type {
   MemoryEventBuildOptions,
   MemoryEventType,
 } from './memory-events.ts'
+export {
+  WORLD_ENTITY_KINDS,
+  WORLD_RELATION_TYPES,
+  WorldEntityKindSchema,
+  WorldEntitySchema,
+  WorldProvenanceSchema,
+  WorldRelationSchema,
+  WorldRelationTypeSchema,
+  WorldVersionDriftError,
+  WorldVersionSchema,
+} from './world-schema.ts'
+export type {
+  NewWorldEntityInput,
+  NewWorldRelationInput,
+  WorldAttributeValue,
+  WorldEntity,
+  WorldEntityKind,
+  WorldProjectionInput,
+  WorldProvenance,
+  WorldRelation,
+  WorldRelationType,
+  WorldSnapshot,
+  WorldVersion,
+} from './world-schema.ts'
+export {
+  BEE_ACTOR_ENTITY_ID,
+  ThreadToolProjector,
+  deterministicWorldId,
+} from './world-projector.ts'
+export type { WorldProjector } from './world-projector.ts'
+export { WorldModelStore } from './world.ts'
+export type { WorldModelStoreOptions } from './world.ts'
+export {
+  WORLD_EVENT_TYPES,
+  WORLD_STREAM_ID,
+  registerWorldChronicleEvents,
+  UnknownWorldEventTypeError,
+  worldEntityRecordedEvent,
+  worldRelationProjectedEvent,
+  worldStreamId,
+  worldVersionBumpedEvent,
+} from './world-events.ts'
+export type { WorldEventBuildOptions, WorldEventType } from './world-events.ts'

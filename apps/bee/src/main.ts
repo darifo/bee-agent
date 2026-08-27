@@ -1,8 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import {
   ChronicleSchemaRegistry,
+  ThreadToolProjector,
   registerMemoryChronicleEvents,
   registerStructureChronicleEvents,
+  registerWorldChronicleEvents,
 } from '@bee-agent/knowledge'
 import {
   SQLiteChronicleStore,
@@ -123,6 +125,7 @@ registerThreadChronicleEvents(registry)
 registerRuntimeChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
 registerMemoryChronicleEvents(registry)
+registerWorldChronicleEvents(registry)
 const filename =
   process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
 const store = new SQLiteChronicleStore({ registry, filename })
@@ -149,6 +152,7 @@ const server = await buildBeeServer({
   llm,
   memory,
   goalPlanStore: new MemoryGoalPlanStore(),
+  worldProjectors: [new ThreadToolProjector()],
   ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
     ...[commandTool, pythonTool].filter(

@@ -1,7 +1,12 @@
 import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
-import type { ChronicleStore, MemoryProvider } from '@bee-agent/knowledge'
+import { WorldModelStore } from '@bee-agent/knowledge'
+import type {
+  ChronicleStore,
+  MemoryProvider,
+  WorldProjector,
+} from '@bee-agent/knowledge'
 import type {
   EffectiveStructure,
   Kernel,
@@ -36,6 +41,8 @@ import { kanbanRoutes } from './routes/kanban.ts'
 import { memoryRoutes } from './routes/memory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
+import { worldRoutes } from './routes/world.ts'
+import { WorldProjectionService } from './world-runtime.ts'
 
 /**
  * CORS origin policy. `false` denies all cross-origin requests; a string
@@ -112,6 +119,11 @@ export interface BeeServerOptions {
   readonly deriveMemory?: boolean | undefined
   /** Optional Goal/Plan store surfacing plans on complex turns. */
   readonly goalPlanStore?: GoalPlanStore | undefined
+  /**
+   * Sourced world projectors; when non-empty the Host maintains the versioned
+   * world projection (catch-up + live) and serves `GET /world`.
+   */
+  readonly worldProjectors?: readonly WorldProjector[] | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -133,6 +145,8 @@ export interface BeeServer {
   readonly structures: StructureReconciler
   readonly configController: StructureConfigController | undefined
   readonly memory: MemoryProvider | undefined
+  readonly world: WorldModelStore | undefined
+  readonly worldProjection: WorldProjectionService | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -315,6 +329,22 @@ export async function buildBeeServer(
   })
   const { kernel, loop, structures, configController } = runtime
 
+  // The world projection: rebuild from the durable `world` stream, then keep
+  // it live through the projectors (catch-up first, broadcast after).
+  const worldProjectors = options.worldProjectors ?? []
+  let worldProjection: WorldProjectionService | undefined
+  let world: WorldModelStore | undefined
+  if (worldProjectors.length > 0) {
+    world = new WorldModelStore({ store })
+    await world.rebuild()
+    worldProjection = new WorldProjectionService({
+      store,
+      world,
+      projectors: worldProjectors,
+    })
+    await worldProjection.start()
+  }
+
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
@@ -326,6 +356,7 @@ export async function buildBeeServer(
     structures,
     configController,
     memory: options.memory,
+    world,
   })
 
   if (options.sessionToken !== undefined) {
@@ -354,8 +385,12 @@ export async function buildBeeServer(
   if (options.memory !== undefined) {
     await app.register(memoryRoutes, { memory: options.memory })
   }
+  if (world !== undefined) {
+    await app.register(worldRoutes, { world })
+  }
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    worldProjection?.stop()
     await runtime.stop()
     await store.close()
   })
@@ -368,6 +403,8 @@ export async function buildBeeServer(
     structures,
     configController,
     memory: options.memory,
+    world,
+    worldProjection,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

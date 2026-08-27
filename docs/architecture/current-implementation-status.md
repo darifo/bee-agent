@@ -142,10 +142,19 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   outage/recovery transitions are asserted against the durable stream, and a
   fake-clock test covers weeks-later recall with corrections and expired
   valid-time facts.
+- World model (WF4-D core): world entities, provenance-carrying relations,
+  and versioned snapshots in `@bee-agent/knowledge`, persisted on a
+  serialized `world` Chronicle stream whose version bumps carry a digest of
+  the full projected state — rebuilds verify every digest and fail loud on
+  drift. Facts only enter through sourced `WorldProjector`s (the bundled
+  `ThreadToolProjector` derives agent→tool usage from completed tool calls
+  with exact item provenance); the Host replays catch-up at start, projects
+  live appends, and serves a read-only `GET /world` view.
 
 Still pending in Phase 4: HTTP/MCP remote transports and a reference
-connector (WF4-C remainder), World/Structure projections (WF4-D), trajectory
-replay views (WF4-E), the scheduler and durable long-running queue (WF4-F),
+connector (WF4-C remainder), the StructureGraph self-structure projection
+and richer environment projectors (WF4-D remainder), trajectory replay views
+(WF4-E), the scheduler and durable long-running queue (WF4-F),
 and the unified personal data directory.
 
 ## Phase 3 completion
@@ -182,10 +191,11 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 380 passing workspace tests (1 platform-specific skip), including
+- 389 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory
   recall/derivation/retraction, remote outage/recovery transitions,
-  fake-clock long-horizon recall, real macOS Seatbelt Command/Python/MCP
+  fake-clock long-horizon recall, world-projection digest verification and
+  the live `GET /world` contract, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

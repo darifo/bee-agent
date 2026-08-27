@@ -1,5 +1,5 @@
 import type { Kernel } from '@bee-agent/kernel'
-import type { MemoryProvider } from '@bee-agent/knowledge'
+import type { MemoryProvider, WorldModelStore } from '@bee-agent/knowledge'
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
   StructureConfigController,
@@ -19,6 +19,7 @@ declare module 'fastify' {
       readonly structures: StructureReconciler
       readonly configController: StructureConfigController | undefined
       readonly memory: MemoryProvider | undefined
+      readonly world: WorldModelStore | undefined
     }
   }
 }
