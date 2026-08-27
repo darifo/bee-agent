@@ -16,7 +16,7 @@
     "build": "tsup src/index.ts src/main.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "start": "node dist/main.js"
+    "start": "node --env-file-if-exists=.env dist/main.js"
   },
   "dependencies": {
     "@bee-agent/kernel": "workspace:*",
