@@ -1,7 +1,8 @@
 # Architecture documents
 
 This directory separates the target architecture, executable development plan,
-security model, and completed kernel research. For current implementation
+security model, and completed kernel research. The HTTP surface of the running
+Host is documented in [`../api.md`](../api.md). For current implementation
 status, read the documents in this order:
 
 1. [`current-implementation-status.md`](./current-implementation-status.md) —

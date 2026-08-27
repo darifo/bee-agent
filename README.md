@@ -31,12 +31,23 @@ The implemented foundation is a local-first Personal Bee Host with:
 - a deny-by-default ExecutionWorld with approval, secret, sandbox, audit, and
   idempotency boundaries;
 - sandboxed Command, Python, and manifest-pinned MCP adapters;
-- a personal memory foundation: Claim/Observation contracts, embedded recall
-  and derivation, and `/memory` governance routes.
+- personal memory: Claim/Observation contracts, embedded recall and near-line
+  derivation, `/memory` governance routes, and remote memories behind a
+  circuit breaker with durable health events;
+- a versioned world model: facts enter only through sourced projectors,
+  rebuilds are digest-verified, with read-only `GET /world` and
+  `GET /structure` lineage views;
+- trajectory replay: per-Turn causal projections and digest-verified replay
+  of the exact model-visible context;
+- long-running work: a durable scheduler (time, Kanban-condition, and event
+  triggers) continuing threads across days with fire-once catch-up;
+- a unified personal data directory backing every durable artifact by
+  default.
 
 The authoritative design and implementation status live in
 [`docs/architecture`](./docs/architecture); architectural decisions live in
-[`docs/adr`](./docs/adr).
+[`docs/adr`](./docs/adr); the HTTP API reference lives in
+[`docs/api.md`](./docs/api.md).
 
 ## Architecture
 
@@ -138,7 +149,10 @@ pnpm --filter @bee-agent/bee start
 ```
 
 The default address is `http://127.0.0.1:3000`. Binding a non-loopback address
-without `BEE_AGENT_SESSION_TOKEN` is rejected.
+without `BEE_AGENT_SESSION_TOKEN` is rejected. Both the Host and the CLI
+auto-load `apps/bee/.env` (see `apps/bee/.env.example`); the full
+environment-variable quick reference lives in
+[`docs/api.md`](./docs/api.md#环境变量速查).
 
 Use the CLI:
 

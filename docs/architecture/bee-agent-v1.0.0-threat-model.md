@@ -1,11 +1,11 @@
 # Bee Agent v1.0.0 威胁模型与个人数据目录设计
 
-> 状态：Implementing（Phase 1 安全默认与 Phase 3 执行边界已完成）
+> 状态：Implementing（Phase 1 安全默认、Phase 3 执行边界、Phase 4 数据目录/记忆治理已完成）
 > 上游文档：[bee-agent-v1.0.0-architecture-upgrade.md](./bee-agent-v1.0.0-architecture-upgrade.md) §13、§16；[重构开发计划](./bee-agent-v1.0.0-refactor-development-plan.md) 任务 P0-7
-> 初版日期：2026-08-24；实现快照：2026-08-26
+> 初版日期：2026-08-24；实现快照：2026-08-28
 > 本文档是 v1 各阶段安全实现的共同参照：Phase 1（安全默认值先行）、Phase 3（ExecutionWorld/沙箱）、Phase 4（数据目录与导出）、Phase 6（发布验收 §20.6）从这里取验收口径。
 
-> 当前已落地：loopback 默认监听、session token、loopback-only CORS、StructureGeneration/lease、仓库级 spawn 禁令、canonical path、空子进程环境、Keychain/Secret Service、完整权限交集快照、持久审批、Seatbelt/bwrap（Ubuntu CI 强制）、exact-origin network sandbox、timeout/output/process-group cancellation、artifact secret 扫描，以及 Command/Python/MCP/worktree/RemoteAgent 声明式执行。尚未落地的是 Phase 4–6 的统一个人数据目录、ExperimentWorld、memory/learning/export；通用 DNS/IP pinning 仍由具体 Host-injected network transport 提供，未提供的目标 fail closed。
+> 当前已落地：loopback 默认监听、session token、loopback-only CORS、StructureGeneration/lease、仓库级 spawn 禁令、canonical path、空子进程环境、Keychain/Secret Service、完整权限交集快照、持久审批、Seatbelt/bwrap（Ubuntu CI 强制）、exact-origin network sandbox、timeout/output/process-group cancellation、artifact secret 扫描，以及 Command/Python/MCP/worktree/RemoteAgent 声明式执行。Phase 4 新增面已纳入同一信任模型：统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定，记忆与世界事件同库同审计）、记忆治理/世界/调度/轨迹/结构路由全部位于 session token 守卫之后且为 Chronicle 投影或 append-only 事实（无第二写入面）、远程记忆仅经 HTTP transport + Bearer 断路器接入且健康迁移持久可审计、记忆召回为预算化只读注入（无 provenance 的断言没有进入世界/记忆的代码路径）。尚未落地的是 Phase 5–6 的 ExperimentWorld 与 learning/export 工具；通用 DNS/IP pinning 仍由具体 Host-injected network transport 提供，未提供的目标 fail closed。
 
 ## 1. 范围与安全目标
 

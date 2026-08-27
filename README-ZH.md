@@ -29,10 +29,17 @@ Bee Agent v1 正在 `main` 分支开发。它与冻结在
 - 持久模型请求与可恢复 AgentLoop checkpoint；
 - deny-by-default 的 ExecutionWorld、审批、secret、sandbox、审计和幂等边界；
 - 沙箱化 Command、Python 与 manifest-pinned MCP adapters；
-- 个人记忆基座：Claim/Observation 契约、内嵌检索与派生、`/memory` 治理路由。
+- 个人记忆：Claim/Observation 契约、内嵌召回与近线派生、`/memory` 治理路由，
+  远程记忆经断路器 + 持久健康事件显式降级；
+- 版本化世界模型：事实仅经带来源 projector 进入，digest 可校验重建，
+  `GET /world` 只读视图与 `GET /structure` lineage；
+- 轨迹回放：Turn 因果链投影与模型可见上下文的 digest 精确重放；
+- 长时运行：持久化调度器（时间/Kanban 条件/事件触发）绑定线程跨天续跑，
+  停机错过按原节律 fire-once 追赶；
+- 统一个人数据目录：持久产物默认落在 `BEE_AGENT_DATA_DIR` 或平台约定位置。
 
 现行设计和开发状态见 [`docs/architecture`](./docs/architecture)，架构决策见
-[`docs/adr`](./docs/adr)。
+[`docs/adr`](./docs/adr)，HTTP API 参考见 [`docs/api.md`](./docs/api.md)。
 
 ## 架构
 
@@ -134,7 +141,9 @@ pnpm --filter @bee-agent/bee start
 ```
 
 默认地址为 `http://127.0.0.1:3000`。没有 `BEE_AGENT_SESSION_TOKEN` 时，Host
-拒绝绑定非 loopback 地址。
+拒绝绑定非 loopback 地址。Host 与 CLI 均自动加载 `apps/bee/.env`（模板见
+`apps/bee/.env.example`）；全部环境变量速查见
+[`docs/api.md`](./docs/api.md#环境变量速查)。
 
 使用 CLI：
 

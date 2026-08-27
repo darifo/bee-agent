@@ -13,7 +13,9 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
-> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C（memory-remote 断路器/显式降级/health 事件 + HTTP transport 与线契约）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D（WorldModel 版本化投影 + StructureGraph lineage + 环境 projector + Host 实时投影 + `GET /world`）、WF4-E（Trajectory 因果视图 + 模型上下文精确重放路由）与 WF4-F（AgentScheduler 持久化时间/条件触发 + catch-up + `/scheduler` 路由）已完成；统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定）已落地。剩余：MCP 记忆 transport、checkpoint fork、守护形态与验收 ADR 0021/0024/0027。
+> 2026-08-28 Phase 4 完成并合入 `main`（`Merge feature/v1.4.0 (Phase 4 complete)`）：新增单实例模块组合验收测试（kernel 图 × 执行 × 记忆召回/派生/治理 × 世界投影 × 时间/条件调度 × 轨迹回放 × 结构 lineage × 投影精确重建）与真实 Host 冒烟（真实模型：偏好派生 → 召回注入经 model-request replay 证实 → 世界投影 → 调度触发器实机 fire）；HTTP API 参考见 `docs/api.md`。
+
+> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C（memory-remote 断路器/显式降级/health 事件 + HTTP transport 与线契约）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D（WorldModel 版本化投影 + StructureGraph lineage + 环境 projector + Host 实时投影 + `GET /world`）、WF4-E（Trajectory 因果视图 + 模型上下文精确重放路由）与 WF4-F（AgentScheduler 持久化时间/条件触发 + catch-up + `/scheduler` 路由）已完成；统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定）已落地。
 
 ## 1. 计划定位与使用方式
 

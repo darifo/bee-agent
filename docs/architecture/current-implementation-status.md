@@ -1,8 +1,8 @@
 # Bee Agent v1 current implementation status
 
-> Snapshot: 2026-08-27
+> Snapshot: 2026-08-28
 >
-> Branch: `feature/v1.4.0` (Phase 4 complete)
+> Branch: `main` (feature/v1.4.0 merged; Phase 4 complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -11,7 +11,7 @@
 ```text
 Personal Bee Host
   └─ Kernel / active StructureGeneration
-       ├─ Chronicle + SQLite
+       ├─ Chronicle + SQLite (unified personal data directory)
        ├─ Kanban + dispatcher
        ├─ EmbeddedMemoryProvider (memory stream projection)
        │    ├─ recall: AgentLoop retrieve hook (budgeted context section)
@@ -23,7 +23,14 @@ Personal Bee Host
        │    └─ RoutingSandboxProvider
        │         ├─ InProcessToolSandbox (logical Kanban tools only)
        │         └─ PlatformCommandSandbox (Seatbelt / bubblewrap)
+       ├─ WorldProjectionService (catch-up + live sourced projectors)
+       ├─ AgentScheduler (time + Kanban-condition/event triggers)
        └─ AgentLoop (Turn-scoped generation lease + memory/plan hooks)
+
+Read-only projections over the same Chronicle: GET /world (versioned,
+digest-verified), GET /structure lineage, per-Turn trajectories with
+digest-checked model replay. The HTTP surface is documented in
+[docs/api.md](../api.md).
 ```
 
 New Turns acquire the active generation. A reconciled Structure prepares and
@@ -243,7 +250,11 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 478 passing workspace tests (1 platform-specific skip), including
+- 478 passing workspace tests (1 platform-specific skip), including the
+  single-instance module-composition acceptance (one Host composing the
+  kernel graph, execution, memory recall/derivation/governance, world
+  projection, time- and Kanban-condition scheduling, trajectory replay,
+  structure lineage, and exact projection rebuilds),
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory
