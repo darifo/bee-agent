@@ -1,7 +1,12 @@
 import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
-import type { ChronicleStore } from '@bee-agent/knowledge'
+import { WorldModelStore } from '@bee-agent/knowledge'
+import type {
+  ChronicleStore,
+  MemoryProvider,
+  WorldProjector,
+} from '@bee-agent/knowledge'
 import type {
   EffectiveStructure,
   Kernel,
@@ -17,6 +22,7 @@ import type {
   ToolAuthorizationRule,
   ToolAdapter,
   ToolExecutor,
+  GoalPlanStore,
   LlmRuntime,
   LlmToolSpec,
   SandboxProvider,
@@ -25,6 +31,7 @@ import type {
   StructureConfigController,
   ConfigSource,
 } from '@bee-agent/runtime'
+import { AgentScheduler } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
 import {
@@ -32,8 +39,13 @@ import {
   type AgentLoopService,
 } from './kernel-runtime.ts'
 import { kanbanRoutes } from './routes/kanban.ts'
+import { memoryRoutes } from './routes/memory.ts'
+import { schedulerRoutes } from './routes/scheduler.ts'
+import { trajectoryRoutes } from './routes/trajectory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
+import { worldRoutes } from './routes/world.ts'
+import { WorldProjectionService } from './world-runtime.ts'
 
 /**
  * CORS origin policy. `false` denies all cross-origin requests; a string
@@ -104,6 +116,24 @@ export interface BeeServerOptions {
   readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
   readonly pluginCatalog?: PluginCatalog | undefined
   readonly configSource?: ConfigSource | undefined
+  /** Personal memory provider; enables recall, derivation, and governance routes. */
+  readonly memory?: MemoryProvider | undefined
+  /** Disable near-line derivation while keeping recall. */
+  readonly deriveMemory?: boolean | undefined
+  /** Optional Goal/Plan store surfacing plans on complex turns. */
+  readonly goalPlanStore?: GoalPlanStore | undefined
+  /**
+   * Sourced world projectors; when non-empty the Host maintains the versioned
+   * world projection (catch-up + live) and serves `GET /world`.
+   */
+  readonly worldProjectors?: readonly WorldProjector[] | undefined
+  /**
+   * Long-running schedules: `true` enables the durable scheduler with the
+   * default auto-tick (5s); an object tunes the tick; absent disables it
+   * (manual `POST /scheduler/tick` is always available when enabled).
+   */
+  readonly scheduler?:
+    boolean | { readonly tickIntervalMs?: number | undefined } | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -124,6 +154,10 @@ export interface BeeServer {
   readonly kernel: Kernel
   readonly structures: StructureReconciler
   readonly configController: StructureConfigController | undefined
+  readonly memory: MemoryProvider | undefined
+  readonly world: WorldModelStore | undefined
+  readonly worldProjection: WorldProjectionService | undefined
+  readonly scheduler: AgentScheduler | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -294,6 +328,9 @@ export async function buildBeeServer(
     secretBroker: options.secretBroker,
     toolAuthorization,
     toolSpecs,
+    memory: options.memory,
+    deriveMemory: options.deriveMemory,
+    goalPlanStore: options.goalPlanStore,
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,
     modelProviders: options.modelProviders,
@@ -302,6 +339,58 @@ export async function buildBeeServer(
     restoreActiveStructure: options.restoreActiveStructure,
   })
   const { kernel, loop, structures, configController } = runtime
+
+  // The world projection: rebuild from the durable `world` stream, then keep
+  // it live through the projectors (catch-up first, broadcast after).
+  const worldProjectors = options.worldProjectors ?? []
+  let worldProjection: WorldProjectionService | undefined
+  let world: WorldModelStore | undefined
+  if (worldProjectors.length > 0) {
+    world = new WorldModelStore({ store })
+    await world.rebuild()
+    worldProjection = new WorldProjectionService({
+      store,
+      world,
+      projectors: worldProjectors,
+    })
+    await worldProjection.start()
+  }
+
+  // The durable scheduler: rebuild from the `scheduler` stream, then either
+  // auto-tick or leave firing to explicit `POST /scheduler/tick`. Appended
+  // events feed `notify` so event-condition triggers fire on arrival.
+  let scheduler: AgentScheduler | undefined
+  let schedulerUnsubscribe: (() => void) | undefined
+  if (options.scheduler !== undefined && options.scheduler !== false) {
+    scheduler = new AgentScheduler({
+      store,
+      turns: loop,
+      ...(options.scheduler === true
+        ? { tickIntervalMs: 5_000 }
+        : {
+            ...(options.scheduler.tickIntervalMs === undefined
+              ? {}
+              : { tickIntervalMs: options.scheduler.tickIntervalMs }),
+          }),
+    })
+    await scheduler.rebuild()
+    scheduler.start()
+    const notifyHandler = (broadcast: {
+      streamId: string
+      events: { eventType: string }[]
+    }) => {
+      for (const event of broadcast.events) {
+        void scheduler!.notify({
+          streamId: broadcast.streamId,
+          eventType: event.eventType,
+        })
+      }
+    }
+    store.appended.on('append', notifyHandler)
+    schedulerUnsubscribe = () => {
+      store.appended.off('append', notifyHandler)
+    }
+  }
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
@@ -313,6 +402,9 @@ export async function buildBeeServer(
     kernel,
     structures,
     configController,
+    memory: options.memory,
+    world,
+    scheduler,
   })
 
   if (options.sessionToken !== undefined) {
@@ -338,8 +430,21 @@ export async function buildBeeServer(
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(threadRoutes, { corsOrigin })
   await app.register(kanbanRoutes)
+  if (options.memory !== undefined) {
+    await app.register(memoryRoutes, { memory: options.memory })
+  }
+  if (world !== undefined) {
+    await app.register(worldRoutes, { world })
+  }
+  if (scheduler !== undefined) {
+    await app.register(schedulerRoutes, { scheduler })
+  }
+  await app.register(trajectoryRoutes)
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    schedulerUnsubscribe?.()
+    scheduler?.stop()
+    worldProjection?.stop()
     await runtime.stop()
     await store.close()
   })
@@ -351,6 +456,10 @@ export async function buildBeeServer(
     kernel,
     structures,
     configController,
+    memory: options.memory,
+    world,
+    worldProjection,
+    scheduler,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

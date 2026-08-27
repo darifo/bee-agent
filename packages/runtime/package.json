@@ -25,6 +25,7 @@
     "@bee-agent/context": "workspace:*",
     "@bee-agent/execution": "workspace:*",
     "@bee-agent/kernel": "workspace:*",
+    "@bee-agent/kanban": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
     "@bee-agent/thread": "workspace:*",
     "zod": "^4.1.13"

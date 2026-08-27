@@ -65,8 +65,42 @@ export {
 export * from './goal-plan.ts'
 export * from './goal-plan-store.ts'
 export * from './planner.ts'
+export * from './memory-hook.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
+export { buildTurnTrajectory, replayGeneration } from './trajectory.ts'
+export type {
+  TrajectoryCheckpoint,
+  TrajectoryGeneration,
+  TrajectoryTool,
+  TurnTrajectory,
+} from './trajectory.ts'
+export { AgentScheduler, SchedulerTriggerNotFoundError } from './scheduler.ts'
+export type {
+  AgentSchedulerOptions,
+  RegisterSchedulerTriggerInput,
+  SchedulerFiredRun,
+  SchedulerTickReport,
+  SchedulerTurnPort,
+} from './scheduler.ts'
+export {
+  SCHEDULER_EVENT_TYPES,
+  SCHEDULER_STREAM_ID,
+  SchedulerTriggerSchema,
+  SchedulerWhenSchema,
+  registerSchedulerChronicleEvents,
+  schedulerStreamId,
+  schedulerTriggerRegisteredEvent,
+  schedulerTriggerRemovedEvent,
+  schedulerTriggerTriggeredEvent,
+  UnknownSchedulerEventTypeError,
+} from './scheduler-events.ts'
+export type {
+  SchedulerEventBuildOptions,
+  SchedulerEventType,
+  SchedulerTrigger,
+  SchedulerWhen,
+} from './scheduler-events.ts'
 export {
   AGENT_LOOP_SERVICE,
   createAgentLoopPlugin,

@@ -1,4 +1,4 @@
-import type { ChronicleStore } from '@bee-agent/knowledge'
+import type { ChronicleStore, MemoryProvider } from '@bee-agent/knowledge'
 import type { KanbanStore } from '@bee-agent/kanban'
 import {
   BundleSchema,
@@ -17,6 +17,7 @@ import type {
   AgentLoopRunInput,
   AgentLoopTurnResult,
   ConfigSource,
+  GoalPlanStore,
   LlmRuntime,
   LlmToolSpec,
   SandboxProvider,
@@ -26,10 +27,14 @@ import type {
 } from '@bee-agent/runtime'
 import {
   AGENT_LOOP_SERVICE,
+  MemoryDerivationWorker,
   PluginFactoryRegistry,
+  RememberingAgentLoop,
   StructureReconciler,
   StructureConfigController,
   createAgentLoopPlugin,
+  createGoalPlanHook,
+  createMemoryRetrieveHook,
   createModelRequestPlugin,
   createToolExecutionPlugin,
 } from '@bee-agent/runtime'
@@ -49,6 +54,15 @@ export interface BeeKernelRuntimeOptions {
   readonly toolSpecs: readonly LlmToolSpec[]
   readonly sandboxProvider?: SandboxProvider | undefined
   readonly secretBroker?: SecretBroker | undefined
+  /**
+   * Personal memory provider. When present, recall runs as the AgentLoop
+   * retrieve hook and completed Turns feed the near-line derivation worker.
+   */
+  readonly memory?: MemoryProvider | undefined
+  /** Disable near-line derivation while keeping recall (default: enabled). */
+  readonly deriveMemory?: boolean | undefined
+  /** Optional Goal/Plan store; complex turns surface a plan via the plan hook. */
+  readonly goalPlanStore?: GoalPlanStore | undefined
   readonly effectiveStructure?: EffectiveStructure | undefined
   readonly modelId?: string | undefined
   /** Additional providers keyed by `<structure model id>@<model version>`. */
@@ -64,7 +78,7 @@ export interface BeeKernelRuntime {
   readonly kernel: Kernel
   readonly structures: StructureReconciler
   readonly configController: StructureConfigController | undefined
-  readonly loop: AgentLoopService
+  readonly loop: AgentLoopService & { stop(): void }
   reconcile(structure: EffectiveStructure): Promise<ReconcileResult>
   stop(): Promise<void>
 }
@@ -232,6 +246,14 @@ function createHostPluginFactories(
           config: { binding: 'host-kanban' },
           replacementTier: 'c',
         }),
+        ...(options.memory === undefined
+          ? []
+          : [
+              servicePlugin('bee.memory', 'memory', options.memory, {
+                config: structure.memoryView.ref,
+                replacementTier: 'b',
+              }),
+            ]),
         servicePlugin('bee.model', 'llm', selectedModel, {
           config: structure.model.ref,
           replacementTier: 'b',
@@ -291,8 +313,26 @@ function createHostPluginFactories(
   factories.register({
     id: 'bee.agent-loop',
     create(structure) {
+      const retrieve =
+        options.memory === undefined
+          ? undefined
+          : createMemoryRetrieveHook(options.memory)
+      const plan =
+        options.goalPlanStore === undefined
+          ? undefined
+          : createGoalPlanHook(options.goalPlanStore)
       return {
-        ...createAgentLoopPlugin({ toolSpecs: options.toolSpecs }),
+        ...createAgentLoopPlugin({
+          toolSpecs: options.toolSpecs,
+          ...(retrieve === undefined && plan === undefined
+            ? {}
+            : {
+                hooks: {
+                  ...(retrieve === undefined ? {} : { retrieve }),
+                  ...(plan === undefined ? {} : { plan }),
+                },
+              }),
+        }),
         config: {
           prompt: structure.prompt.ref,
           contextPolicy: structure.contextPolicy.ref,
@@ -338,7 +378,17 @@ export async function createBeeKernelRuntime(
   if (result.kind === 'restart-required') {
     throw new Error('Initial Bee Host generation unexpectedly requires restart')
   }
-  const loop = new PinnedAgentLoop(kernel)
+  const pinned = new PinnedAgentLoop(kernel)
+  const loop: BeeKernelRuntime['loop'] =
+    options.memory !== undefined && options.deriveMemory !== false
+      ? new RememberingAgentLoop(
+          pinned,
+          new MemoryDerivationWorker({
+            store: options.store,
+            provider: options.memory,
+          }),
+        )
+      : pinned
   const configController =
     options.configSource === undefined
       ? undefined

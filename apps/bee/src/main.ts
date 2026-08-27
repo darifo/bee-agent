@@ -1,7 +1,14 @@
 import { randomBytes } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import {
   ChronicleSchemaRegistry,
+  ExecutionResourceProjector,
+  ThreadToolProjector,
+  registerMemoryChronicleEvents,
   registerStructureChronicleEvents,
+  registerWorldChronicleEvents,
 } from '@bee-agent/knowledge'
 import {
   SQLiteChronicleStore,
@@ -16,13 +23,21 @@ import {
   createMcpToolAdapters,
 } from '@bee-agent/tool-mcp'
 import { PythonToolAdapter } from '@bee-agent/tool-python'
+import { EmbeddedMemoryProvider } from '@bee-agent/memory-bee'
 import {
+  FetchMemoryTransport,
+  RemoteMemoryProvider,
+} from '@bee-agent/memory-remote'
+import {
+  FileEffectiveStructureSource,
+  MemoryGoalPlanStore,
   registerRuntimeChronicleEvents,
   MacOSKeychainSecretBroker,
   LinuxSecretServiceBroker,
   PlatformCommandSandbox,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
+import { resolveBeeDataDir } from './data-dir.ts'
 
 const DEFAULT_HOST = '127.0.0.1'
 const DEFAULT_PORT = 3000
@@ -118,17 +133,65 @@ registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
 registerRuntimeChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
+registerMemoryChronicleEvents(registry)
+registerWorldChronicleEvents(registry)
+
+// The unified personal data directory backs every durable artifact by
+// default; an explicit filename still wins (absolute, or relative to cwd).
+const dataDir = resolveBeeDataDir({
+  env: process.env,
+  home: homedir(),
+  platform: process.platform,
+})
+await mkdir(dataDir, { recursive: true })
 const filename =
-  process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
+  process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ??
+  join(dataDir, 'bee-agent.sqlite')
 const store = new SQLiteChronicleStore({ registry, filename })
 const kanban = new SQLiteKanbanStore({ registry, filename })
 // Recover the board from the durable log before serving.
 await kanban.rebuild()
 
+// Personal memory: an explicit remote endpoint (WF4-C HTTP transport with a
+// circuit breaker and durable health events) replaces the embedded provider;
+// otherwise the embedded provider projects the durable `memory` stream.
+const memoryRemoteUrl = process.env.BEE_AGENT_MEMORY_REMOTE_URL?.trim()
+const memoryRemoteToken = process.env.BEE_AGENT_MEMORY_REMOTE_TOKEN?.trim()
+let memory
+if (memoryRemoteUrl === undefined || memoryRemoteUrl === '') {
+  const embedded = new EmbeddedMemoryProvider({ store })
+  await embedded.rebuild()
+  memory = embedded
+} else {
+  memory = new RemoteMemoryProvider({
+    transport: new FetchMemoryTransport({
+      baseUrl: memoryRemoteUrl,
+      ...(memoryRemoteToken === undefined ? {} : { token: memoryRemoteToken }),
+    }),
+    store,
+  })
+}
+
+// Optional watched desired-state file; reload failures retain the active
+// generation and surface through GET /structure.
+const structureFile = process.env.BEE_AGENT_STRUCTURE_FILE?.trim()
+const configSource =
+  structureFile === undefined || structureFile === ''
+    ? undefined
+    : new FileEffectiveStructureSource(structureFile)
+
 const server = await buildBeeServer({
   store,
   kanban,
   llm,
+  memory,
+  goalPlanStore: new MemoryGoalPlanStore(),
+  worldProjectors: [
+    new ThreadToolProjector(),
+    new ExecutionResourceProjector(),
+  ],
+  scheduler: true,
+  ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
     ...[commandTool, pythonTool].filter(
       (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>

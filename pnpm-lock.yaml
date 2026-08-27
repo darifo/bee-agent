@@ -120,6 +120,12 @@ importers:
       '@bee-agent/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@bee-agent/memory-bee':
+        specifier: workspace:*
+        version: link:../../plugins/memory-bee
+      '@bee-agent/memory-remote':
+        specifier: workspace:*
+        version: link:../../plugins/memory-remote
       '@bee-agent/model-providers':
         specifier: workspace:*
         version: link:../../packages/model-providers
@@ -294,6 +300,9 @@ importers:
       '@bee-agent/execution':
         specifier: workspace:*
         version: link:../execution
+      '@bee-agent/kanban':
+        specifier: workspace:*
+        version: link:../kanban
       '@bee-agent/kernel':
         specifier: workspace:*
         version: link:../kernel
@@ -317,6 +326,26 @@ importers:
       zod:
         specifier: ^4.1.13
         version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
+
+  plugins/memory-bee:
+    dependencies:
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
+    devDependencies:
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
+
+  plugins/memory-remote:
+    dependencies:
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../../packages/knowledge
     devDependencies:
       vitest:
         specifier: ^4.0.15

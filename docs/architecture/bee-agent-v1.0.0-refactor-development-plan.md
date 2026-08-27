@@ -13,6 +13,8 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
+> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C（memory-remote 断路器/显式降级/health 事件 + HTTP transport 与线契约）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D（WorldModel 版本化投影 + StructureGraph lineage + 环境 projector + Host 实时投影 + `GET /world`）、WF4-E（Trajectory 因果视图 + 模型上下文精确重放路由）与 WF4-F（AgentScheduler 持久化时间/条件触发 + catch-up + `/scheduler` 路由）已完成；统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定）已落地。剩余：MCP 记忆 transport、checkpoint fork、守护形态与验收 ADR 0021/0024/0027。
+
 ## 1. 计划定位与使用方式
 
 ### 1.1 与架构方案的关系
@@ -28,7 +30,7 @@
 
 ### 1.2 分支与版本策略（原计划与现行覆盖）
 
-- 原计划为每个 Phase 建立一个小版本分支；实际实施已收敛到 `feature/kernel-opt` 连续提交，避免跨分支保留半迁移架构。后续以本文件状态列、ADR 和提交历史为事实，不再创建 `feature/v1.x.0` 分支链；
+- 原计划为每个 Phase 建立一个小版本分支；Phase 1–3 实际收敛到 `feature/kernel-opt` 连续提交以避免跨分支保留半迁移架构。自 Phase 4 起恢复版本分支（`feature/v1.4.0`），以本文件状态列、ADR 和提交历史为事实；
 - 每个可验证切片独立提交；最终发布版本号在 Phase 6 验收时确定；
 - v0.11.0 在基线 commit 上冻结为 legacy tag（任务 P0-1）；`main` 进入维护模式，只接收 v0 的关键缺陷修复，不接收新功能，降低合并压力；
 - clean break：各阶段**末尾**删除旧路径（旧 API、旧运行时、旧事件类型），不保留兼容 facade；删除动作是阶段退出条件的一部分，不允许"新旧并存渡过下个阶段"；
@@ -262,13 +264,14 @@ packages/client   → thread（仅协议类型）
 
 ### 5.5 Phase 4：记忆、世界与长时运行（工作流级）
 
-- **WF4-A MemoryProvider 契约**：方案 §12.5 接口全集 + contract suite（ingest/query/buildContext/getRepresentation/derive/consolidate/health）。
-- **WF4-B memory-bee**：SQLite/FTS + 可选本地向量；Actor/Entity、Observation、Claim（provenance/valid time/confidence/冲突）、Representation；近线 Deriver；无需外部服务。
-- **WF4-C memory-remote**：HTTP/MCP/SDK bridge；Honcho 连接器为参考实现；外部不可用时显式降级 + health 事件，不静默空记忆。
-- **WF4-D World/Structure**：WorldModel 与 StructureGraph 版本化投影；带来源 projector；启动解析 EffectiveStructure 入 Chronicle（P1-3 的运行时化）。
-- **WF4-E Trajectory**：Episode/Goal 范围因果投影；精确回放模型可见上下文；从 checkpoint fork。
-- **WF4-F 长时运行**：Scheduler（一次性/周期/事件/依赖触发，catch-up/misfire/backpressure）；durable queue + claim/heartbeat；Thread 跨天/跨重启续跑；Host 托盘/守护形态。
-- **退出条件**（方案 §19）：低上下文成本下正确调用过去偏好与项目经验；关闭外部记忆不丢 Chronicle 事实；用户可查看/纠正/遗忘/导出记忆。
+- **WF4-A MemoryProvider 契约**（done 2026-08-27）：方案 §12.5 接口全集 + contract suite（ingest/query/buildContext/getRepresentation/derive/consolidate/retract/export/health）落在 `@bee-agent/knowledge`；记忆变更是 `memory` Chronicle 流上的持久事件。
+- **WF4-B memory-bee**（核心 done 2026-08-27）：`plugins/memory-bee` 内嵌提供者 = `memory` 流投影 + 重启 rebuild + 词法检索（英文词 + CJK 二元组）+ 确定性偏好/纠正派生（纠正 supersede 最近偏好）+ 重复合并；Observation/Claim/Representation 契约就绪；FTS/本地向量索引与更丰富 Deriver 为后续增强。召回走 AgentLoop retrieve hook（预算化、provider 不可用时跳过），派生由近线 `MemoryDerivationWorker` 在 Turn 完成后执行；Host 提供 `/memory/*` 治理路由（查看/遗忘/合并/导出）。
+- **WF4-C memory-remote**（done 2026-08-27）：`plugins/memory-remote` 提供 `MemoryBridgeTransport` 接缝（进程内 SDK bridge + `FetchMemoryTransport` HTTP 实现，文档化 `/memory/*` REST 线契约，Bearer 鉴权，`MemoryTransportError` 状态映射）与 `RemoteMemoryProvider`——连续失败断路器、`MemoryProviderUnavailableError` 快速失败、health 探测恢复；每次健康状态迁移写入持久 `memory.health.changed` 事件，不静默空记忆；召回 hook 在断路器打开时优雅跳过。Host 经 `BEE_AGENT_MEMORY_REMOTE_URL/TOKEN` 切换到远程记忆；线契约由参考 HTTP server 测试钉死。MCP transport 与具名连接器（如 Honcho）待后续按需补充。
+- **WF4-D World/Structure**（done 2026-08-27）：实体/关系/版本化快照 schema 与 `world` Chronicle 流落在 `@bee-agent/knowledge`，版本 bump 携带全量投影 digest，rebuild 逐一校验、漂移即抛 `WorldVersionDriftError`；事实只能经带来源 `WorldProjector` 进入（`ThreadToolProjector` 派生 agent→工具使用；`ExecutionResourceProjector` 从 execution.requested 派生文件依赖与原生可执行能力），Host 启动追赶重放 + 实时投影，`GET /world` 只读视图带过滤；`StructureGraphStore` 重放 `structure` 流为 lineage 视图（版本/相位史/替代链/active digest），经 `GET /structure` 暴露。
+- **WF4-E Trajectory**（视图 done 2026-08-27）：`buildTurnTrajectory` 从持久事实投影 Turn 因果链——generation（structureVersion + digest 校验的模型输入）、tool（capability/decision/outcome，引用 execution 流）、checkpoint；`replayGeneration` 返回精确模型可见 bundle（manifest+sources+重建上下文，digest 校验）；路由 `GET /threads/:id/turns/:turnId/trajectory` 与 `GET /model-requests/:requestId/replay`。从 checkpoint fork 新实验待做。
+- **WF4-F 长时运行**（done 2026-08-27，守护形态除外）：`AgentScheduler`（runtime）——一次性/周期触发器绑定 Thread 跨天跨重启续跑；状态为 `scheduler` Chronicle 流（registered/triggered/removed），重启 rebuild；tick 以 fire-once catch-up 合并停机错过的周期（报告 missedIntervals、按原节律推进）；条件触发：`when.taskStatus`（Kanban 任务到达状态即触发，经任务流持久追赶）与 `when.event`（匹配 append 事件经 notify 边沿触发，一次性）；调度发起的 Turn 标记 trigger `schedule`；Turn 抛错仍推进计划避免热循环；Host 默认启用（5s auto-tick）并提供 `/scheduler/triggers` CRUD 与手动 `POST /scheduler/tick`。托盘/守护打包形态待做。
+- **CI 门禁**（§7.2 P4，done 2026-08-27）：MemoryProvider 契约套件接入 memory-bee/memory-remote 测试并以参考内存实现自验证；记忆矛盾（冲突声明并存直至纠正）与时间有效性用例；provider outage 降级/恢复的持久迁移断言；fake clock 跨天（周级）召回模拟含纠正与过期事实。
+- **退出条件**（方案 §19，verified 2026-08-27）：低上下文成本下正确调用过去偏好与项目经验（预算化召回 + fake clock 跨周纠正召回测试 + Host 集成测试）；关闭外部记忆不丢 Chronicle 事实（outage 验收测试：远程记忆完全不可用时 Turn 正常完成、线程事实完整、降级为持久 `memory.health.changed` 事实）；用户可查看/纠正/遗忘/导出记忆（`/memory` 治理路由，内嵌/远程实现通用）。ADR 0021/0024/0027 已按验收撰写。遗留项转入 Phase 4 backlog：MCP 记忆 transport、checkpoint fork（Phase 5 ExperimentWorld 消费）、守护/托盘打包（Phase 6 范畴）。
 
 ### 5.6 Phase 5：后台学习（工作流级）
 
@@ -304,9 +307,9 @@ packages/client   → thread（仅协议类型）
 | 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2   | P2-11                |
 | 0023 | Route every capability through ExecutionWorld and sandbox providers                | P3   | accepted/implemented |
 | 0030 | Adopt Cordis-derived Context–Registry–Fiber and governed replacement boundaries    | P3   | accepted/implemented |
-| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | 阶段验收时           |
-| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | 阶段验收时           |
-| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | 阶段验收时           |
+| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | accepted/implemented |
+| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | accepted/implemented |
+| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | accepted/implemented |
 | 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时           |
 | 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时           |
 

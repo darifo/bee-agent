@@ -26,7 +26,7 @@ export const AGENT_LOOP_SERVICE = 'agentLoop'
 
 export interface AgentLoopPluginOptions extends Pick<
   AgentLoopOptions,
-  'toolSpecs'
+  'toolSpecs' | 'hooks'
 > {
   readonly version?: string | undefined
 }
@@ -56,6 +56,7 @@ export function createAgentLoopPlugin(
           modelRequests: services.modelRequest,
           toolExecution: services.toolExecution,
           toolSpecs: options.toolSpecs,
+          ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
         }),
       )
     },

@@ -1,8 +1,8 @@
 # Bee Agent v1 current implementation status
 
-> Snapshot: 2026-08-26
+> Snapshot: 2026-08-27
 >
-> Branch: `main`
+> Branch: `feature/v1.4.0` (Phase 4 complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -13,6 +13,9 @@ Personal Bee Host
   └─ Kernel / active StructureGeneration
        ├─ Chronicle + SQLite
        ├─ Kanban + dispatcher
+       ├─ EmbeddedMemoryProvider (memory stream projection)
+       │    ├─ recall: AgentLoop retrieve hook (budgeted context section)
+       │    └─ near-line MemoryDerivationWorker after completed Turns
        ├─ ModelRequestService → OpenAI-compatible LLMRuntime
        ├─ ToolExecutionService → ExecutionWorld
        │    ├─ authorization / durable approval
@@ -20,7 +23,7 @@ Personal Bee Host
        │    └─ RoutingSandboxProvider
        │         ├─ InProcessToolSandbox (logical Kanban tools only)
        │         └─ PlatformCommandSandbox (Seatbelt / bubblewrap)
-       └─ AgentLoop (Turn-scoped generation lease)
+       └─ AgentLoop (Turn-scoped generation lease + memory/plan hooks)
 ```
 
 New Turns acquire the active generation. A reconciled Structure prepares and
@@ -99,6 +102,114 @@ Turns retain their original lease until completion, failure, or cancellation.
 - `@bee-agent/client`, Thread/Kanban CLI, and React conversation/Kanban UI.
 - SQLite Chronicle and Kanban adapter.
 
+## Phase 4 progress (memory foundation)
+
+Landed on `feature/v1.4.0`:
+
+- Memory domain in `@bee-agent/knowledge` (WF4-A): Claim/Observation/
+  Representation schemas with provenance pointing at Chronicle positions,
+  valid-time intervals, supersedes/retract statuses, the `MemoryProvider`
+  contract (ingest/query/buildContext/getRepresentation/derive/consolidate/
+  retract/export/health), a serialized `memory` Chronicle stream with
+  registered event types, and an implementation-agnostic contract suite.
+- Embedded `@bee-agent/memory-bee` provider (WF4-B core): an in-memory
+  projection over the durable `memory` stream with restart rebuild, lexical
+  recall (English words plus CJK chars/bigrams, stopword filtering),
+  budgeted context sections, deterministic preference/correction derivation
+  (corrections supersede the latest recorded preference), and duplicate
+  consolidation via supersede events. FTS/local-vector indexing remains a
+  follow-up; correctness today does not depend on it.
+- Runtime wiring: `createMemoryRetrieveHook` (recall as the AgentLoop
+  retrieve hook; an unavailable provider skips recall instead of injecting
+  stale memory), the near-line `MemoryDerivationWorker` (completed Turns
+  only, failures captured in reports, never fail the Turn), and
+  `RememberingAgentLoop` around the pinned loop.
+- Host wiring: `bee.memory` tier-B service, memory governance routes
+  (`GET /memory/claims`, `POST /memory/claims/:claimId/retract`,
+  `POST /memory/consolidate`, `GET /memory/export`), the Goal/Plan hook on
+  complex turns, and optional `BEE_AGENT_STRUCTURE_FILE` watched structure
+  reload through `StructureConfigController`.
+- Remote-memory degradation (WF4-C core): a `memory.health.changed` Chronicle
+  event records every provider health transition; calls fail fast with
+  `MemoryProviderUnavailableError` once a circuit opens; `@bee-agent/
+memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
+  SDK bridge) and `RemoteMemoryProvider` with a consecutive-failure circuit
+  breaker that recovers through health probes; the recall hook skips
+  gracefully when a circuit opens mid-call. HTTP/MCP transports remain
+  follow-ups pending a wire-protocol decision.
+- Phase 4 CI gates: the contract suite is self-validated against a reference
+  in-memory provider, conflicting claims stay visible until corrected,
+  outage/recovery transitions are asserted against the durable stream, and a
+  fake-clock test covers weeks-later recall with corrections and expired
+  valid-time facts.
+- World model (WF4-D core): world entities, provenance-carrying relations,
+  and versioned snapshots in `@bee-agent/knowledge`, persisted on a
+  serialized `world` Chronicle stream whose version bumps carry a digest of
+  the full projected state — rebuilds verify every digest and fail loud on
+  drift. Facts only enter through sourced `WorldProjector`s (the bundled
+  `ThreadToolProjector` derives agent→tool usage from completed tool calls
+  with exact item provenance); the Host replays catch-up at start, projects
+  live appends, and serves a read-only `GET /world` view.
+- Long-running scheduler (WF4-F core): `AgentScheduler` in
+  `@bee-agent/runtime` — one-shot and recurring triggers that continue a
+  bound thread across days and restarts. Trigger state is the serialized
+  `scheduler` Chronicle stream (registered/triggered/removed) and rebuilds
+  on restart; ticks fire due triggers under a fire-once catch-up policy that
+  collapses missed intervals into one run (reporting the count and resuming
+  the original cadence), scheduler-launched turns carry trigger `schedule`,
+  and a crashing turn still advances the schedule. The Host enables it by
+  default (5s auto-tick) with `/scheduler/triggers` CRUD and a manual
+  `POST /scheduler/tick`. Condition triggers: `when.taskStatus` fires once a
+  Kanban task reaches a status (durable catch-up through the task stream)
+  and `when.event` fires on matching appended events via `notify`.
+- Trajectory views (WF4-E): `buildTurnTrajectory` projects one Turn's causal
+  chain — generations with structure versions and digest-verified model
+  inputs, tool actions with capability/decision/outcome from execution
+  streams, and checkpoints. `replayGeneration` returns the exact
+  model-visible bundle (manifest + sources + rebuilt context, digest
+  checked). Routes: `GET /threads/:threadId/turns/:turnId/trajectory` and
+  `GET /model-requests/:requestId/replay`.
+- StructureGraph (WF4-D remainder): `StructureGraphStore` replays the
+  `structure` stream into a lineage view — versions with full phase
+  history, supersession chains, and the active digest — exposed through
+  `GET /structure`. The `ExecutionResourceProjector` derives file-resource
+  dependencies and native-executable capabilities from
+  `execution.requested` events and runs in the default Host world
+  projection.
+- Remote memory over HTTP (WF4-C complete): `FetchMemoryTransport` speaks a
+  documented `/memory/*` REST contract (query/ingest/context/representation/
+  derive/consolidate/retract/export/health) with bearer auth and explicit
+  `MemoryTransportError` status mapping; the Host switches to it — behind
+  the circuit breaker with durable health events — when
+  `BEE_AGENT_MEMORY_REMOTE_URL` is set. The wire contract is pinned by a
+  reference HTTP server test running the full round-trip.
+- Unified personal data directory: durable Host artifacts default to
+  `BEE_AGENT_DATA_DIR` or the platform convention (macOS Application
+  Support / XDG data home) instead of the working directory; an explicit
+  `BEE_AGENT_STORAGE_SQLITE_FILENAME` still wins.
+
+## Phase 4 completion
+
+Phase 4 is complete against the §7.1 exit conditions:
+
+- **Low-cost recall of past preferences**: budgeted, provenance-carrying
+  recall through the AgentLoop retrieve hook; the fake-clock test recalls a
+  corrected preference weeks later and expires time-boxed facts, and the
+  Host integration test recalls a stated preference on the next turn.
+- **Chronicle facts survive external-memory loss**: memory is a projection;
+  the outage acceptance test runs a full conversation with a completely
+  down remote memory — the turn completes, the thread facts are intact in
+  Chronicle, and the outage is a durable `memory.health.changed` fact, never
+  a silent empty recall.
+- **User governance**: `/memory` routes view, correct (supersede), forget
+  (retract), and export every claim, over the embedded or remote provider.
+
+ADR 0021/0024/0027 are accepted and implemented. Residual enhancements are
+tracked as post-phase backlog rather than open Phase 4 work: an MCP memory
+transport variant behind the live HTTP contract, checkpoint-fork experiments
+(consumed by Phase 5's ExperimentWorld), and the daemon/tray packaging form
+(Phase 6 scope).
+
 ## Phase 3 completion
 
 Phase 3 is complete. Ubuntu CI installs bubblewrap and requires the real
@@ -114,8 +225,8 @@ execution infrastructure.
 
 ## Later phases
 
-- Phase 4: personal memory, claims/representations, world model, artifact
-  store, scheduler, and unified personal data directory.
+- Phase 4 backlog (post-phase): MCP memory transport variant,
+  checkpoint-fork experiments, and the daemon/tray packaging form.
 - Phase 5: governed derivation, Skill learning, proposals, experiments,
   evaluation, and rollback.
 - Phase 6: migration/export tooling, packaging, soak/security acceptance, and
@@ -132,7 +243,14 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 320 passing workspace tests (1 platform-specific skip), including
+- 476 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
-  config refresh/rollback, Doctor quarantine, real macOS Seatbelt Command/Python/MCP
+  config refresh/rollback, Doctor quarantine, the MemoryProvider contract
+  suite over the embedded and remote providers, end-to-end Host memory
+  recall/derivation/retraction, remote outage/recovery transitions and the
+  HTTP wire-contract round-trip, fake-clock long-horizon recall,
+  world-projection digest verification and the live `GET /world` contract,
+  scheduler due-time/cadence/catch-up and task/event condition contracts,
+  trajectory projection with digest-verified model replay, StructureGraph
+  lineage replay, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

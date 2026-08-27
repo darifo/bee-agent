@@ -20,10 +20,14 @@ export const V1_PACKAGE_DEPENDENCIES = {
   'tool-python': ['knowledge', 'runtime'],
   client: ['thread'],
   'storage-sqlite': ['kanban', 'knowledge'],
+  'memory-bee': ['knowledge'],
+  'memory-remote': ['knowledge'],
   bee: [
     'kernel',
     'kanban',
     'knowledge',
+    'memory-bee',
+    'memory-remote',
     'model-providers',
     'runtime',
     'storage-sqlite',
@@ -147,6 +151,14 @@ async function scanWorkspace(rootDir) {
       packageName: 'tool-python',
       directory: join(rootDir, 'adapters', 'tools', 'python'),
     },
+    {
+      packageName: 'memory-bee',
+      directory: join(rootDir, 'plugins', 'memory-bee'),
+    },
+    {
+      packageName: 'memory-remote',
+      directory: join(rootDir, 'plugins', 'memory-remote'),
+    },
   ]
 
   for (const { packageName, directory } of targets) {
@@ -171,7 +183,7 @@ async function scanWorkspace(rootDir) {
 
   // Spawn confinement is repository-wide, including apps/adapters that do not
   // participate in the internal package DAG above.
-  for (const base of ['packages', 'apps', 'adapters', 'scripts']) {
+  for (const base of ['packages', 'apps', 'adapters', 'plugins', 'scripts']) {
     const directory = join(rootDir, base)
     let files
     try {

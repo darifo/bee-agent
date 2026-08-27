@@ -30,7 +30,9 @@ The implemented foundation is a local-first Personal Bee Host with:
 - durable model requests and recoverable AgentLoop checkpoints;
 - a deny-by-default ExecutionWorld with approval, secret, sandbox, audit, and
   idempotency boundaries;
-- sandboxed Command, Python, and manifest-pinned MCP adapters.
+- sandboxed Command, Python, and manifest-pinned MCP adapters;
+- a personal memory foundation: Claim/Observation contracts, embedded recall
+  and derivation, and `/memory` governance routes.
 
 The authoritative design and implementation status live in
 [`docs/architecture`](./docs/architecture); architectural decisions live in
@@ -82,22 +84,26 @@ checks enforce this repository-wide.
 
 ## Current capabilities
 
-| Area                | Status    | Current implementation                                                                                                                                                             |
-| ------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kernel              | Available | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, owned effects, scopes, A/B/C reconcile with rollback, leases, quarantine and Doctor                            |
-| Structure           | Available | Verified EffectiveStructure digest, trusted exact-version PluginCatalog, factory registry, config-source refresh, serialized reconcile, lifecycle facts and restart rebuild        |
-| Conversation        | Available | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                       |
-| Tasks               | Available | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                     |
-| Context             | Available | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                             |
-| Models              | Available | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                     |
-| Execution           | Available | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs |
-| Platform sandbox    | Available | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                     |
-| Command tool        | Available | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                 |
-| Python tool         | Available | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                     |
-| MCP tools           | Available | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                               |
-| Storage             | Available | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                               |
-| External agents     | Optional  | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                   |
-| Memory and learning | Planned   | Package boundaries exist; the Phase 4/5 implementations are not yet active Host capabilities                                                                                       |
+| Area              | Status      | Current implementation                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel            | Available   | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, owned effects, scopes, A/B/C reconcile with rollback, leases, quarantine and Doctor                                                                                                                                                                                                                            |
+| Structure         | Available   | Verified EffectiveStructure digest, trusted exact-version PluginCatalog, factory registry, config-source refresh, serialized reconcile, lifecycle facts and restart rebuild                                                                                                                                                                                                        |
+| Conversation      | Available   | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                                                                                                                                                                                                                       |
+| Tasks             | Available   | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                                                                                                                                                                                                                     |
+| Context           | Available   | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                                                                                                                                                                                                             |
+| Models            | Available   | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                                                                                                                                                                                                                     |
+| Execution         | Available   | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs                                                                                                                                                                                                 |
+| Platform sandbox  | Available   | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                                                                                                                                                                                                                     |
+| Command tool      | Available   | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                                                                                                                                                                                                                 |
+| Python tool       | Available   | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                                                                                                                                                                                                                     |
+| MCP tools         | Available   | Opt-in `mcp__<server>__<tool>`; Host-pinned manifests and staged JSON-lines initialize/call sessions                                                                                                                                                                                                                                                                               |
+| Storage           | Available   | SQLite Chronicle and Kanban adapter; PostgreSQL/pgvector from v0 were removed during the clean break                                                                                                                                                                                                                                                                               |
+| External agents   | Optional    | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                                                                                                                                                                                                                   |
+| Memory            | In progress | MemoryProvider contract and contract suite; embedded memory-bee (Chronicle projection, lexical recall, preference/correction derivation, consolidation); recall hook and near-line derivation wired into the Host with `/memory` view/forget/export governance; remote-memory circuit breaker, explicit degradation, and the HTTP transport (`BEE_AGENT_MEMORY_REMOTE_URL`) landed |
+| World model       | In progress | Entities, provenance-carrying relations, and versioned snapshots over a `world` Chronicle stream with digest-verified rebuilds; facts enter only through sourced projectors (tool usage, execution resources); Host catch-up plus live projection with a read-only `GET /world` view; StructureGraph lineage via `GET /structure`                                                  |
+| Trajectory replay | In progress | `GET /threads/:id/turns/:turnId/trajectory` projects a Turn's causal chain (generation structure versions and model-input digests, tool authorization decisions and outcomes, checkpoints); `GET /model-requests/:id/replay` returns the exact model-visible context; checkpoint fork pending                                                                                      |
+| Long-running      | In progress | Durable AgentScheduler: one-shot, recurring, and condition triggers (Kanban task status with durable catch-up, edge-triggered events) continuing a bound thread across days and restarts; missed intervals collapse into one catch-up run resuming the original cadence; `/scheduler` trigger management and manual tick; the daemon form pending                                  |
+| Learning          | Planned     | Package boundaries exist; the Phase 5 implementation is not yet an active Host capability                                                                                                                                                                                                                                                                                          |
 
 ## Requirements
 
@@ -221,6 +227,11 @@ adapters/
   tools/command/           command_run declaration
   tools/python/            python_run declaration
   tools/mcp/               manifest-pinned MCP stdio declarations
+plugins/
+  memory-bee/              Default embedded memory provider (memory stream
+                          projection, recall and derivation)
+  memory-remote/           Remote memory seam: bridge transport plus a
+                          circuit-breaker provider with durable health events
 ```
 
 ## Roadmap
@@ -230,7 +241,12 @@ adapters/
 - [x] Phase 3: ExecutionWorld, permission snapshots/approvals, system
       credentials, Seatbelt/bwrap, Command/Python/MCP, worktrees, bounded
       delegation and RemoteAgent v2
-- [ ] Phase 4: memory, world model and long-running workflows
+- [x] Phase 4: memory, world model and long-running workflows — the memory
+      contract, embedded recall/derivation, governance routes, remote
+      degradation with the HTTP transport, world-model and StructureGraph
+      projections, trajectory replay, the time/condition scheduler, and the
+      unified personal data directory; the MCP memory transport variant,
+      checkpoint fork, and daemon form move to the backlog
 - [ ] Phase 5: background learning and governed improvement
 - [ ] Phase 6: experience convergence and v1 release
 
