@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import {
   ChronicleSchemaRegistry,
+  registerMemoryChronicleEvents,
   registerStructureChronicleEvents,
 } from '@bee-agent/knowledge'
 import {
@@ -16,7 +17,10 @@ import {
   createMcpToolAdapters,
 } from '@bee-agent/tool-mcp'
 import { PythonToolAdapter } from '@bee-agent/tool-python'
+import { EmbeddedMemoryProvider } from '@bee-agent/memory-bee'
 import {
+  FileEffectiveStructureSource,
+  MemoryGoalPlanStore,
   registerRuntimeChronicleEvents,
   MacOSKeychainSecretBroker,
   LinuxSecretServiceBroker,
@@ -118,6 +122,7 @@ registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
 registerRuntimeChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
+registerMemoryChronicleEvents(registry)
 const filename =
   process.env.BEE_AGENT_STORAGE_SQLITE_FILENAME ?? 'bee-agent.sqlite'
 const store = new SQLiteChronicleStore({ registry, filename })
@@ -125,10 +130,26 @@ const kanban = new SQLiteKanbanStore({ registry, filename })
 // Recover the board from the durable log before serving.
 await kanban.rebuild()
 
+// Personal memory: the embedded provider projects the durable `memory`
+// stream; recall and near-line derivation are Host capabilities by default.
+const memory = new EmbeddedMemoryProvider({ store })
+await memory.rebuild()
+
+// Optional watched desired-state file; reload failures retain the active
+// generation and surface through GET /structure.
+const structureFile = process.env.BEE_AGENT_STRUCTURE_FILE?.trim()
+const configSource =
+  structureFile === undefined || structureFile === ''
+    ? undefined
+    : new FileEffectiveStructureSource(structureFile)
+
 const server = await buildBeeServer({
   store,
   kanban,
   llm,
+  memory,
+  goalPlanStore: new MemoryGoalPlanStore(),
+  ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
     ...[commandTool, pythonTool].filter(
       (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>

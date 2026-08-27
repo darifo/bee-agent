@@ -1,4 +1,5 @@
 import type { Kernel } from '@bee-agent/kernel'
+import type { MemoryProvider } from '@bee-agent/knowledge'
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
   StructureConfigController,
@@ -17,6 +18,7 @@ declare module 'fastify' {
       readonly kernel: Kernel
       readonly structures: StructureReconciler
       readonly configController: StructureConfigController | undefined
+      readonly memory: MemoryProvider | undefined
     }
   }
 }

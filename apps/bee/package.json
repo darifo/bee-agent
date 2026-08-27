@@ -22,6 +22,7 @@
     "@bee-agent/kernel": "workspace:*",
     "@bee-agent/kanban": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
+    "@bee-agent/memory-bee": "workspace:*",
     "@bee-agent/model-providers": "workspace:*",
     "@bee-agent/runtime": "workspace:*",
     "@bee-agent/storage-sqlite": "workspace:*",

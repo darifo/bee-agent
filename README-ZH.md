@@ -28,7 +28,8 @@ Bee Agent v1 正在 `main` 分支开发。它与冻结在
 - 预算化上下文和 Tool/Skill 延迟解析；
 - 持久模型请求与可恢复 AgentLoop checkpoint；
 - deny-by-default 的 ExecutionWorld、审批、secret、sandbox、审计和幂等边界；
-- 沙箱化 Command、Python 与 manifest-pinned MCP adapters。
+- 沙箱化 Command、Python 与 manifest-pinned MCP adapters；
+- 个人记忆基座：Claim/Observation 契约、内嵌检索与派生、`/memory` 治理路由。
 
 现行设计和开发状态见 [`docs/architecture`](./docs/architecture)，架构决策见
 [`docs/adr`](./docs/adr)。
@@ -79,22 +80,23 @@ tool intent
 
 ## 当前能力
 
-| 领域       | 状态   | 当前实现                                                                                                                        |
-| ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Kernel     | 已可用 | Proxy Context、作用域服务、`inject`、Registry/Fiber、owned effects、A/B/C 调和与回滚、lease、quarantine 和 Doctor               |
-| Structure  | 已可用 | EffectiveStructure 摘要复算、受信任精确版本 PluginCatalog、factory registry、配置源刷新、串行 reconcile、生命周期事实与重启重建 |
-| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复                                         |
-| 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                    |
-| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                            |
-| 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                        |
-| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff  |
-| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                |
-| Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                |
-| Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                             |
-| MCP        | 已可用 | 可选 `mcp__<server>__<tool>`；Host-pinned manifests 与分阶段 JSON-lines initialize/call                                         |
-| 存储       | 已可用 | SQLite Chronicle 与 Kanban adapter；v0 的 PostgreSQL/pgvector 已在 clean break 中删除                                           |
-| 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                       |
-| 记忆与学习 | 计划中 | 包边界已经建立，Phase 4/5 实现尚未成为 Host 能力                                                                                |
+| 领域       | 状态   | 当前实现                                                                                                                                                                                                |
+| ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kernel     | 已可用 | Proxy Context、作用域服务、`inject`、Registry/Fiber、owned effects、A/B/C 调和与回滚、lease、quarantine 和 Doctor                                                                                       |
+| Structure  | 已可用 | EffectiveStructure 摘要复算、受信任精确版本 PluginCatalog、factory registry、配置源刷新、串行 reconcile、生命周期事实与重启重建                                                                         |
+| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复                                                                                                                 |
+| 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                                                                                            |
+| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                                                                                                    |
+| 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                                                                                                |
+| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff                                                                          |
+| 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                                                                                        |
+| Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                                                                                        |
+| Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                                                                                                     |
+| MCP        | 已可用 | 可选 `mcp__<server>__<tool>`；Host-pinned manifests 与分阶段 JSON-lines initialize/call                                                                                                                 |
+| 存储       | 已可用 | SQLite Chronicle 与 Kanban adapter；v0 的 PostgreSQL/pgvector 已在 clean break 中删除                                                                                                                   |
+| 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                                                                                               |
+| 记忆       | 进行中 | MemoryProvider 契约与契约套件；内嵌 memory-bee（Chronicle 投影、词法召回、偏好/纠正派生、合并）；retrieve hook 召回与近线派生已接入 Host，`/memory` 治理路由可查看/遗忘/导出；世界模型与 Scheduler 待做 |
+| 学习       | 计划中 | 包边界已建立，Phase 5 实现尚未成为 Host 能力                                                                                                                                                            |
 
 ## 环境要求
 
@@ -215,6 +217,8 @@ adapters/
   tools/command/           command_run 声明
   tools/python/            python_run 声明
   tools/mcp/               manifest-pinned MCP stdio 声明
+plugins/
+  memory-bee/              默认内嵌记忆提供者（memory 流投影 + 召回/派生）
 ```
 
 ## 路线图
@@ -223,7 +227,8 @@ adapters/
 - [x] Phase 2：持久 Kanban、上下文预算与 Tool/Skill 延迟解析
 - [x] Phase 3：ExecutionWorld、权限快照/审批、系统凭据、Seatbelt/bwrap、
       Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2
-- [ ] Phase 4：记忆、世界模型与长时工作流
+- [ ] Phase 4（进行中）：记忆、世界模型与长时工作流——记忆契约、内嵌
+      召回/派生与治理路由已落地，memory-remote/世界模型/Scheduler 待做
 - [ ] Phase 5：后台学习与受治理改进
 - [ ] Phase 6：体验收敛与 v1 发布
 

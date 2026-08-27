@@ -1,7 +1,7 @@
 import Fastify from 'fastify'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import cors from '@fastify/cors'
-import type { ChronicleStore } from '@bee-agent/knowledge'
+import type { ChronicleStore, MemoryProvider } from '@bee-agent/knowledge'
 import type {
   EffectiveStructure,
   Kernel,
@@ -17,6 +17,7 @@ import type {
   ToolAuthorizationRule,
   ToolAdapter,
   ToolExecutor,
+  GoalPlanStore,
   LlmRuntime,
   LlmToolSpec,
   SandboxProvider,
@@ -32,6 +33,7 @@ import {
   type AgentLoopService,
 } from './kernel-runtime.ts'
 import { kanbanRoutes } from './routes/kanban.ts'
+import { memoryRoutes } from './routes/memory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
 
@@ -104,6 +106,12 @@ export interface BeeServerOptions {
   readonly modelProviders?: ReadonlyMap<string, LlmRuntime> | undefined
   readonly pluginCatalog?: PluginCatalog | undefined
   readonly configSource?: ConfigSource | undefined
+  /** Personal memory provider; enables recall, derivation, and governance routes. */
+  readonly memory?: MemoryProvider | undefined
+  /** Disable near-line derivation while keeping recall. */
+  readonly deriveMemory?: boolean | undefined
+  /** Optional Goal/Plan store surfacing plans on complex turns. */
+  readonly goalPlanStore?: GoalPlanStore | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -124,6 +132,7 @@ export interface BeeServer {
   readonly kernel: Kernel
   readonly structures: StructureReconciler
   readonly configController: StructureConfigController | undefined
+  readonly memory: MemoryProvider | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -294,6 +303,9 @@ export async function buildBeeServer(
     secretBroker: options.secretBroker,
     toolAuthorization,
     toolSpecs,
+    memory: options.memory,
+    deriveMemory: options.deriveMemory,
+    goalPlanStore: options.goalPlanStore,
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,
     modelProviders: options.modelProviders,
@@ -313,6 +325,7 @@ export async function buildBeeServer(
     kernel,
     structures,
     configController,
+    memory: options.memory,
   })
 
   if (options.sessionToken !== undefined) {
@@ -338,6 +351,9 @@ export async function buildBeeServer(
   app.get('/health', async () => ({ status: 'ok' }))
   await app.register(threadRoutes, { corsOrigin })
   await app.register(kanbanRoutes)
+  if (options.memory !== undefined) {
+    await app.register(memoryRoutes, { memory: options.memory })
+  }
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
     await runtime.stop()
@@ -351,6 +367,7 @@ export async function buildBeeServer(
     kernel,
     structures,
     configController,
+    memory: options.memory,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

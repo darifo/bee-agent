@@ -1,8 +1,8 @@
 # Bee Agent v1 current implementation status
 
-> Snapshot: 2026-08-26
+> Snapshot: 2026-08-27
 >
-> Branch: `main`
+> Branch: `feature/v1.4.0` (Phase 4 in progress)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -13,6 +13,9 @@ Personal Bee Host
   └─ Kernel / active StructureGeneration
        ├─ Chronicle + SQLite
        ├─ Kanban + dispatcher
+       ├─ EmbeddedMemoryProvider (memory stream projection)
+       │    ├─ recall: AgentLoop retrieve hook (budgeted context section)
+       │    └─ near-line MemoryDerivationWorker after completed Turns
        ├─ ModelRequestService → OpenAI-compatible LLMRuntime
        ├─ ToolExecutionService → ExecutionWorld
        │    ├─ authorization / durable approval
@@ -20,7 +23,7 @@ Personal Bee Host
        │    └─ RoutingSandboxProvider
        │         ├─ InProcessToolSandbox (logical Kanban tools only)
        │         └─ PlatformCommandSandbox (Seatbelt / bubblewrap)
-       └─ AgentLoop (Turn-scoped generation lease)
+       └─ AgentLoop (Turn-scoped generation lease + memory/plan hooks)
 ```
 
 New Turns acquire the active generation. A reconciled Structure prepares and
@@ -99,6 +102,40 @@ Turns retain their original lease until completion, failure, or cancellation.
 - `@bee-agent/client`, Thread/Kanban CLI, and React conversation/Kanban UI.
 - SQLite Chronicle and Kanban adapter.
 
+## Phase 4 progress (memory foundation)
+
+Phase 4 has started on `feature/v1.4.0`. Landed so far:
+
+- Memory domain in `@bee-agent/knowledge` (WF4-A): Claim/Observation/
+  Representation schemas with provenance pointing at Chronicle positions,
+  valid-time intervals, supersedes/retract statuses, the `MemoryProvider`
+  contract (ingest/query/buildContext/getRepresentation/derive/consolidate/
+  retract/export/health), a serialized `memory` Chronicle stream with
+  registered event types, and an implementation-agnostic contract suite.
+- Embedded `@bee-agent/memory-bee` provider (WF4-B core): an in-memory
+  projection over the durable `memory` stream with restart rebuild, lexical
+  recall (English words plus CJK chars/bigrams, stopword filtering),
+  budgeted context sections, deterministic preference/correction derivation
+  (corrections supersede the latest recorded preference), and duplicate
+  consolidation via supersede events. FTS/local-vector indexing remains a
+  follow-up; correctness today does not depend on it.
+- Runtime wiring: `createMemoryRetrieveHook` (recall as the AgentLoop
+  retrieve hook; an unavailable provider skips recall instead of injecting
+  stale memory), the near-line `MemoryDerivationWorker` (completed Turns
+  only, failures captured in reports, never fail the Turn), and
+  `RememberingAgentLoop` around the pinned loop.
+- Host wiring: `bee.memory` tier-B service, memory governance routes
+  (`GET /memory/claims`, `POST /memory/claims/:claimId/retract`,
+  `POST /memory/consolidate`, `GET /memory/export`), the Goal/Plan hook on
+  complex turns, and optional `BEE_AGENT_STRUCTURE_FILE` watched structure
+  reload through `StructureConfigController`.
+
+Still pending in Phase 4: memory-remote bridge with explicit degradation
+(WF4-C), World/Structure projections (WF4-D), trajectory replay views
+(WF4-E), the scheduler and durable long-running queue (WF4-F), the unified
+personal data directory, and the Phase 4 CI gates (provider outage
+degradation, fake-clock cross-day recall).
+
 ## Phase 3 completion
 
 Phase 3 is complete. Ubuntu CI installs bubblewrap and requires the real
@@ -114,8 +151,9 @@ execution infrastructure.
 
 ## Later phases
 
-- Phase 4: personal memory, claims/representations, world model, artifact
-  store, scheduler, and unified personal data directory.
+- Phase 4 remainder: memory-remote bridge, world model, trajectory views,
+  scheduler/long-running queue, and the unified personal data directory (see
+  "Phase 4 progress" above for the landed memory foundation).
 - Phase 5: governed derivation, Skill learning, proposals, experiments,
   evaluation, and rollback.
 - Phase 6: migration/export tooling, packaging, soak/security acceptance, and
@@ -132,7 +170,9 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 320 passing workspace tests (1 platform-specific skip), including
+- 349 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
-  config refresh/rollback, Doctor quarantine, real macOS Seatbelt Command/Python/MCP
+  config refresh/rollback, Doctor quarantine, the MemoryProvider contract
+  suite over the embedded provider, end-to-end Host memory
+  recall/derivation/retraction, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

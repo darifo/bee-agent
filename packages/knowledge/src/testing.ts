@@ -14,6 +14,13 @@ import type { ChronicleSchemaRegistry } from './registry.ts'
  * by the consumer so the suite never resolves a second vitest instance
  * (same convention as `@bee-agent/storage`'s EventStore suite).
  */
+
+export { defineMemoryProviderContractSuite } from './memory-testing.ts'
+export type {
+  MemoryContractHarness,
+  MemoryContractSetup,
+  MemoryContractSubject,
+} from './memory-testing.ts'
 export interface ChronicleContractHarness {
   readonly describe: SuiteAPI
   readonly it: TestAPI
