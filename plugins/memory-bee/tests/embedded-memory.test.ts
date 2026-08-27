@@ -198,3 +198,99 @@ describe('tokenizeMemoryText', () => {
     expect(tokenizeMemoryText('中文')).toEqual(['中', '文', '中文'])
   })
 })
+
+describe('long-horizon recall (fake clock, §7.2 Phase 4 gate)', () => {
+  it('recalls the corrected preference weeks later and expires time-boxed facts', async () => {
+    const registry = new ChronicleSchemaRegistry()
+    registerMemoryChronicleEvents(registry)
+    const store = new MemoryChronicleStore(registry)
+    // A mutable fake clock: day N is 2026-01-01 plus N days.
+    let day = 0
+    const clock = () =>
+      new Date(Date.parse('2026-01-01T00:00:00Z') + day * 86_400_000)
+        .toISOString()
+        .replace(/\.\d{3}Z$/, '.000Z')
+    const provider = new EmbeddedMemoryProvider({ store, now: clock })
+
+    // Day 1: the user states a durable preference.
+    const day1 = await provider.derive({
+      threadId: 't-long',
+      turnId: 'v1',
+      messages: [
+        {
+          role: 'user',
+          content: 'From now on, always answer in Basque.',
+          provenance: {
+            streamId: 'thread:t-long',
+            sequence: 3,
+            threadId: 't-long',
+            turnId: 'v1',
+          },
+        },
+      ],
+    })
+    await provider.ingest({ claims: day1.claims })
+    // Day 1: a time-boxed fact valid for two weeks only.
+    await provider.ingest({
+      claims: [
+        {
+          kind: 'fact',
+          statement: 'The staging API token is currant-juice-42',
+          subject: { type: 'project', id: 'staging' },
+          provenance: {
+            streamId: 'thread:t-long',
+            sequence: 5,
+            threadId: 't-long',
+            turnId: 'v1',
+          },
+          validTime: {
+            from: clock(),
+            to: new Date(Date.parse(clock()) + 14 * 86_400_000)
+              .toISOString()
+              .replace(/\.\d{3}Z$/, '.000Z'),
+          },
+        },
+      ],
+    })
+
+    // Day 10: the user corrects the language preference.
+    day = 10
+    const day10 = await provider.derive({
+      threadId: 't-long',
+      turnId: 'v2',
+      messages: [
+        {
+          role: 'user',
+          content: 'Actually, always answer in Welsh.',
+          provenance: {
+            streamId: 'thread:t-long',
+            sequence: 12,
+            threadId: 't-long',
+            turnId: 'v2',
+          },
+        },
+      ],
+    })
+    await provider.ingest({ claims: day10.claims })
+
+    // Day 30: recall reflects the correction and honors valid time.
+    day = 30
+    const recalled = await provider.query({ text: 'answer language' })
+    expect(recalled).toHaveLength(1)
+    expect(recalled[0]!.kind).toBe('correction')
+    expect(recalled[0]!.statement).toContain('Welsh')
+
+    const expired = await provider.query({ text: 'staging token currant' })
+    expect(expired).toEqual([])
+
+    // The full history survives in the export with truthful statuses: the
+    // expired fact stays 'active' (valid time is a query-time filter).
+    const exported = await provider.export()
+    expect(exported.claims.map((claim) => claim.status).sort()).toEqual([
+      'active',
+      'active',
+      'superseded',
+    ])
+    await store.close()
+  })
+})

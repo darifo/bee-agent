@@ -13,7 +13,7 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
-> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）已完成；WF4-C/D/E/F 与 Phase 4 CI 门禁待做。
+> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C 核心（memory-remote 断路器/显式降级/health 事件）与 §7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）已完成；WF4-C 的 HTTP/MCP transport、WF4-D/E/F 待做。
 
 ## 1. 计划定位与使用方式
 
@@ -266,11 +266,11 @@ packages/client   → thread（仅协议类型）
 
 - **WF4-A MemoryProvider 契约**（done 2026-08-27）：方案 §12.5 接口全集 + contract suite（ingest/query/buildContext/getRepresentation/derive/consolidate/retract/export/health）落在 `@bee-agent/knowledge`；记忆变更是 `memory` Chronicle 流上的持久事件。
 - **WF4-B memory-bee**（核心 done 2026-08-27）：`plugins/memory-bee` 内嵌提供者 = `memory` 流投影 + 重启 rebuild + 词法检索（英文词 + CJK 二元组）+ 确定性偏好/纠正派生（纠正 supersede 最近偏好）+ 重复合并；Observation/Claim/Representation 契约就绪；FTS/本地向量索引与更丰富 Deriver 为后续增强。召回走 AgentLoop retrieve hook（预算化、provider 不可用时跳过），派生由近线 `MemoryDerivationWorker` 在 Turn 完成后执行；Host 提供 `/memory/*` 治理路由（查看/遗忘/合并/导出）。
-- **WF4-C memory-remote**：HTTP/MCP/SDK bridge；Honcho 连接器为参考实现；外部不可用时显式降级 + health 事件，不静默空记忆。
+- **WF4-C memory-remote**（核心 done 2026-08-27）：`plugins/memory-remote` 提供 `MemoryBridgeTransport` 接缝（含进程内 SDK bridge）与 `RemoteMemoryProvider`——连续失败断路器、`MemoryProviderUnavailableError` 快速失败、health 探测恢复；每次健康状态迁移都写入持久 `memory.health.changed` 事件，不静默空记忆；召回 hook 在断路器打开时优雅跳过。HTTP/MCP transport 与 Honcho 参考连接器待线协议确定后补充。
 - **WF4-D World/Structure**：WorldModel 与 StructureGraph 版本化投影；带来源 projector；启动解析 EffectiveStructure 入 Chronicle（P1-3 的运行时化）。
 - **WF4-E Trajectory**：Episode/Goal 范围因果投影；精确回放模型可见上下文；从 checkpoint fork。
 - **WF4-F 长时运行**：Scheduler（一次性/周期/事件/依赖触发，catch-up/misfire/backpressure）；durable queue + claim/heartbeat；Thread 跨天/跨重启续跑；Host 托盘/守护形态。
-- **CI 门禁**（§7.2 P4，待补）：MemoryProvider 契约套件已接入 memory-bee 测试；记忆矛盾/时间有效性、provider outage 降级、fake clock 跨天召回模拟待补。
+- **CI 门禁**（§7.2 P4，done 2026-08-27）：MemoryProvider 契约套件接入 memory-bee/memory-remote 测试并以参考内存实现自验证；记忆矛盾（冲突声明并存直至纠正）与时间有效性用例；provider outage 降级/恢复的持久迁移断言；fake clock 跨天（周级）召回模拟含纠正与过期事实。
 - **退出条件**（方案 §19）：低上下文成本下正确调用过去偏好与项目经验；关闭外部记忆不丢 Chronicle 事实；用户可查看/纠正/遗忘/导出记忆。
 
 ### 5.6 Phase 5：后台学习（工作流级）

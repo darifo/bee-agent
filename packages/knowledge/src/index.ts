@@ -76,6 +76,7 @@ export {
   MemorySubjectSchema,
   MemoryProvenanceSchema,
   MemoryClaimNotFoundError,
+  MemoryProviderUnavailableError,
   estimateMemoryTokens,
 } from './memory.ts'
 export type {
@@ -109,6 +110,7 @@ export {
   memoryClaimRetractedEvent,
   memoryClaimSupersededEvent,
   memoryConsolidationCompletedEvent,
+  memoryHealthChangedEvent,
   memoryObservationRecordedEvent,
   registerMemoryChronicleEvents,
   UnknownMemoryEventTypeError,

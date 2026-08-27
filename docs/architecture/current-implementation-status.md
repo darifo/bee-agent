@@ -129,12 +129,24 @@ Phase 4 has started on `feature/v1.4.0`. Landed so far:
   `POST /memory/consolidate`, `GET /memory/export`), the Goal/Plan hook on
   complex turns, and optional `BEE_AGENT_STRUCTURE_FILE` watched structure
   reload through `StructureConfigController`.
+- Remote-memory degradation (WF4-C core): a `memory.health.changed` Chronicle
+  event records every provider health transition; calls fail fast with
+  `MemoryProviderUnavailableError` once a circuit opens; `@bee-agent/
+memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
+  SDK bridge) and `RemoteMemoryProvider` with a consecutive-failure circuit
+  breaker that recovers through health probes; the recall hook skips
+  gracefully when a circuit opens mid-call. HTTP/MCP transports remain
+  follow-ups pending a wire-protocol decision.
+- Phase 4 CI gates: the contract suite is self-validated against a reference
+  in-memory provider, conflicting claims stay visible until corrected,
+  outage/recovery transitions are asserted against the durable stream, and a
+  fake-clock test covers weeks-later recall with corrections and expired
+  valid-time facts.
 
-Still pending in Phase 4: memory-remote bridge with explicit degradation
-(WF4-C), World/Structure projections (WF4-D), trajectory replay views
-(WF4-E), the scheduler and durable long-running queue (WF4-F), the unified
-personal data directory, and the Phase 4 CI gates (provider outage
-degradation, fake-clock cross-day recall).
+Still pending in Phase 4: HTTP/MCP remote transports and a reference
+connector (WF4-C remainder), World/Structure projections (WF4-D), trajectory
+replay views (WF4-E), the scheduler and durable long-running queue (WF4-F),
+and the unified personal data directory.
 
 ## Phase 3 completion
 
@@ -170,9 +182,10 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 349 passing workspace tests (1 platform-specific skip), including
+- 380 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
-  suite over the embedded provider, end-to-end Host memory
-  recall/derivation/retraction, real macOS Seatbelt Command/Python/MCP
+  suite over the embedded and remote providers, end-to-end Host memory
+  recall/derivation/retraction, remote outage/recovery transitions,
+  fake-clock long-horizon recall, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

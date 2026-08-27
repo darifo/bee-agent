@@ -1,14 +1,28 @@
 import type { ExpectStatic, SuiteAPI, TestAPI } from 'vitest'
 import type {
+  MemoryClaim,
+  MemoryContext,
   MemoryContextInput,
+  MemoryConsolidationReport,
+  MemoryDerivationInput,
+  MemoryDerivationResult,
+  MemoryExport,
+  MemoryHealth,
+  MemoryIngestInput,
+  MemoryIngestResult,
+  MemoryObservation,
   MemoryProvider,
   MemoryProvenance,
   MemoryQuery,
+  MemoryRepresentation,
   NewMemoryClaimInput,
 } from './memory.ts'
 import {
   MEMORY_RENDERER_VERSION,
+  MemoryClaimNotFoundError,
+  MemoryClaimSchema,
   MemoryHealthSchema,
+  MemoryObservationSchema,
   estimateMemoryTokens,
 } from './memory.ts'
 
@@ -220,6 +234,30 @@ export function defineMemoryProviderContractSuite<
         expect(superseded?.status).toBe('superseded')
       }))
 
+    it('keeps conflicting claims distinct until a correction resolves one', () =>
+      withSubject(setup, async ({ provider }) => {
+        // Two contradictory preferences with disjoint vocabulary: without a
+        // correction the provider must not silently drop either side —
+        // both stay queryable so the conflict is visible to the caller.
+        await provider.ingest({
+          claims: [
+            claimInput({ statement: 'Prefer rosemary hydrosol', sequence: 1 }),
+            claimInput({
+              statement: 'Prefer sandalwood candles',
+              sequence: 2,
+              recordedAt: '2026-02-01T00:00:00Z',
+            }),
+          ],
+        })
+
+        expect(
+          await queryIds(provider, { text: 'rosemary hydrosol' }),
+        ).toHaveLength(1)
+        expect(
+          await queryIds(provider, { text: 'sandalwood candles' }),
+        ).toHaveLength(1)
+      }))
+
     it('retract hides a claim from query but keeps it in export', () =>
       withSubject(setup, async ({ provider }) => {
         const recorded = await provider.ingest({
@@ -353,4 +391,241 @@ export function defineMemoryProviderContractSuite<
         expect(MemoryHealthSchema.parse(health)).toEqual(health)
       }))
   })
+}
+
+// ---------------------------------------------------------------------------
+// Reference in-memory provider
+// ---------------------------------------------------------------------------
+
+/**
+ * A non-persistent reference {@link MemoryProvider} (same convention as the
+ * kanban package's MemoryKanbanStore): the default harness for validating the
+ * contract suite itself and for exercising bridges (memory-remote) in tests.
+ * Production memory lives in the embedded or remote providers.
+ */
+export class InMemoryMemoryProvider implements MemoryProvider {
+  readonly #claims = new Map<string, MemoryClaim>()
+  readonly #observations = new Map<string, MemoryObservation>()
+  readonly #order: string[] = []
+  readonly #now: () => string
+
+  constructor(options: { now?: () => string } = {}) {
+    this.#now = options.now ?? (() => new Date().toISOString())
+  }
+
+  async ingest(input: MemoryIngestInput): Promise<MemoryIngestResult> {
+    const now = this.#now()
+    const claims: MemoryClaim[] = []
+    const observations: MemoryObservation[] = []
+    for (const candidate of input.claims ?? []) {
+      const existing =
+        candidate.id === undefined ? undefined : this.#claims.get(candidate.id)
+      if (existing !== undefined) {
+        claims.push(existing)
+        continue
+      }
+      const claim: MemoryClaim = MemoryClaimSchema.parse({
+        id: candidate.id ?? crypto.randomUUID(),
+        kind: candidate.kind,
+        statement: candidate.statement,
+        subject: candidate.subject,
+        provenance: candidate.provenance,
+        validTime: candidate.validTime ?? { from: now },
+        confidence: candidate.confidence ?? 1,
+        status: 'active',
+        supersedes: [...(candidate.supersedes ?? [])],
+        recordedAt: candidate.recordedAt ?? now,
+      })
+      for (const targetId of claim.supersedes) {
+        const target = this.#claims.get(targetId)
+        if (target !== undefined && target.status === 'active') {
+          this.#claims.set(targetId, { ...target, status: 'superseded' })
+        }
+      }
+      this.#order.push(claim.id)
+      this.#claims.set(claim.id, claim)
+      claims.push(claim)
+    }
+    for (const candidate of input.observations ?? []) {
+      const observation: MemoryObservation = MemoryObservationSchema.parse({
+        id: candidate.id ?? crypto.randomUUID(),
+        content: candidate.content,
+        provenance: candidate.provenance,
+        observedAt: candidate.observedAt ?? now,
+        confidence: candidate.confidence ?? 1,
+      })
+      this.#observations.set(observation.id, observation)
+      observations.push(observation)
+    }
+    return { claims, observations }
+  }
+
+  async query(query: MemoryQuery): Promise<readonly MemoryClaim[]> {
+    const now = query.now ?? this.#now()
+    const terms = new Set(
+      (query.text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+        (term) => term.length > 2,
+      ),
+    )
+    const eligible = [...this.#claims.values()].filter((claim) => {
+      if (claim.status !== 'active') return false
+      if (claim.validTime.from > now) return false
+      if (claim.validTime.to !== undefined && claim.validTime.to <= now) {
+        return false
+      }
+      if (query.kinds !== undefined && !query.kinds.includes(claim.kind)) {
+        return false
+      }
+      if (
+        query.subjectType !== undefined &&
+        claim.subject.type !== query.subjectType
+      ) {
+        return false
+      }
+      if (terms.size === 0) return true
+      const statement = claim.statement.toLowerCase()
+      for (const term of terms) {
+        if (statement.includes(term)) return true
+      }
+      return false
+    })
+    eligible.sort(
+      (a, b) =>
+        b.recordedAt.localeCompare(a.recordedAt) || b.id.localeCompare(a.id),
+    )
+    return query.limit === undefined ? eligible : eligible.slice(0, query.limit)
+  }
+
+  async buildContext(input: MemoryContextInput): Promise<MemoryContext> {
+    const claims = await this.query(input)
+    const lines = claims.map((claim) => `[${claim.kind}] ${claim.statement}`)
+    const included: string[] = []
+    const claimIds: string[] = []
+    let omitted = 0
+    for (let i = 0; i < lines.length; i += 1) {
+      const candidate = [...included, lines[i]!].join('\n')
+      if (estimateMemoryTokens(candidate) > input.budgetTokens) {
+        omitted += 1
+        continue
+      }
+      included.push(lines[i]!)
+      claimIds.push(claims[i]!.id)
+    }
+    const content = included.join('\n')
+    return {
+      content,
+      claimIds,
+      tokens: estimateMemoryTokens(content),
+      omitted,
+    }
+  }
+
+  async getRepresentation(
+    claimIds: readonly string[],
+  ): Promise<MemoryRepresentation> {
+    if (claimIds.length === 0) {
+      throw new Error('getRepresentation requires at least one claim id')
+    }
+    const claims = [...claimIds].sort().map((claimId) => {
+      const claim = this.#claims.get(claimId)
+      if (claim === undefined) throw new MemoryClaimNotFoundError(claimId)
+      return claim
+    })
+    const content = claims
+      .map((claim) => `[${claim.kind}] ${claim.statement}`)
+      .join('\n')
+    return {
+      id: crypto.randomUUID(),
+      claimIds: [...claimIds].sort(),
+      content,
+      rendererVersion: MEMORY_RENDERER_VERSION,
+      tokens: estimateMemoryTokens(content),
+    }
+  }
+
+  async derive(input: MemoryDerivationInput): Promise<MemoryDerivationResult> {
+    const claims: NewMemoryClaimInput[] = []
+    for (const message of input.messages) {
+      if (message.role === 'tool') continue
+      for (const sentence of message.content.split(/[.!?\n]+/)) {
+        const trimmed = sentence.trim()
+        if (
+          trimmed === '' ||
+          !/\b(always|never|prefer|from now on)\b/i.test(trimmed)
+        ) {
+          continue
+        }
+        claims.push({
+          kind: 'preference',
+          statement: trimmed,
+          subject: { type: 'user' },
+          provenance: message.provenance,
+          confidence: 0.6,
+        })
+      }
+    }
+    return { claims, observations: [] }
+  }
+
+  async consolidate(): Promise<MemoryConsolidationReport> {
+    const groups = new Map<string, MemoryClaim[]>()
+    const active: MemoryClaim[] = []
+    for (const id of this.#order) {
+      const claim = this.#claims.get(id)
+      if (claim === undefined || claim.status !== 'active') continue
+      active.push(claim)
+      const key = [
+        claim.kind,
+        claim.subject.type,
+        claim.subject.id ?? '',
+        claim.statement.trim().toLowerCase(),
+      ].join('|')
+      const group = groups.get(key) ?? []
+      group.push(claim)
+      groups.set(key, group)
+    }
+    const merged: {
+      kept: string
+      superseded: readonly string[]
+    }[] = []
+    for (const group of groups.values()) {
+      if (group.length < 2) continue
+      const sorted = [...group].sort(
+        (a, b) =>
+          a.recordedAt.localeCompare(b.recordedAt) || a.id.localeCompare(b.id),
+      )
+      const kept = sorted[0]!
+      for (const duplicate of sorted.slice(1)) {
+        this.#claims.set(duplicate.id, { ...duplicate, status: 'superseded' })
+      }
+      merged.push({
+        kept: kept.id,
+        superseded: sorted.slice(1).map((c) => c.id),
+      })
+    }
+    return { considered: active.length, merged, at: this.#now() }
+  }
+
+  async retract(claimId: string): Promise<MemoryClaim> {
+    const claim = this.#claims.get(claimId)
+    if (claim === undefined) throw new MemoryClaimNotFoundError(claimId)
+    const retracted = { ...claim, status: 'retracted' as const }
+    this.#claims.set(claimId, retracted)
+    return retracted
+  }
+
+  async export(): Promise<MemoryExport> {
+    return {
+      claims: this.#order.flatMap((id) => {
+        const claim = this.#claims.get(id)
+        return claim === undefined ? [] : [claim]
+      }),
+      observations: [...this.#observations.values()],
+      exportedAt: this.#now(),
+    }
+  }
+
+  async health(): Promise<MemoryHealth> {
+    return { status: 'healthy' }
+  }
 }

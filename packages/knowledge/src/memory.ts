@@ -206,6 +206,21 @@ export class MemoryClaimNotFoundError extends Error {
   }
 }
 
+/**
+ * A provider's circuit breaker is open (WF4-C): calls fail fast without
+ * touching the remote so an outage cannot stall turns or governance routes.
+ */
+export class MemoryProviderUnavailableError extends Error {
+  constructor(detail?: string) {
+    super(
+      detail === undefined
+        ? 'The memory provider is unavailable (circuit open)'
+        : `The memory provider is unavailable (circuit open): ${detail}`,
+    )
+    this.name = 'MemoryProviderUnavailableError'
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The provider contract
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import type { MemoryProvider } from '@bee-agent/knowledge'
 import type { ChronicleStore } from '@bee-agent/knowledge'
+import { MemoryProviderUnavailableError } from '@bee-agent/knowledge'
 import { readThreadEvents, threadStreamId } from '@bee-agent/thread'
 import type { ThreadId, TurnId } from '@bee-agent/thread'
 import type {
@@ -41,8 +42,10 @@ function lastUserText(input: AgentLoopHookInput): string {
 
 /**
  * Builds the retrieve hook over a MemoryProvider. An unavailable provider
- * (per `health()`) skips recall instead of injecting stale or empty memory;
- * unexpected provider errors propagate — they are bugs, not outages.
+ * (per `health()`, or a circuit that opens mid-call) skips recall instead of
+ * injecting stale or empty memory — the outage itself stays visible through
+ * the provider's durable health transitions. Unexpected provider errors
+ * propagate — they are bugs, not outages.
  */
 export function createMemoryRetrieveHook(
   provider: MemoryProvider,
@@ -54,11 +57,17 @@ export function createMemoryRetrieveHook(
     async retrieve(input) {
       const health = await provider.health()
       if (health.status === 'unavailable') return []
-      const context = await provider.buildContext({
-        text: lastUserText(input),
-        budgetTokens,
-        limit,
-      })
+      let context
+      try {
+        context = await provider.buildContext({
+          text: lastUserText(input),
+          budgetTokens,
+          limit,
+        })
+      } catch (error) {
+        if (error instanceof MemoryProviderUnavailableError) return []
+        throw error
+      }
       if (context.content === '') return []
       return [
         {

@@ -7,6 +7,7 @@ import {
   MemoryObservationSchema,
   type MemoryClaim,
   type MemoryConsolidationReport,
+  type MemoryHealth,
   type MemoryObservation,
 } from './memory.ts'
 
@@ -31,6 +32,7 @@ export const MEMORY_EVENT_TYPES = [
   'memory.claim.retracted',
   'memory.observation.recorded',
   'memory.consolidation.completed',
+  'memory.health.changed',
 ] as const
 export type MemoryEventType = (typeof MEMORY_EVENT_TYPES)[number]
 
@@ -43,6 +45,12 @@ const MemoryConsolidationReportPayloadSchema = z.object({
     }),
   ),
   at: z.iso.datetime(),
+})
+
+const MemoryHealthChangedPayloadSchema = z.object({
+  from: z.enum(['healthy', 'degraded', 'unavailable']),
+  to: z.enum(['healthy', 'degraded', 'unavailable']),
+  detail: z.string().min(1).optional(),
 })
 
 const MEMORY_EVENT_PAYLOADS: Record<MemoryEventType, z.ZodType<unknown>> = {
@@ -60,6 +68,7 @@ const MEMORY_EVENT_PAYLOADS: Record<MemoryEventType, z.ZodType<unknown>> = {
     observation: MemoryObservationSchema,
   }),
   'memory.consolidation.completed': MemoryConsolidationReportPayloadSchema,
+  'memory.health.changed': MemoryHealthChangedPayloadSchema,
 }
 
 /** Registers every memory event type on a Chronicle registry. */
@@ -176,6 +185,31 @@ export function memoryConsolidationCompletedEvent(
     'memory.consolidation.completed',
     {},
     MemoryConsolidationReportPayloadSchema.parse(report),
+    options,
+  )
+}
+
+/**
+ * Records an explicit provider health transition (WF4-C): a remote memory
+ * going degraded or unavailable is a durable, auditable fact — never a
+ * silent switch to empty memory.
+ */
+export function memoryHealthChangedEvent(
+  transition: {
+    readonly from: MemoryHealth['status']
+    readonly to: MemoryHealth['status']
+    readonly detail?: string | undefined
+  },
+  options: MemoryEventBuildOptions = {},
+): NewChronicleEvent {
+  return memoryEvent(
+    'memory.health.changed',
+    {},
+    MemoryHealthChangedPayloadSchema.parse({
+      from: transition.from,
+      to: transition.to,
+      ...(transition.detail !== undefined ? { detail: transition.detail } : {}),
+    }),
     options,
   )
 }

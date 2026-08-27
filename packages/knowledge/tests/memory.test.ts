@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import type { SuiteAPI, TestAPI, ExpectStatic } from 'vitest'
 import { ChronicleSchemaRegistry } from '../src/registry.ts'
 import { MemoryChronicleStore } from '../src/testing.ts'
+import {
+  defineMemoryProviderContractSuite,
+  InMemoryMemoryProvider,
+} from '../src/testing.ts'
 import { newChronicleEvent } from '../src/envelope.ts'
 import {
   MEMORY_EVENT_TYPES,
@@ -10,11 +15,29 @@ import {
   memoryClaimRetractedEvent,
   memoryClaimSupersededEvent,
   memoryConsolidationCompletedEvent,
+  memoryHealthChangedEvent,
   memoryStreamId,
   UnknownMemoryEventTypeError,
   registerMemoryChronicleEvents,
 } from '../src/index.ts'
 import type { MemoryClaim } from '../src/index.ts'
+
+// The suite itself is validated against the reference in-memory provider,
+// mirroring how the ChronicleStore suite runs against MemoryChronicleStore.
+defineMemoryProviderContractSuite(
+  {
+    describe: describe as SuiteAPI,
+    it: it as TestAPI,
+    expect: expect as ExpectStatic,
+  },
+  {
+    name: 'InMemoryMemoryProvider (contract)',
+    async create() {
+      return { provider: new InMemoryMemoryProvider() }
+    },
+    destroy() {},
+  },
+)
 
 function claim(overrides: Partial<MemoryClaim> = {}): MemoryClaim {
   return MemoryClaimSchema.parse({
@@ -99,6 +122,39 @@ describe('memory events', () => {
       'memory.claim.superseded',
       'memory.claim.retracted',
       'memory.consolidation.completed',
+    ])
+    await store.close()
+  })
+
+  it('records explicit provider health transitions', async () => {
+    const registry = new ChronicleSchemaRegistry()
+    registerMemoryChronicleEvents(registry)
+    const store = new MemoryChronicleStore(registry)
+
+    await store.append(
+      memoryStreamId(),
+      [
+        memoryHealthChangedEvent({
+          from: 'healthy',
+          to: 'unavailable',
+          detail: 'transport timeout after 3 failures',
+        }),
+        memoryHealthChangedEvent({ from: 'unavailable', to: 'healthy' }),
+      ],
+      { expectedSequence: 1 },
+    )
+
+    const transitions: unknown[] = []
+    for await (const event of store.readStream(MEMORY_STREAM_ID)) {
+      transitions.push(event.payload)
+    }
+    expect(transitions).toEqual([
+      {
+        from: 'healthy',
+        to: 'unavailable',
+        detail: 'transport timeout after 3 failures',
+      },
+      { from: 'unavailable', to: 'healthy' },
     ])
     await store.close()
   })

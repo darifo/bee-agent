@@ -15,7 +15,10 @@ import type { ChronicleSchemaRegistry } from './registry.ts'
  * (same convention as `@bee-agent/storage`'s EventStore suite).
  */
 
-export { defineMemoryProviderContractSuite } from './memory-testing.ts'
+export {
+  defineMemoryProviderContractSuite,
+  InMemoryMemoryProvider,
+} from './memory-testing.ts'
 export type {
   MemoryContractHarness,
   MemoryContractSetup,

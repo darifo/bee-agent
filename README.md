@@ -227,6 +227,8 @@ adapters/
 plugins/
   memory-bee/              Default embedded memory provider (memory stream
                           projection, recall and derivation)
+  memory-remote/           Remote memory seam: bridge transport plus a
+                          circuit-breaker provider with durable health events
 ```
 
 ## Roadmap

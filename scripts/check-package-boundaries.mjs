@@ -21,6 +21,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
   client: ['thread'],
   'storage-sqlite': ['kanban', 'knowledge'],
   'memory-bee': ['knowledge'],
+  'memory-remote': ['knowledge'],
   bee: [
     'kernel',
     'kanban',
@@ -152,6 +153,10 @@ async function scanWorkspace(rootDir) {
     {
       packageName: 'memory-bee',
       directory: join(rootDir, 'plugins', 'memory-bee'),
+    },
+    {
+      packageName: 'memory-remote',
+      directory: join(rootDir, 'plugins', 'memory-remote'),
     },
   ]
 

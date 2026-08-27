@@ -219,6 +219,8 @@ adapters/
   tools/mcp/               manifest-pinned MCP stdio 声明
 plugins/
   memory-bee/              默认内嵌记忆提供者（memory 流投影 + 召回/派生）
+  memory-remote/           远程记忆接缝：桥接 transport + 断路器提供者，
+                          健康迁移持久化为事件
 ```
 
 ## 路线图

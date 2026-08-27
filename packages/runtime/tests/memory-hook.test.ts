@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
+import { MemoryProviderUnavailableError } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import type {
   MemoryContext,
@@ -209,6 +210,40 @@ describe('createMemoryRetrieveHook', () => {
 
     await loop.runTurn({ threadId: crypto.randomUUID(), input: 'hello' })
     expect(calls.queries).toHaveLength(0)
+    expect(
+      llm.calls[0]!.bundle.messages.filter((m) => m.role === 'system'),
+    ).toHaveLength(0)
+    await store.close()
+  })
+
+  it('skips recall when the circuit opens mid-call', async () => {
+    const store = createStore()
+    const provider: MemoryProvider = {
+      ...scriptedProvider({}).provider,
+      async buildContext() {
+        throw new MemoryProviderUnavailableError('circuit open mid-call')
+      },
+    }
+    const llm = createFakeLlmRuntime({
+      script: [{ type: 'respond', deltas: ['ok'] }],
+    })
+    const loop = new AgentLoop({
+      store,
+      modelRequests: new ModelRequestService({
+        store,
+        llm,
+        promptVersion: 'test@1',
+        structureVersion: 'sha256:test',
+      }),
+      toolExecution: noTools,
+      hooks: { retrieve: createMemoryRetrieveHook(provider) },
+    })
+
+    const result = await loop.runTurn({
+      threadId: crypto.randomUUID(),
+      input: 'hello',
+    })
+    expect(result.status).toBe('completed')
     expect(
       llm.calls[0]!.bundle.messages.filter((m) => m.role === 'system'),
     ).toHaveLength(0)
