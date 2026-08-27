@@ -123,6 +123,9 @@ importers:
       '@bee-agent/memory-bee':
         specifier: workspace:*
         version: link:../../plugins/memory-bee
+      '@bee-agent/memory-remote':
+        specifier: workspace:*
+        version: link:../../plugins/memory-remote
       '@bee-agent/model-providers':
         specifier: workspace:*
         version: link:../../packages/model-providers

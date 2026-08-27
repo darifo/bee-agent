@@ -159,14 +159,39 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   the original cadence), scheduler-launched turns carry trigger `schedule`,
   and a crashing turn still advances the schedule. The Host enables it by
   default (5s auto-tick) with `/scheduler/triggers` CRUD and a manual
-  `POST /scheduler/tick`.
+  `POST /scheduler/tick`. Condition triggers: `when.taskStatus` fires once a
+  Kanban task reaches a status (durable catch-up through the task stream)
+  and `when.event` fires on matching appended events via `notify`.
+- Trajectory views (WF4-E): `buildTurnTrajectory` projects one Turn's causal
+  chain — generations with structure versions and digest-verified model
+  inputs, tool actions with capability/decision/outcome from execution
+  streams, and checkpoints. `replayGeneration` returns the exact
+  model-visible bundle (manifest + sources + rebuilt context, digest
+  checked). Routes: `GET /threads/:threadId/turns/:turnId/trajectory` and
+  `GET /model-requests/:requestId/replay`.
+- StructureGraph (WF4-D remainder): `StructureGraphStore` replays the
+  `structure` stream into a lineage view — versions with full phase
+  history, supersession chains, and the active digest — exposed through
+  `GET /structure`. The `ExecutionResourceProjector` derives file-resource
+  dependencies and native-executable capabilities from
+  `execution.requested` events and runs in the default Host world
+  projection.
+- Remote memory over HTTP (WF4-C complete): `FetchMemoryTransport` speaks a
+  documented `/memory/*` REST contract (query/ingest/context/representation/
+  derive/consolidate/retract/export/health) with bearer auth and explicit
+  `MemoryTransportError` status mapping; the Host switches to it — behind
+  the circuit breaker with durable health events — when
+  `BEE_AGENT_MEMORY_REMOTE_URL` is set. The wire contract is pinned by a
+  reference HTTP server test running the full round-trip.
+- Unified personal data directory: durable Host artifacts default to
+  `BEE_AGENT_DATA_DIR` or the platform convention (macOS Application
+  Support / XDG data home) instead of the working directory; an explicit
+  `BEE_AGENT_STORAGE_SQLITE_FILENAME` still wins.
 
-Still pending in Phase 4: HTTP/MCP remote transports and a reference
-connector (WF4-C remainder), the StructureGraph self-structure projection
-and richer environment projectors (WF4-D remainder), trajectory replay views
-(WF4-E), event/dependency-triggered scheduling beyond time triggers and the
-daemon/tray host form (WF4-F remainder), and the unified personal data
-directory.
+Still pending in Phase 4: an MCP memory transport and named reference
+connectors (the HTTP contract is live), checkpoint-fork experiments from
+trajectories (WF4-E remainder), the daemon/tray host form (WF4-F remainder),
+and the Phase 4 acceptance ADRs (0021/0024/0027) at phase exit.
 
 ## Phase 3 completion
 
@@ -202,12 +227,14 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 396 passing workspace tests (1 platform-specific skip), including
+- 475 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory
-  recall/derivation/retraction, remote outage/recovery transitions,
-  fake-clock long-horizon recall, world-projection digest verification and
-  the live `GET /world` contract, scheduler due-time/cadence/catch-up
-  contracts, real macOS Seatbelt Command/Python/MCP
+  recall/derivation/retraction, remote outage/recovery transitions and the
+  HTTP wire-contract round-trip, fake-clock long-horizon recall,
+  world-projection digest verification and the live `GET /world` contract,
+  scheduler due-time/cadence/catch-up and task/event condition contracts,
+  trajectory projection with digest-verified model replay, StructureGraph
+  lineage replay, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

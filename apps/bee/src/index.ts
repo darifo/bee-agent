@@ -5,6 +5,8 @@ export {
   unsafeListenReason,
 } from './app.ts'
 export type { BeeServer, BeeServerOptions, CorsOriginPolicy } from './app.ts'
+export { resolveBeeDataDir } from './data-dir.ts'
+export type { DataDirInput } from './data-dir.ts'
 export { BroadcastingChronicleStore } from './broadcasting-store.ts'
 export type { ChronicleAppendBroadcast } from './broadcasting-store.ts'
 export {

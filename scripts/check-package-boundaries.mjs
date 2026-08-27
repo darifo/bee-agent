@@ -27,6 +27,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
     'kanban',
     'knowledge',
     'memory-bee',
+    'memory-remote',
     'model-providers',
     'runtime',
     'storage-sqlite',
