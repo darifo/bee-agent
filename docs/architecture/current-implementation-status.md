@@ -219,7 +219,9 @@ transport variant behind the live HTTP contract, checkpoint-fork experiments
 
 ## Phase 3 completion
 
-Phase 3 is complete. Ubuntu CI installs bubblewrap and requires the real
+Phase 3 is complete. Ubuntu CI installs bubblewrap (lifting the AppArmor
+unprivileged-userns restriction that newer runner images enforce, since the
+image does not load bwrap's allowing profile) and requires the real
 filesystem boundary plus cross-platform process-group cancellation contracts.
 The macOS suite retains Seatbelt coverage. Network execution is separated from
 the command sandbox and requires an exact-origin, Host-injected transport;
