@@ -31,6 +31,7 @@ import type {
   StructureConfigController,
   ConfigSource,
 } from '@bee-agent/runtime'
+import { AgentScheduler } from '@bee-agent/runtime'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
 import {
@@ -39,6 +40,7 @@ import {
 } from './kernel-runtime.ts'
 import { kanbanRoutes } from './routes/kanban.ts'
 import { memoryRoutes } from './routes/memory.ts'
+import { schedulerRoutes } from './routes/scheduler.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
 import { worldRoutes } from './routes/world.ts'
@@ -124,6 +126,13 @@ export interface BeeServerOptions {
    * world projection (catch-up + live) and serves `GET /world`.
    */
   readonly worldProjectors?: readonly WorldProjector[] | undefined
+  /**
+   * Long-running schedules: `true` enables the durable scheduler with the
+   * default auto-tick (5s); an object tunes the tick; absent disables it
+   * (manual `POST /scheduler/tick` is always available when enabled).
+   */
+  readonly scheduler?:
+    boolean | { readonly tickIntervalMs?: number | undefined } | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -147,6 +156,7 @@ export interface BeeServer {
   readonly memory: MemoryProvider | undefined
   readonly world: WorldModelStore | undefined
   readonly worldProjection: WorldProjectionService | undefined
+  readonly scheduler: AgentScheduler | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -345,6 +355,25 @@ export async function buildBeeServer(
     await worldProjection.start()
   }
 
+  // The durable scheduler: rebuild from the `scheduler` stream, then either
+  // auto-tick or leave firing to explicit `POST /scheduler/tick`.
+  let scheduler: AgentScheduler | undefined
+  if (options.scheduler !== undefined && options.scheduler !== false) {
+    scheduler = new AgentScheduler({
+      store,
+      turns: loop,
+      ...(options.scheduler === true
+        ? { tickIntervalMs: 5_000 }
+        : {
+            ...(options.scheduler.tickIntervalMs === undefined
+              ? {}
+              : { tickIntervalMs: options.scheduler.tickIntervalMs }),
+          }),
+    })
+    await scheduler.rebuild()
+    scheduler.start()
+  }
+
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
@@ -357,6 +386,7 @@ export async function buildBeeServer(
     configController,
     memory: options.memory,
     world,
+    scheduler,
   })
 
   if (options.sessionToken !== undefined) {
@@ -388,8 +418,12 @@ export async function buildBeeServer(
   if (world !== undefined) {
     await app.register(worldRoutes, { world })
   }
+  if (scheduler !== undefined) {
+    await app.register(schedulerRoutes, { scheduler })
+  }
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    scheduler?.stop()
     worldProjection?.stop()
     await runtime.stop()
     await store.close()
@@ -405,6 +439,7 @@ export async function buildBeeServer(
     memory: options.memory,
     world,
     worldProjection,
+    scheduler,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

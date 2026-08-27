@@ -101,6 +101,7 @@ checks enforce this repository-wide.
 | External agents  | Optional    | Bounded delegation, parent/child trajectory lineage, exact-origin network sandbox and declarative RemoteAgent v2                                                                                                                                                                                                              |
 | Memory           | In progress | MemoryProvider contract and contract suite; embedded memory-bee (Chronicle projection, lexical recall, preference/correction derivation, consolidation); recall hook and near-line derivation wired into the Host with `/memory` view/forget/export governance; remote-memory circuit breaker and explicit degradation landed |
 | World model      | In progress | Entities, provenance-carrying relations, and versioned snapshots over a `world` Chronicle stream with digest-verified rebuilds; facts enter only through sourced projectors; Host catch-up plus live projection with a read-only `GET /world` view                                                                            |
+| Long-running     | In progress | Durable AgentScheduler: one-shot and recurring triggers continuing a bound thread across days and restarts; missed intervals collapse into one catch-up run resuming the original cadence; `/scheduler` trigger management and manual tick; event/dependency triggers and the daemon form pending                             |
 | Learning         | Planned     | Package boundaries exist; the Phase 5 implementation is not yet an active Host capability                                                                                                                                                                                                                                     |
 
 ## Requirements
@@ -241,9 +242,9 @@ plugins/
       delegation and RemoteAgent v2
 - [ ] Phase 4 (in progress): memory, world model and long-running workflows —
       the memory contract, embedded recall/derivation, governance routes,
-      remote degradation, and the world-model projection have landed;
-      HTTP/MCP remote transports, StructureGraph/Trajectory views, and the
-      scheduler remain
+      remote degradation, the world-model projection, and the durable
+      scheduler have landed; HTTP/MCP remote transports,
+      StructureGraph/Trajectory views, and event/dependency triggers remain
 - [ ] Phase 5: background learning and governed improvement
 - [ ] Phase 6: experience convergence and v1 release
 

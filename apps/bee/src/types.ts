@@ -2,6 +2,7 @@ import type { Kernel } from '@bee-agent/kernel'
 import type { MemoryProvider, WorldModelStore } from '@bee-agent/knowledge'
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
+  AgentScheduler,
   StructureConfigController,
   StructureReconciler,
 } from '@bee-agent/runtime'
@@ -20,6 +21,7 @@ declare module 'fastify' {
       readonly configController: StructureConfigController | undefined
       readonly memory: MemoryProvider | undefined
       readonly world: WorldModelStore | undefined
+      readonly scheduler: AgentScheduler | undefined
     }
   }
 }

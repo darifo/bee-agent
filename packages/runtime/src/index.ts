@@ -68,6 +68,30 @@ export * from './planner.ts'
 export * from './memory-hook.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
+export { AgentScheduler, SchedulerTriggerNotFoundError } from './scheduler.ts'
+export type {
+  AgentSchedulerOptions,
+  RegisterSchedulerTriggerInput,
+  SchedulerFiredRun,
+  SchedulerTickReport,
+  SchedulerTurnPort,
+} from './scheduler.ts'
+export {
+  SCHEDULER_EVENT_TYPES,
+  SCHEDULER_STREAM_ID,
+  SchedulerTriggerSchema,
+  registerSchedulerChronicleEvents,
+  schedulerStreamId,
+  schedulerTriggerRegisteredEvent,
+  schedulerTriggerRemovedEvent,
+  schedulerTriggerTriggeredEvent,
+  UnknownSchedulerEventTypeError,
+} from './scheduler-events.ts'
+export type {
+  SchedulerEventBuildOptions,
+  SchedulerEventType,
+  SchedulerTrigger,
+} from './scheduler-events.ts'
 export {
   AGENT_LOOP_SERVICE,
   createAgentLoopPlugin,

@@ -153,6 +153,7 @@ const server = await buildBeeServer({
   memory,
   goalPlanStore: new MemoryGoalPlanStore(),
   worldProjectors: [new ThreadToolProjector()],
+  scheduler: true,
   ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
     ...[commandTool, pythonTool].filter(

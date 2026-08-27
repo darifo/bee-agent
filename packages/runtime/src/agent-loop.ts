@@ -86,6 +86,8 @@ export interface AgentLoopOptions {
 export interface AgentLoopRunInput {
   readonly threadId: ThreadId
   readonly input: string
+  /** What started the turn; user-facing requests default to `user`. */
+  readonly trigger?: 'user' | 'system' | 'schedule' | undefined
   readonly structureVersion?: string | undefined
   readonly signal?: AbortSignal | undefined
 }
@@ -192,7 +194,7 @@ export class AgentLoop {
     const now = this.#now()
     const turn = newTurn({
       threadId: input.threadId,
-      trigger: 'user',
+      trigger: input.trigger ?? 'user',
       input: input.input,
       structureVersion: input.structureVersion,
       now,

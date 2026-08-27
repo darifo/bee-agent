@@ -13,7 +13,7 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
-> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C 核心（memory-remote 断路器/显式降级/health 事件）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）与 WF4-D 核心（WorldModel 版本化投影 + 带来源 projector + Host 实时投影 + `GET /world`）已完成；WF4-C 的 HTTP/MCP transport、WF4-D 的 StructureGraph、WF4-E/F 待做。
+> 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C 核心（memory-remote 断路器/显式降级/health 事件）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D 核心（WorldModel 版本化投影 + 带来源 projector + Host 实时投影 + `GET /world`）与 WF4-F 时间触发核心（AgentScheduler 持久化调度 + catch-up + `/scheduler` 路由）已完成；WF4-C 的 HTTP/MCP transport、WF4-D 的 StructureGraph、WF4-E Trajectory、WF4-F 的事件/依赖触发与守护形态待做。
 
 ## 1. 计划定位与使用方式
 
@@ -269,7 +269,7 @@ packages/client   → thread（仅协议类型）
 - **WF4-C memory-remote**（核心 done 2026-08-27）：`plugins/memory-remote` 提供 `MemoryBridgeTransport` 接缝（含进程内 SDK bridge）与 `RemoteMemoryProvider`——连续失败断路器、`MemoryProviderUnavailableError` 快速失败、health 探测恢复；每次健康状态迁移都写入持久 `memory.health.changed` 事件，不静默空记忆；召回 hook 在断路器打开时优雅跳过。HTTP/MCP transport 与 Honcho 参考连接器待线协议确定后补充。
 - **WF4-D World/Structure**（WorldModel 核心 done 2026-08-27）：实体/关系/版本化快照 schema 与 `world` Chronicle 流落在 `@bee-agent/knowledge`，版本 bump 携带全量投影 digest，rebuild 逐一校验、漂移即抛 `WorldVersionDriftError`；事实只能经带来源 `WorldProjector` 进入（参考实现 `ThreadToolProjector` 从完成 tool_call 派生 agent→工具使用关系，引用精确 item 位置），Host 启动追赶重放 + 实时投影，`GET /world` 只读视图带过滤。StructureGraph 自身结构投影与更丰富环境 projector（execution 资源/worktree/MCP）待做。
 - **WF4-E Trajectory**：Episode/Goal 范围因果投影；精确回放模型可见上下文；从 checkpoint fork。
-- **WF4-F 长时运行**：Scheduler（一次性/周期/事件/依赖触发，catch-up/misfire/backpressure）；durable queue + claim/heartbeat；Thread 跨天/跨重启续跑；Host 托盘/守护形态。
+- **WF4-F 长时运行**（时间触发核心 done 2026-08-27）：`AgentScheduler`（runtime）——一次性/周期触发器绑定 Thread 跨天跨重启续跑；状态为 `scheduler` Chronicle 流（registered/triggered/removed），重启 rebuild；tick 以 fire-once catch-up 合并停机错过的周期（报告 missedIntervals、按原节律推进）；调度发起的 Turn 标记 trigger `schedule`；Turn 抛错仍推进计划避免热循环；Host 默认启用（5s auto-tick）并提供 `/scheduler/triggers` CRUD 与手动 `POST /scheduler/tick`。事件/依赖触发、托盘/守护形态待做（依赖触发可复用 Kanban satisfiedWhen）。
 - **CI 门禁**（§7.2 P4，done 2026-08-27）：MemoryProvider 契约套件接入 memory-bee/memory-remote 测试并以参考内存实现自验证；记忆矛盾（冲突声明并存直至纠正）与时间有效性用例；provider outage 降级/恢复的持久迁移断言；fake clock 跨天（周级）召回模拟含纠正与过期事实。
 - **退出条件**（方案 §19）：低上下文成本下正确调用过去偏好与项目经验；关闭外部记忆不丢 Chronicle 事实；用户可查看/纠正/遗忘/导出记忆。
 

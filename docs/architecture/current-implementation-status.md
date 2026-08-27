@@ -150,12 +150,23 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   `ThreadToolProjector` derives agent→tool usage from completed tool calls
   with exact item provenance); the Host replays catch-up at start, projects
   live appends, and serves a read-only `GET /world` view.
+- Long-running scheduler (WF4-F core): `AgentScheduler` in
+  `@bee-agent/runtime` — one-shot and recurring triggers that continue a
+  bound thread across days and restarts. Trigger state is the serialized
+  `scheduler` Chronicle stream (registered/triggered/removed) and rebuilds
+  on restart; ticks fire due triggers under a fire-once catch-up policy that
+  collapses missed intervals into one run (reporting the count and resuming
+  the original cadence), scheduler-launched turns carry trigger `schedule`,
+  and a crashing turn still advances the schedule. The Host enables it by
+  default (5s auto-tick) with `/scheduler/triggers` CRUD and a manual
+  `POST /scheduler/tick`.
 
 Still pending in Phase 4: HTTP/MCP remote transports and a reference
 connector (WF4-C remainder), the StructureGraph self-structure projection
 and richer environment projectors (WF4-D remainder), trajectory replay views
-(WF4-E), the scheduler and durable long-running queue (WF4-F),
-and the unified personal data directory.
+(WF4-E), event/dependency-triggered scheduling beyond time triggers and the
+daemon/tray host form (WF4-F remainder), and the unified personal data
+directory.
 
 ## Phase 3 completion
 
@@ -191,11 +202,12 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 389 passing workspace tests (1 platform-specific skip), including
+- 396 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory
   recall/derivation/retraction, remote outage/recovery transitions,
   fake-clock long-horizon recall, world-projection digest verification and
-  the live `GET /world` contract, real macOS Seatbelt Command/Python/MCP
+  the live `GET /world` contract, scheduler due-time/cadence/catch-up
+  contracts, real macOS Seatbelt Command/Python/MCP
   contracts and mandatory Ubuntu bubblewrap contracts in CI.

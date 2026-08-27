@@ -97,6 +97,7 @@ tool intent
 | 外部智能体 | 可选   | bounded delegation、parent/child trajectory lineage、exact-origin network sandbox 与声明式 RemoteAgent v2                                                                                                   |
 | 记忆       | 进行中 | MemoryProvider 契约与契约套件；内嵌 memory-bee（Chronicle 投影、词法召回、偏好/纠正派生、合并）；retrieve hook 召回与近线派生已接入 Host，`/memory` 治理路由可查看/遗忘/导出；远程记忆断路器/显式降级已就绪 |
 | 世界模型   | 进行中 | 实体/关系/版本化快照 + `world` Chronicle 流（版本 digest 可校验重建）；事实仅经带来源 projector 进入；Host 追赶重放 + 实时投影，`GET /world` 只读视图                                                       |
+| 长时运行   | 进行中 | 持久化 AgentScheduler：一次性/周期触发器绑定 Thread 跨天跨重启续跑；停机错过的周期 fire-once 合并并按原节律恢复；`/scheduler` 触发器管理与手动 tick；事件/依赖触发与守护形态待做                            |
 | 学习       | 计划中 | 包边界已建立，Phase 5 实现尚未成为 Host 能力                                                                                                                                                                |
 
 ## 环境要求
@@ -231,8 +232,8 @@ plugins/
 - [x] Phase 3：ExecutionWorld、权限快照/审批、系统凭据、Seatbelt/bwrap、
       Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2
 - [ ] Phase 4（进行中）：记忆、世界模型与长时工作流——记忆契约、内嵌
-      召回/派生、治理路由、远程降级与世界模型投影已落地，
-      HTTP/MCP 远程 transport、StructureGraph/Trajectory/Scheduler 待做
+      召回/派生、治理路由、远程降级、世界模型投影与持久化调度器已落地，
+      HTTP/MCP 远程 transport、StructureGraph/Trajectory、事件/依赖触发待做
 - [ ] Phase 5：后台学习与受治理改进
 - [ ] Phase 6：体验收敛与 v1 发布
 
