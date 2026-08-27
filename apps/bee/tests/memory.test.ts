@@ -5,11 +5,18 @@ import {
   registerStructureChronicleEvents,
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
-import { registerThreadChronicleEvents } from '@bee-agent/thread'
+import {
+  readThreadEvents,
+  registerThreadChronicleEvents,
+} from '@bee-agent/thread'
 import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import { EmbeddedMemoryProvider } from '@bee-agent/memory-bee'
+import {
+  RemoteMemoryProvider,
+  type MemoryBridgeTransport,
+} from '@bee-agent/memory-remote'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
 import type { FakeLlmRuntime } from '@bee-agent/runtime/testing'
 import { buildBeeServer } from '../src/index.ts'
@@ -169,5 +176,83 @@ describe('host memory integration', () => {
         ).toBe('retracted')
       },
     )
+  })
+})
+
+describe('memory outage acceptance (Phase 4 exit condition)', () => {
+  it('an unavailable remote memory never loses Chronicle facts and never blocks turns', async () => {
+    const registry = new ChronicleSchemaRegistry()
+    registerStructureChronicleEvents(registry)
+    registerThreadChronicleEvents(registry)
+    registerRuntimeChronicleEvents(registry)
+    registerMemoryChronicleEvents(registry)
+    const store = new MemoryChronicleStore(registry)
+    // Every transport call fails: the remote memory is completely down.
+    const down = {} as MemoryBridgeTransport
+    const memory = new RemoteMemoryProvider({
+      transport: down,
+      store,
+      failureThreshold: 1,
+    })
+    const llm = createFakeLlmRuntime({
+      script: [{ type: 'respond', deltas: ['Still here.'] }],
+    })
+    const server = await buildBeeServer({
+      store,
+      kanban: createMemoryKanbanStore(
+        (() => {
+          const kanbanRegistry = new ChronicleSchemaRegistry()
+          registerKanbanChronicleEvents(kanbanRegistry)
+          return kanbanRegistry
+        })(),
+      ),
+      llm,
+      memory,
+      logger: false,
+    })
+    await server.app.listen({ host: '127.0.0.1', port: 0 })
+    await server.app.ready()
+    const baseUrl = `http://127.0.0.1:${
+      (server.app.server.address() as { port: number }).port
+    }`
+
+    try {
+      const threadResponse = await fetch(`${baseUrl}/threads`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'outage test' }),
+      })
+      const thread = (await threadResponse.json()) as { id: string }
+      const turn = await runTurn(baseUrl, thread.id, 'Are you alive?')
+      expect(turn.status).toBe('completed')
+
+      // No memory was recalled — and no system message pretending to be one.
+      expect(
+        llm.calls[0]!.bundle.messages.filter((m) => m.role === 'system'),
+      ).toHaveLength(0)
+
+      // The Chronicle facts for the whole conversation are fully intact.
+      const page = await readThreadEvents(server.store, thread.id)
+      expect(page.events.map((event) => event.event)).toEqual(
+        expect.arrayContaining([
+          'thread.created',
+          'turn.started',
+          'item.started',
+          'item.completed',
+          'turn.completed',
+        ]),
+      )
+
+      // The outage itself is a durable, explicit health fact.
+      const transitions: string[] = []
+      for await (const event of store.readStream('memory')) {
+        transitions.push(
+          `${(event.payload as { from: string }).from}->${(event.payload as { to: string }).to}`,
+        )
+      }
+      expect(transitions).toContain('healthy->unavailable')
+    } finally {
+      await server.app.close()
+    }
   })
 })

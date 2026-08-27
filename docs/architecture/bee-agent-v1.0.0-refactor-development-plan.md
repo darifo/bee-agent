@@ -271,7 +271,7 @@ packages/client   → thread（仅协议类型）
 - **WF4-E Trajectory**（视图 done 2026-08-27）：`buildTurnTrajectory` 从持久事实投影 Turn 因果链——generation（structureVersion + digest 校验的模型输入）、tool（capability/decision/outcome，引用 execution 流）、checkpoint；`replayGeneration` 返回精确模型可见 bundle（manifest+sources+重建上下文，digest 校验）；路由 `GET /threads/:id/turns/:turnId/trajectory` 与 `GET /model-requests/:requestId/replay`。从 checkpoint fork 新实验待做。
 - **WF4-F 长时运行**（done 2026-08-27，守护形态除外）：`AgentScheduler`（runtime）——一次性/周期触发器绑定 Thread 跨天跨重启续跑；状态为 `scheduler` Chronicle 流（registered/triggered/removed），重启 rebuild；tick 以 fire-once catch-up 合并停机错过的周期（报告 missedIntervals、按原节律推进）；条件触发：`when.taskStatus`（Kanban 任务到达状态即触发，经任务流持久追赶）与 `when.event`（匹配 append 事件经 notify 边沿触发，一次性）；调度发起的 Turn 标记 trigger `schedule`；Turn 抛错仍推进计划避免热循环；Host 默认启用（5s auto-tick）并提供 `/scheduler/triggers` CRUD 与手动 `POST /scheduler/tick`。托盘/守护打包形态待做。
 - **CI 门禁**（§7.2 P4，done 2026-08-27）：MemoryProvider 契约套件接入 memory-bee/memory-remote 测试并以参考内存实现自验证；记忆矛盾（冲突声明并存直至纠正）与时间有效性用例；provider outage 降级/恢复的持久迁移断言；fake clock 跨天（周级）召回模拟含纠正与过期事实。
-- **退出条件**（方案 §19）：低上下文成本下正确调用过去偏好与项目经验；关闭外部记忆不丢 Chronicle 事实；用户可查看/纠正/遗忘/导出记忆。
+- **退出条件**（方案 §19，verified 2026-08-27）：低上下文成本下正确调用过去偏好与项目经验（预算化召回 + fake clock 跨周纠正召回测试 + Host 集成测试）；关闭外部记忆不丢 Chronicle 事实（outage 验收测试：远程记忆完全不可用时 Turn 正常完成、线程事实完整、降级为持久 `memory.health.changed` 事实）；用户可查看/纠正/遗忘/导出记忆（`/memory` 治理路由，内嵌/远程实现通用）。ADR 0021/0024/0027 已按验收撰写。遗留项转入 Phase 4 backlog：MCP 记忆 transport、checkpoint fork（Phase 5 ExperimentWorld 消费）、守护/托盘打包（Phase 6 范畴）。
 
 ### 5.6 Phase 5：后台学习（工作流级）
 
@@ -307,9 +307,9 @@ packages/client   → thread（仅协议类型）
 | 0029 | Use Kanban as the durable task plane and delegation as an Episode-scoped mechanism | P2   | P2-11                |
 | 0023 | Route every capability through ExecutionWorld and sandbox providers                | P3   | accepted/implemented |
 | 0030 | Adopt Cordis-derived Context–Registry–Fiber and governed replacement boundaries    | P3   | accepted/implemented |
-| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | 阶段验收时           |
-| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | 阶段验收时           |
-| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | 阶段验收时           |
+| 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | accepted/implemented |
+| 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | accepted/implemented |
+| 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | accepted/implemented |
 | 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时           |
 | 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时           |
 

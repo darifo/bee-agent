@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-27
 >
-> Branch: `feature/v1.4.0` (Phase 4 in progress)
+> Branch: `feature/v1.4.0` (Phase 4 complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -104,7 +104,7 @@ Turns retain their original lease until completion, failure, or cancellation.
 
 ## Phase 4 progress (memory foundation)
 
-Phase 4 has started on `feature/v1.4.0`. Landed so far:
+Landed on `feature/v1.4.0`:
 
 - Memory domain in `@bee-agent/knowledge` (WF4-A): Claim/Observation/
   Representation schemas with provenance pointing at Chronicle positions,
@@ -188,10 +188,27 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   Support / XDG data home) instead of the working directory; an explicit
   `BEE_AGENT_STORAGE_SQLITE_FILENAME` still wins.
 
-Still pending in Phase 4: an MCP memory transport and named reference
-connectors (the HTTP contract is live), checkpoint-fork experiments from
-trajectories (WF4-E remainder), the daemon/tray host form (WF4-F remainder),
-and the Phase 4 acceptance ADRs (0021/0024/0027) at phase exit.
+## Phase 4 completion
+
+Phase 4 is complete against the §7.1 exit conditions:
+
+- **Low-cost recall of past preferences**: budgeted, provenance-carrying
+  recall through the AgentLoop retrieve hook; the fake-clock test recalls a
+  corrected preference weeks later and expires time-boxed facts, and the
+  Host integration test recalls a stated preference on the next turn.
+- **Chronicle facts survive external-memory loss**: memory is a projection;
+  the outage acceptance test runs a full conversation with a completely
+  down remote memory — the turn completes, the thread facts are intact in
+  Chronicle, and the outage is a durable `memory.health.changed` fact, never
+  a silent empty recall.
+- **User governance**: `/memory` routes view, correct (supersede), forget
+  (retract), and export every claim, over the embedded or remote provider.
+
+ADR 0021/0024/0027 are accepted and implemented. Residual enhancements are
+tracked as post-phase backlog rather than open Phase 4 work: an MCP memory
+transport variant behind the live HTTP contract, checkpoint-fork experiments
+(consumed by Phase 5's ExperimentWorld), and the daemon/tray packaging form
+(Phase 6 scope).
 
 ## Phase 3 completion
 
@@ -208,9 +225,8 @@ execution infrastructure.
 
 ## Later phases
 
-- Phase 4 remainder: memory-remote bridge, world model, trajectory views,
-  scheduler/long-running queue, and the unified personal data directory (see
-  "Phase 4 progress" above for the landed memory foundation).
+- Phase 4 backlog (post-phase): MCP memory transport variant,
+  checkpoint-fork experiments, and the daemon/tray packaging form.
 - Phase 5: governed derivation, Skill learning, proposals, experiments,
   evaluation, and rollback.
 - Phase 6: migration/export tooling, packaging, soak/security acceptance, and
@@ -227,7 +243,7 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 475 passing workspace tests (1 platform-specific skip), including
+- 476 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory

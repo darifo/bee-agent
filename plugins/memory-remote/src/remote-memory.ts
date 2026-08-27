@@ -163,8 +163,15 @@ export class RemoteMemoryProvider implements MemoryProvider {
       return result
     } catch (error) {
       if (error instanceof MemoryProviderUnavailableError) throw error
+      // Every transport failure is an availability fact at this boundary:
+      // surface it as the breaker's error (with the cause in the detail) so
+      // callers can treat remote outages uniformly — local provider bugs
+      // elsewhere still propagate untouched.
       this.#onFailure(error, operation)
-      throw error
+      const message = error instanceof Error ? error.message : String(error)
+      throw new MemoryProviderUnavailableError(
+        `'${operation}' failed (${this.#consecutiveFailures}/${this.#failureThreshold}): ${message}`,
+      )
     }
   }
 

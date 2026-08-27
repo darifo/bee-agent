@@ -241,13 +241,12 @@ plugins/
 - [x] Phase 3: ExecutionWorld, permission snapshots/approvals, system
       credentials, Seatbelt/bwrap, Command/Python/MCP, worktrees, bounded
       delegation and RemoteAgent v2
-- [ ] Phase 4 (in progress): memory, world model and long-running workflows —
-      the memory contract, embedded recall/derivation, governance routes,
-      remote degradation with the HTTP transport, world-model and
-      StructureGraph projections, trajectory replay, the time/condition
-      scheduler, and the unified personal data directory have landed; the
-      MCP memory transport, checkpoint fork, daemon form, and acceptance
-      ADRs remain
+- [x] Phase 4: memory, world model and long-running workflows — the memory
+      contract, embedded recall/derivation, governance routes, remote
+      degradation with the HTTP transport, world-model and StructureGraph
+      projections, trajectory replay, the time/condition scheduler, and the
+      unified personal data directory; the MCP memory transport variant,
+      checkpoint fork, and daemon form move to the backlog
 - [ ] Phase 5: background learning and governed improvement
 - [ ] Phase 6: experience convergence and v1 release
 

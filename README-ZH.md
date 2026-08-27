@@ -232,11 +232,10 @@ plugins/
 - [x] Phase 2：持久 Kanban、上下文预算与 Tool/Skill 延迟解析
 - [x] Phase 3：ExecutionWorld、权限快照/审批、系统凭据、Seatbelt/bwrap、
       Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2
-- [ ] Phase 4（进行中）：记忆、世界模型与长时工作流——记忆契约、内嵌
-      召回/派生、治理路由、远程降级与 HTTP transport、世界模型与
-      StructureGraph 投影、Trajectory 回放、时间/条件持久化调度器及
-      统一个人数据目录已落地；MCP 记忆 transport、checkpoint fork、
-      守护形态与验收 ADR 待做
+- [x] Phase 4：记忆、世界模型与长时工作流——记忆契约、内嵌召回/派生、
+      治理路由、远程降级与 HTTP transport、世界模型与 StructureGraph
+      投影、Trajectory 回放、时间/条件持久化调度器及统一个人数据目录；
+      MCP 记忆 transport、checkpoint fork 与守护形态转入 backlog
 - [ ] Phase 5：后台学习与受治理改进
 - [ ] Phase 6：体验收敛与 v1 发布
 
