@@ -243,7 +243,7 @@ The current implementation passes:
 - strict TypeScript checks;
 - ESLint and package/process boundaries;
 - Prettier verification;
-- 476 passing workspace tests (1 platform-specific skip), including
+- 478 passing workspace tests (1 platform-specific skip), including
   PluginCatalog selection, A/B/C reconciliation,
   config refresh/rollback, Doctor quarantine, the MemoryProvider contract
   suite over the embedded and remote providers, end-to-end Host memory
