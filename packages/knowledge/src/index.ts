@@ -145,6 +145,7 @@ export type {
 } from './world-schema.ts'
 export {
   BEE_ACTOR_ENTITY_ID,
+  ExecutionResourceProjector,
   ThreadToolProjector,
   deterministicWorldId,
 } from './world-projector.ts'
@@ -162,3 +163,13 @@ export {
   worldVersionBumpedEvent,
 } from './world-events.ts'
 export type { WorldEventBuildOptions, WorldEventType } from './world-events.ts'
+export {
+  StructureGraphStore,
+  UnknownStructureEventTypeError,
+} from './structure-graph.ts'
+export type {
+  StructureGraphEntry,
+  StructureGraphPhase,
+  StructureGraphSnapshot,
+  StructurePhase,
+} from './structure-graph.ts'

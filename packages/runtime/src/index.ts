@@ -68,6 +68,13 @@ export * from './planner.ts'
 export * from './memory-hook.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
+export { buildTurnTrajectory, replayGeneration } from './trajectory.ts'
+export type {
+  TrajectoryCheckpoint,
+  TrajectoryGeneration,
+  TrajectoryTool,
+  TurnTrajectory,
+} from './trajectory.ts'
 export { AgentScheduler, SchedulerTriggerNotFoundError } from './scheduler.ts'
 export type {
   AgentSchedulerOptions,
@@ -80,6 +87,7 @@ export {
   SCHEDULER_EVENT_TYPES,
   SCHEDULER_STREAM_ID,
   SchedulerTriggerSchema,
+  SchedulerWhenSchema,
   registerSchedulerChronicleEvents,
   schedulerStreamId,
   schedulerTriggerRegisteredEvent,
@@ -91,6 +99,7 @@ export type {
   SchedulerEventBuildOptions,
   SchedulerEventType,
   SchedulerTrigger,
+  SchedulerWhen,
 } from './scheduler-events.ts'
 export {
   AGENT_LOOP_SERVICE,

@@ -3,6 +3,7 @@ import { newChronicleEvent } from '../src/envelope.ts'
 import { MemoryChronicleStore } from '../src/testing.ts'
 import {
   ChronicleSchemaRegistry,
+  ExecutionResourceProjector,
   ThreadToolProjector,
   WorldModelStore,
   WorldVersionDriftError,
@@ -233,5 +234,113 @@ describe('deterministicWorldId', () => {
     expect(a).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
     )
+  })
+})
+
+describe('ExecutionResourceProjector', () => {
+  const projector = new ExecutionResourceProjector()
+
+  /** Fixture: a stored-shape `execution.requested` event (not appended). */
+  function executionRequestedEvent(input: {
+    readonly streamId: string
+    readonly sequence: number
+    readonly idempotencyKey: string
+    readonly readPaths?: readonly string[]
+    readonly writePaths?: readonly string[]
+    readonly commands?: readonly (readonly string[])[]
+    readonly scope?: {
+      readonly threadId?: string | undefined
+      readonly turnId?: string | undefined
+      readonly itemId?: string | undefined
+    }
+  }): ChronicleEvent {
+    return {
+      ...newChronicleEvent({
+        eventType: 'execution.requested',
+        actor: { type: 'agent', id: 'bee' },
+        ...(input.scope?.threadId === undefined
+          ? {}
+          : { threadId: input.scope.threadId }),
+        ...(input.scope?.turnId === undefined
+          ? {}
+          : { turnId: input.scope.turnId }),
+        payload: {
+          request: {
+            id: crypto.randomUUID(),
+            idempotencyKey: input.idempotencyKey,
+            requirements: {
+              readPaths: input.readPaths ?? [],
+              writePaths: input.writePaths ?? [],
+              commands: input.commands ?? [],
+            },
+            scope: input.scope ?? {},
+          },
+          requestDigest: 'sha256:' + '0'.repeat(64),
+        },
+      }),
+      streamId: input.streamId,
+      sequence: input.sequence,
+      ingestTime: '2026-01-01T00:00:01Z',
+    }
+  }
+
+  it('derives resource dependencies and executable capabilities', () => {
+    const event = executionRequestedEvent({
+      streamId: 'execution:abc123',
+      sequence: 2,
+      idempotencyKey: 'tool:t1:c1',
+      readPaths: ['/tmp/notes.md'],
+      writePaths: ['/tmp/out.txt', '/tmp/notes.md'],
+      commands: [['/usr/bin/git', 'status']],
+      scope: { threadId: 't1', turnId: 'v1', itemId: 'i1' },
+    })
+    expect(projector.wants(event.streamId)).toBe(true)
+
+    const projection = projector.project(event)!
+    const ids = projection.entities.map((entity) => entity.id).sort()
+    expect(ids).toEqual([
+      'actor:bee',
+      'capability:command:/usr/bin/git',
+      'resource:file:/tmp/notes.md',
+      'resource:file:/tmp/out.txt',
+    ])
+    // The shared read/write path collapses into one dependency relation.
+    const relations = projection.relations
+    expect(relations).toHaveLength(3)
+    const depends = relations.find(
+      (relation) => relation.toEntityId === 'resource:file:/tmp/notes.md',
+    )!
+    expect(depends.type).toBe('depends_on')
+    expect(depends.provenance).toEqual({
+      streamId: 'execution:abc123',
+      sequence: 2,
+      threadId: 't1',
+      turnId: 'v1',
+      itemId: 'i1',
+    })
+    const used = relations.find(
+      (relation) => relation.toEntityId === 'capability:command:/usr/bin/git',
+    )!
+    expect(used.type).toBe('used')
+  })
+
+  it('ignores pure-logical executions and foreign streams', () => {
+    expect(projector.wants('thread:t1')).toBe(false)
+    const logical = executionRequestedEvent({
+      streamId: 'execution:def',
+      sequence: 1,
+      idempotencyKey: 'tool:t1:c2',
+    })
+    expect(projector.project(logical)).toBeUndefined()
+    const other = {
+      ...executionRequestedEvent({
+        streamId: 'execution:def',
+        sequence: 2,
+        idempotencyKey: 'tool:t1:c3',
+        writePaths: ['/tmp/x'],
+      }),
+      eventType: 'execution.completed',
+    }
+    expect(projector.project(other as ChronicleEvent)).toBeUndefined()
   })
 })

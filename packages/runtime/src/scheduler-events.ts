@@ -18,6 +18,49 @@ export function schedulerStreamId(): string {
   return SCHEDULER_STREAM_ID
 }
 
+export const SchedulerWhenSchema = z
+  .object({
+    /**
+     * Dependency trigger: fire once when the Kanban task reaches the status.
+     * Evaluated on every tick against the task's durable event stream, so a
+     * transition that happened while the Host was down still fires.
+     */
+    taskStatus: z
+      .object({
+        taskId: z.uuid(),
+        status: z.enum([
+          'inbox',
+          'triaged',
+          'ready',
+          'running',
+          'blocked',
+          'review',
+          'done',
+          'failed',
+          'cancelled',
+          'archived',
+        ]),
+      })
+      .optional(),
+    /**
+     * Event trigger: fire once when a matching Chronicle event is observed
+     * through `AgentScheduler.notify`. Edge-triggered only — events that
+     * occurred while the Host was down are not replayed.
+     */
+    event: z
+      .object({
+        streamPrefix: z.string().min(1).optional(),
+        eventType: z.string().min(1),
+      })
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (when) => (when.taskStatus !== undefined) !== (when.event !== undefined),
+    { message: 'Exactly one of taskStatus or event is required' },
+  )
+export type SchedulerWhen = z.infer<typeof SchedulerWhenSchema>
+
 export const SchedulerTriggerSchema = z
   .object({
     id: z.uuid(),
@@ -29,6 +72,8 @@ export const SchedulerTriggerSchema = z
     at: z.iso.datetime().optional(),
     /** Recurrence interval; absent means a one-shot trigger. */
     intervalMs: z.number().int().positive().optional(),
+    /** Condition firing instead of a schedule; mutually exclusive with at/intervalMs. */
+    when: SchedulerWhenSchema.optional(),
     enabled: z.boolean(),
     createdAt: z.iso.datetime(),
     /** Next due time; absent when the trigger is exhausted or disabled. */

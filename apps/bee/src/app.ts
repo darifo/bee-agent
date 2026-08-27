@@ -41,6 +41,7 @@ import {
 import { kanbanRoutes } from './routes/kanban.ts'
 import { memoryRoutes } from './routes/memory.ts'
 import { schedulerRoutes } from './routes/scheduler.ts'
+import { trajectoryRoutes } from './routes/trajectory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
 import { worldRoutes } from './routes/world.ts'
@@ -356,8 +357,10 @@ export async function buildBeeServer(
   }
 
   // The durable scheduler: rebuild from the `scheduler` stream, then either
-  // auto-tick or leave firing to explicit `POST /scheduler/tick`.
+  // auto-tick or leave firing to explicit `POST /scheduler/tick`. Appended
+  // events feed `notify` so event-condition triggers fire on arrival.
   let scheduler: AgentScheduler | undefined
+  let schedulerUnsubscribe: (() => void) | undefined
   if (options.scheduler !== undefined && options.scheduler !== false) {
     scheduler = new AgentScheduler({
       store,
@@ -372,6 +375,21 @@ export async function buildBeeServer(
     })
     await scheduler.rebuild()
     scheduler.start()
+    const notifyHandler = (broadcast: {
+      streamId: string
+      events: { eventType: string }[]
+    }) => {
+      for (const event of broadcast.events) {
+        void scheduler!.notify({
+          streamId: broadcast.streamId,
+          eventType: event.eventType,
+        })
+      }
+    }
+    store.appended.on('append', notifyHandler)
+    schedulerUnsubscribe = () => {
+      store.appended.off('append', notifyHandler)
+    }
   }
 
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
@@ -421,8 +439,10 @@ export async function buildBeeServer(
   if (scheduler !== undefined) {
     await app.register(schedulerRoutes, { scheduler })
   }
+  await app.register(trajectoryRoutes)
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    schedulerUnsubscribe?.()
     scheduler?.stop()
     worldProjection?.stop()
     await runtime.stop()

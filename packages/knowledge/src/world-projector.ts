@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import type { ChronicleEvent } from './envelope.ts'
-import type { WorldProjectionInput } from './world-schema.ts'
+import type {
+  NewWorldEntityInput,
+  NewWorldRelationInput,
+  WorldProjectionInput,
+} from './world-schema.ts'
 
 /**
  * Sourced world projectors (architecture §7.2, v1 refactor plan §5.5 WF4-D):
@@ -106,5 +110,128 @@ export class ThreadToolProjector implements WorldProjector {
         },
       ],
     }
+  }
+}
+
+/**
+ * Structural shape of an `execution.requested` event. Parsed locally so
+ * knowledge never depends on the execution package's schemas.
+ */
+const ExecutionRequestedEventSchema = z
+  .object({
+    request: z
+      .object({
+        idempotencyKey: z.string().min(1),
+        requirements: z
+          .object({
+            readPaths: z.array(z.string().min(1)),
+            writePaths: z.array(z.string().min(1)),
+            commands: z.array(z.array(z.string().min(1)).min(1)),
+          })
+          .passthrough(),
+        scope: z
+          .object({
+            threadId: z.string().min(1).optional(),
+            turnId: z.string().min(1).optional(),
+            itemId: z.string().min(1).optional(),
+          })
+          .passthrough(),
+      })
+      .passthrough(),
+  })
+  .passthrough()
+
+/**
+ * Environment projector: every declared execution requirement becomes a
+ * world fact — file resources the action depends on, and the native
+ * executables behind its commands as capabilities the agent used. The
+ * relations cite the exact `execution.requested` position, so the world
+ * model answers "which files and binaries has my agent been touching".
+ */
+export class ExecutionResourceProjector implements WorldProjector {
+  readonly id = 'execution-resources'
+
+  wants(streamId: string): boolean {
+    return streamId.startsWith('execution:')
+  }
+
+  project(event: ChronicleEvent): WorldProjectionInput | undefined {
+    if (event.eventType !== 'execution.requested') return undefined
+    const parsed = ExecutionRequestedEventSchema.safeParse(event.payload)
+    if (!parsed.success) return undefined
+    const { request } = parsed.data
+    const { readPaths, writePaths, commands } = request.requirements
+    if (
+      readPaths.length === 0 &&
+      writePaths.length === 0 &&
+      commands.length === 0
+    ) {
+      return undefined
+    }
+
+    const entities: NewWorldEntityInput[] = [
+      { id: BEE_ACTOR_ENTITY_ID, kind: 'actor', subtype: 'agent' },
+    ]
+    const relations: NewWorldRelationInput[] = []
+    const seen = new Set<string>()
+
+    const provenance = {
+      streamId: event.streamId,
+      sequence: event.sequence,
+      ...(request.scope.threadId === undefined
+        ? {}
+        : { threadId: request.scope.threadId }),
+      ...(request.scope.turnId === undefined
+        ? {}
+        : { turnId: request.scope.turnId }),
+      ...(request.scope.itemId === undefined
+        ? {}
+        : { itemId: request.scope.itemId }),
+    }
+
+    for (const path of [...readPaths, ...writePaths]) {
+      const entityId = `resource:file:${path}`
+      if (seen.has(entityId)) continue
+      seen.add(entityId)
+      entities.push({
+        id: entityId,
+        kind: 'resource',
+        subtype: 'file',
+        attributes: { path },
+      })
+      relations.push({
+        id: deterministicWorldId(
+          `depends:${request.idempotencyKey}:${entityId}`,
+        ),
+        type: 'depends_on',
+        fromEntityId: BEE_ACTOR_ENTITY_ID,
+        toEntityId: entityId,
+        provenance,
+        validTime: { from: event.eventTime },
+        recordedAt: event.ingestTime,
+      })
+    }
+    for (const argv of commands) {
+      const executable = argv[0]!
+      const entityId = `capability:command:${executable}`
+      if (seen.has(entityId)) continue
+      seen.add(entityId)
+      entities.push({
+        id: entityId,
+        kind: 'capability',
+        subtype: 'native-executable',
+        attributes: { executable },
+      })
+      relations.push({
+        id: deterministicWorldId(`used:${request.idempotencyKey}:${entityId}`),
+        type: 'used',
+        fromEntityId: BEE_ACTOR_ENTITY_ID,
+        toEntityId: entityId,
+        provenance,
+        validTime: { from: event.eventTime },
+        recordedAt: event.ingestTime,
+      })
+    }
+    return { entities, relations }
   }
 }

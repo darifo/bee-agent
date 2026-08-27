@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import {
+  kanbanStreamId,
+  kanbanTaskStatusChangedEvent,
+  newKanbanTask,
+  registerKanbanChronicleEvents,
+} from '@bee-agent/kanban'
+import type { KanbanTaskStatus } from '@bee-agent/kanban'
+import {
   AgentScheduler,
   SchedulerTriggerNotFoundError,
 } from '../src/scheduler.ts'
@@ -15,7 +22,29 @@ import type {
 function createStore(): MemoryChronicleStore {
   const registry = new ChronicleSchemaRegistry()
   registerSchedulerChronicleEvents(registry)
+  registerKanbanChronicleEvents(registry)
   return new MemoryChronicleStore(registry)
+}
+
+const KANBAN_TASK_ID = crypto.randomUUID()
+
+async function appendKanbanTransition(
+  store: MemoryChronicleStore,
+  status: KanbanTaskStatus,
+): Promise<void> {
+  const task = {
+    ...newKanbanTask({ title: 'Dependency task' }),
+    id: KANBAN_TASK_ID,
+    status,
+  }
+  const streamId = kanbanStreamId(KANBAN_TASK_ID)
+  await store.append(
+    streamId,
+    [kanbanTaskStatusChangedEvent({ from: 'inbox', task })],
+    {
+      expectedSequence: (await store.getLatestSequence(streamId)) + 1,
+    },
+  )
 }
 
 /** Fake clock: milliseconds since the epoch, ISO-formatted. */
@@ -250,6 +279,120 @@ describe('AgentScheduler', () => {
         intervalMs: 0,
       }),
     ).rejects.toThrow(/intervalMs/)
+    await store.close()
+  })
+})
+
+describe('AgentScheduler condition triggers', () => {
+  it('fires task-status triggers once the kanban task reaches the status', async () => {
+    const store = createStore()
+    const time = clock()
+    const { port, runs } = scriptedTurns([() => completedTurn('t')])
+    const scheduler = new AgentScheduler({ store, turns: port, now: time.now })
+    await scheduler.rebuild()
+    const threadId = crypto.randomUUID()
+
+    const trigger = await scheduler.register({
+      input: 'Follow up on the task',
+      threadId,
+      when: { taskStatus: { taskId: KANBAN_TASK_ID, status: 'done' } },
+    })
+    // Not fired while the task has not reached the status.
+    expect((await scheduler.tick()).fired).toEqual([])
+
+    await appendKanbanTransition(store, 'running')
+    expect((await scheduler.tick()).fired).toEqual([])
+
+    await appendKanbanTransition(store, 'done')
+    const report = await scheduler.tick()
+    expect(report.fired).toHaveLength(1)
+    expect(report.fired[0]).toMatchObject({
+      triggerId: trigger.id,
+      status: 'completed',
+    })
+    // One-shot: the consumed trigger leaves the active projection.
+    expect(scheduler.list().map((entry) => entry.id)).toEqual([])
+    expect((await scheduler.tick()).fired).toEqual([])
+    expect(runs).toHaveLength(1)
+    await store.close()
+  })
+
+  it('recovers a missed task transition after restart', async () => {
+    const store = createStore()
+    const time = clock()
+    const first = new AgentScheduler({
+      store,
+      turns: scriptedTurns([() => completedTurn('t')]).port,
+      now: time.now,
+    })
+    await first.rebuild()
+    await first.register({
+      input: 'Catch up',
+      threadId: crypto.randomUUID(),
+      when: { taskStatus: { taskId: KANBAN_TASK_ID, status: 'done' } },
+    })
+
+    // The transition happens after the first scheduler "goes down".
+    time.advance(1)
+    await appendKanbanTransition(store, 'done')
+
+    const restarted = new AgentScheduler({
+      store,
+      turns: scriptedTurns([() => completedTurn('t')]).port,
+      now: time.now,
+    })
+    await restarted.rebuild()
+    const report = await restarted.tick()
+    expect(report.fired).toHaveLength(1)
+    await store.close()
+  })
+
+  it('fires event triggers through notify and validates exclusivity', async () => {
+    const store = createStore()
+    const time = clock()
+    const { port, runs } = scriptedTurns([() => completedTurn('t')])
+    const scheduler = new AgentScheduler({ store, turns: port, now: time.now })
+    await scheduler.rebuild()
+    const threadId = crypto.randomUUID()
+
+    await scheduler.register({
+      input: 'React to memory',
+      threadId,
+      when: {
+        event: { streamPrefix: 'memory', eventType: 'memory.claim.recorded' },
+      },
+    })
+    expect(
+      await scheduler.notify({
+        streamId: 'thread:t1',
+        eventType: 'memory.claim.recorded',
+      }),
+    ).toBeUndefined()
+    expect(
+      await scheduler.notify({
+        streamId: 'memory',
+        eventType: 'memory.health.changed',
+      }),
+    ).toBeUndefined()
+    const fired = await scheduler.notify({
+      streamId: 'memory',
+      eventType: 'memory.claim.recorded',
+    })
+    expect(fired).toMatchObject({ status: 'completed' })
+    expect(runs).toHaveLength(1)
+    expect(scheduler.list()).toEqual([])
+
+    await expect(
+      scheduler.register({
+        input: 'x',
+        threadId,
+        intervalMs: 1_000,
+        when: { event: { eventType: 'a.b' } },
+      }),
+    ).rejects.toThrow(/exclusive/)
+    await expect(scheduler.register({ input: 'x', threadId })).rejects.toThrow(
+      /needs at/,
+    )
     await store.close()
   })
 })

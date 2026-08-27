@@ -10,7 +10,7 @@ import {
   schedulerTriggerRemovedEvent,
   schedulerTriggerTriggeredEvent,
 } from './scheduler-events.ts'
-import type { SchedulerTrigger } from './scheduler-events.ts'
+import type { SchedulerTrigger, SchedulerWhen } from './scheduler-events.ts'
 
 /**
  * The durable agent scheduler (v1 refactor plan §5.5 WF4-F, architecture
@@ -41,6 +41,8 @@ export interface RegisterSchedulerTriggerInput {
   readonly threadId: string
   readonly at?: string | undefined
   readonly intervalMs?: number | undefined
+  /** Condition firing instead of a schedule; exclusive with at/intervalMs. */
+  readonly when?: SchedulerWhen | undefined
 }
 
 export interface SchedulerFiredRun {
@@ -100,6 +102,10 @@ export class AgentScheduler {
             }
             const trigger = this.#triggers.get(payload.triggerId)
             if (trigger === undefined) continue
+            if (trigger.when !== undefined) {
+              this.#triggers.delete(trigger.id)
+              continue
+            }
             this.#triggers.set(trigger.id, {
               ...trigger,
               nextRunAt: payload.nextRunAt,
@@ -152,6 +158,13 @@ export class AgentScheduler {
     ) {
       throw new Error('intervalMs must be a positive integer')
     }
+    const hasSchedule = input.at !== undefined || input.intervalMs !== undefined
+    if (input.when !== undefined && hasSchedule) {
+      throw new Error('when is exclusive with at/intervalMs')
+    }
+    if (input.when === undefined && !hasSchedule) {
+      throw new Error('a trigger needs at, intervalMs, or when')
+    }
     const now = this.#now()
     const trigger = SchedulerTriggerSchema.parse({
       id: crypto.randomUUID(),
@@ -161,9 +174,10 @@ export class AgentScheduler {
       ...(input.intervalMs === undefined
         ? {}
         : { intervalMs: input.intervalMs }),
+      ...(input.when === undefined ? {} : { when: input.when }),
       enabled: true,
       createdAt: now,
-      nextRunAt: input.at ?? now,
+      ...(input.when === undefined ? { nextRunAt: input.at ?? now } : {}),
     })
     await this.#append([schedulerTriggerRegisteredEvent(trigger)])
     this.#triggers.set(trigger.id, trigger)
@@ -202,6 +216,7 @@ export class AgentScheduler {
       .filter(
         (trigger) =>
           trigger.enabled &&
+          trigger.when === undefined &&
           trigger.nextRunAt !== undefined &&
           trigger.nextRunAt <= now,
       )
@@ -213,21 +228,87 @@ export class AgentScheduler {
     for (const trigger of due) {
       fired.push(await this.#fire(trigger, now))
     }
+    // Dependency triggers: evaluate pending task conditions against the
+    // durable kanban stream, so transitions missed while down still fire.
+    for (const trigger of this.#pendingTaskTriggers()) {
+      const satisfied = await this.#taskReachedStatus(
+        trigger.when!.taskStatus!,
+        trigger.createdAt,
+      )
+      if (satisfied) fired.push(await this.#fire(trigger, now))
+    }
     return { fired }
+  }
+
+  *#pendingTaskTriggers(): Generator<SchedulerTrigger> {
+    for (const trigger of this.#triggers.values()) {
+      if (!trigger.enabled || trigger.nextRunAt !== undefined) continue
+      if (trigger.when?.taskStatus === undefined) continue
+      yield trigger
+    }
+  }
+
+  async #taskReachedStatus(
+    condition: { taskId: string; status: string },
+    since: string,
+  ): Promise<boolean> {
+    for await (const event of this.#store.readStream(
+      `kanban:${condition.taskId}`,
+    )) {
+      if (event.eventType !== 'kanban.task.status_changed') continue
+      if (event.ingestTime <= since) continue
+      const payload = event.payload as {
+        task: { id: string; status: string }
+      }
+      if (
+        payload.task.id === condition.taskId &&
+        payload.task.status === condition.status
+      ) {
+        return true
+      }
+    }
+    return false
+  }
+
+  /**
+   * Edge notification for `when.event` triggers: the Host forwards appended
+   * events; a match fires the trigger once. Not replayed across restarts.
+   */
+  notify(event: {
+    streamId: string
+    eventType: string
+  }): Promise<SchedulerFiredRun | undefined> {
+    return this.#serialize(async () => {
+      const now = this.#now()
+      for (const trigger of this.#triggers.values()) {
+        if (!trigger.enabled || trigger.nextRunAt !== undefined) continue
+        const condition = trigger.when?.event
+        if (condition === undefined) continue
+        if (event.eventType !== condition.eventType) continue
+        if (
+          condition.streamPrefix !== undefined &&
+          !event.streamId.startsWith(condition.streamPrefix)
+        ) {
+          continue
+        }
+        return this.#fire(trigger, now)
+      }
+      return undefined
+    })
   }
 
   async #fire(
     trigger: SchedulerTrigger,
     now: string,
   ): Promise<SchedulerFiredRun> {
-    const nextRunAt = trigger.nextRunAt!
     const missedIntervals =
-      trigger.intervalMs === undefined
+      trigger.intervalMs === undefined || trigger.nextRunAt === undefined
         ? 0
         : Math.max(
             0,
             Math.floor(
-              (Date.parse(now) - Date.parse(nextRunAt)) / trigger.intervalMs,
+              (Date.parse(now) - Date.parse(trigger.nextRunAt)) /
+                trigger.intervalMs,
             ),
           )
 
@@ -259,11 +340,11 @@ export class AgentScheduler {
     }
 
     const following =
-      trigger.intervalMs === undefined
+      trigger.intervalMs === undefined || trigger.nextRunAt === undefined
         ? undefined
         : new Date(
             Math.max(
-              Date.parse(nextRunAt) +
+              Date.parse(trigger.nextRunAt) +
                 (missedIntervals + 1) * trigger.intervalMs,
               Date.parse(now) + trigger.intervalMs,
             ),
@@ -280,7 +361,13 @@ export class AgentScheduler {
         ...(following === undefined ? {} : { nextRunAt: following }),
       }),
     ])
-    this.#triggers.set(trigger.id, { ...trigger, nextRunAt: following })
+    if (trigger.when !== undefined) {
+      // Condition triggers are one-shot: once fired they leave the active
+      // projection (the triggered event keeps the audit trail).
+      this.#triggers.delete(trigger.id)
+    } else {
+      this.#triggers.set(trigger.id, { ...trigger, nextRunAt: following })
+    }
     return run
   }
 

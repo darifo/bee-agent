@@ -10,11 +10,46 @@ import { SchedulerTriggerNotFoundError } from '@bee-agent/runtime'
  * Every mutation is a Chronicle fact on the `scheduler` stream.
  */
 
+const WhenBodySchema = z
+  .object({
+    taskStatus: z
+      .object({
+        taskId: z.uuid(),
+        status: z.enum([
+          'inbox',
+          'triaged',
+          'ready',
+          'running',
+          'blocked',
+          'review',
+          'done',
+          'failed',
+          'cancelled',
+          'archived',
+        ]),
+      })
+      .optional(),
+    event: z
+      .object({
+        streamPrefix: z.string().min(1).optional(),
+        eventType: z.string().min(1),
+      })
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (when) => (when.taskStatus !== undefined) !== (when.event !== undefined),
+    {
+      message: 'Exactly one of taskStatus or event is required',
+    },
+  )
+
 const CreateTriggerBodySchema = z.object({
   input: z.string().min(1),
   threadId: z.uuid(),
   at: z.iso.datetime().optional(),
   intervalMs: z.number().int().positive().optional(),
+  when: WhenBodySchema.optional(),
 })
 
 const TriggerIdParamsSchema = z.object({ triggerId: z.uuid() })

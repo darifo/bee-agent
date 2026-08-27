@@ -297,6 +297,9 @@ importers:
       '@bee-agent/execution':
         specifier: workspace:*
         version: link:../execution
+      '@bee-agent/kanban':
+        specifier: workspace:*
+        version: link:../kanban
       '@bee-agent/kernel':
         specifier: workspace:*
         version: link:../kernel

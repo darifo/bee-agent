@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import {
   ChronicleSchemaRegistry,
+  ExecutionResourceProjector,
   ThreadToolProjector,
   registerMemoryChronicleEvents,
   registerStructureChronicleEvents,
@@ -152,7 +153,10 @@ const server = await buildBeeServer({
   llm,
   memory,
   goalPlanStore: new MemoryGoalPlanStore(),
-  worldProjectors: [new ThreadToolProjector()],
+  worldProjectors: [
+    new ThreadToolProjector(),
+    new ExecutionResourceProjector(),
+  ],
   scheduler: true,
   ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
