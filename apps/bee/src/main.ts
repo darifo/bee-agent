@@ -211,6 +211,13 @@ server.app.log.info(
   { sessionToken: effectiveToken },
   'one-time session token for the local Web client',
 )
+// The environment is read once at process start; a later .env edit needs a
+// restart. The fingerprint (last four chars, same form providers use in
+// errors) makes "which key is this Host actually using" visible.
+server.app.log.info(
+  { model, apiKeyFingerprint: `…${apiKey.slice(-4)}` },
+  'model provider configured (env is loaded at start; restart to pick up .env edits)',
+)
 try {
   await server.app.listen({ host, port })
 } catch (error) {
