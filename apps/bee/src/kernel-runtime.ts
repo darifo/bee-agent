@@ -220,9 +220,19 @@ function createHostPluginFactories(
   factories.register({
     id: 'bee.host-services',
     create(structure) {
-      const selectedModel = models.get(
-        modelBindingKey(structure.model.ref.id, structure.model.ref.version),
+      const modelKey = modelBindingKey(
+        structure.model.ref.id,
+        structure.model.ref.version,
       )
+      const selectedModel =
+        models.get(modelKey) ??
+        // The default host-model slot always binds the env-provided runtime:
+        // a persisted structure can pin a stale model version (the user
+        // changed BEE_AGENT_MODEL_NAME), and that must not wedge startup.
+        // Other model ids stay fail-closed.
+        (structure.model.ref.id === (options.modelId ?? 'host-model')
+          ? options.llm
+          : undefined)
       if (selectedModel === undefined) {
         throw new Error(
           `No model provider is bound for '${structure.model.ref.id}@${structure.model.ref.version}'`,

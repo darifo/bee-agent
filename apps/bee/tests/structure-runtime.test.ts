@@ -30,12 +30,13 @@ import {
 async function hostStructure(
   model: string,
   sandbox = '1.0.0',
+  modelId = 'host-model',
 ): Promise<EffectiveStructure> {
   return resolveEffectiveStructure(
     BundleSchema.parse({
       id: 'bee-host-test',
-      version: `${model}-${sandbox}`,
-      model: { id: 'host-model', version: model },
+      version: `${modelId}-${model}-${sandbox}`,
+      model: { id: modelId, version: model },
       prompt: { id: 'bee-system', version: '1.0.0' },
       contextPolicy: { id: 'bee-default', version: '1.0.0' },
       memoryView: { id: 'bee-personal', version: '1.0.0' },
@@ -199,7 +200,9 @@ describe('Bee Host structure runtime', () => {
     expect(runtime.kernel.service('llm')).toBe(modelB)
 
     await expect(
-      runtime.reconcile(await hostStructure('missing-model')),
+      runtime.reconcile(
+        await hostStructure('missing-model', '1.0.0', 'other-model'),
+      ),
     ).rejects.toThrow(/No model provider is bound/)
     expect(runtime.kernel.service('llm')).toBe(modelB)
 
@@ -236,6 +239,39 @@ describe('Bee Host structure runtime', () => {
     )
     expect(restored.kernel.service('llm')).toBe(modelB)
     await restored.stop()
+
+    // A stale version under the default host-model slot falls back to the
+    // env-provided runtime (a persisted structure may predate a model
+    // change); an unknown model id stays fail-closed.
+    const fallbackStore = chronicle()
+    const fallbackRuntime = await createBeeKernelRuntime({
+      store: fallbackStore,
+      kanban: board,
+      llm: modelA,
+      modelProviders: providers,
+      toolExecutor: tools,
+      toolAuthorization: [],
+      toolSpecs: [],
+      effectiveStructure: await hostStructure('stale-version'),
+    })
+    expect(fallbackRuntime.kernel.service('llm')).toBe(modelA)
+    await fallbackRuntime.stop()
+    await expect(
+      createBeeKernelRuntime({
+        store: chronicle(),
+        kanban: board,
+        llm: modelA,
+        modelProviders: providers,
+        toolExecutor: tools,
+        toolAuthorization: [],
+        toolSpecs: [],
+        effectiveStructure: await hostStructure(
+          'missing-model',
+          '1.0.0',
+          'other-model',
+        ),
+      }),
+    ).rejects.toThrow(/No model provider is bound/)
   })
 
   it('exposes structure inspection and reconciliation through the Host', async () => {
