@@ -1,0 +1,10 @@
+---
+'@bee-agent/runtime': minor
+'@bee-agent/thread': minor
+---
+
+Thread conversation continuity and level-2 context compaction (benchmark-driven hardening pass, steps 7–8): a thread now behaves as one conversation, and that conversation survives its own growth.
+
+- **Continuity** (`@bee-agent/runtime`): `runTurn` reconstructs the thread's prior turns — completed messages and tool calls across all turns, in sequence order — and precedes the new input with them (`carryThreadHistory: false` opts out). Crash recovery rebuilds the same construction: the carried prefix (events before this turn started) plus the turn's committed items, so checkpoint digests stay verifiable with carry in play — verified by a recovery test whose second turn resumes with the full thread in view. The CLI chat and HTTP API inherit continuity without changes.
+- **Level-2 compaction**: when the model-visible request exceeds a threshold (default 70% of the model's context window), the AgentLoop summarizes the covered history prefix with one durable, tool-free model call and records a `context.compacted` event (`@bee-agent/thread`): summary, covered message count, sha256 over the covered prefix, and its token estimate. The projection then folds that prefix into a single summary message (`Summary of the earlier conversation (N messages): …`) while Chronicle keeps the full history untouched — the same fold-the-view-never-the-log discipline as level 1. The covered digest is re-verified on every fold and on reload; a summary that does not describe the current prefix is inapplicable, not wrong. Per-turn attempt budget (default 2) breaks failing summarizer loops — the Claude Code lesson — and a failed attempt proceeds unfolded so overflow surfaces honestly.
+- Tunables via `AgentLoopOptions.contextCompaction` (threshold, recent window, attempts, minimum covered messages). Covered by continuity/compaction/breaker/recovery tests and two recorded replay fixtures (`thread-continuity`, `context-compaction`) pinning the carried message order, the summarizer request shape, the folded view, and the durable `context.compacted` event.

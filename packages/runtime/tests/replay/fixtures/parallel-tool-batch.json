@@ -1,0 +1,1021 @@
+{
+  "name": "parallel-tool-batch",
+  "description": "Two parallel-safe reads plus an exclusive write: the reads dispatch concurrently, results commit in model order, the write runs alone after them.",
+  "session": {
+    "llm": {
+      "script": [
+        {
+          "type": "respond",
+          "deltas": ["Gathering."],
+          "toolCalls": [
+            {
+              "callId": "r1",
+              "toolId": "read_file",
+              "input": {
+                "path": "a.txt"
+              }
+            },
+            {
+              "callId": "r2",
+              "toolId": "read_file",
+              "input": {
+                "path": "b.txt"
+              }
+            },
+            {
+              "callId": "w1",
+              "toolId": "write_file",
+              "input": {
+                "path": "out.txt"
+              }
+            }
+          ],
+          "latencyMs": 0
+        },
+        {
+          "type": "respond",
+          "deltas": ["Done."],
+          "latencyMs": 0
+        }
+      ]
+    },
+    "tools": {
+      "read_file": [
+        {
+          "kind": "result",
+          "output": {
+            "path": "a.txt"
+          },
+          "content": "contents of a"
+        },
+        {
+          "kind": "result",
+          "output": {
+            "path": "b.txt"
+          },
+          "content": "contents of b"
+        }
+      ],
+      "write_file": [
+        {
+          "kind": "result",
+          "output": {
+            "written": true
+          },
+          "content": "wrote out.txt"
+        }
+      ]
+    },
+    "toolConcurrency": {
+      "read_file": "parallel"
+    }
+  },
+  "actions": [
+    {
+      "kind": "run",
+      "input": "merge a and b into out"
+    }
+  ],
+  "expected": {
+    "results": [
+      {
+        "status": "completed",
+        "output": "Done.",
+        "turn": {
+          "id": "<uuid-1>",
+          "threadId": "<uuid-2>",
+          "status": "completed",
+          "trigger": "user",
+          "input": "merge a and b into out",
+          "startedAt": "<iso>",
+          "endedAt": "<iso>"
+        }
+      }
+    ],
+    "modelCalls": [
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "merge a and b into out"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      },
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "merge a and b into out"
+            },
+            {
+              "role": "assistant",
+              "content": "Gathering.",
+              "toolCalls": [
+                {
+                  "callId": "r1",
+                  "toolId": "read_file",
+                  "input": {
+                    "path": "a.txt"
+                  }
+                },
+                {
+                  "callId": "r2",
+                  "toolId": "read_file",
+                  "input": {
+                    "path": "b.txt"
+                  }
+                },
+                {
+                  "callId": "w1",
+                  "toolId": "write_file",
+                  "input": {
+                    "path": "out.txt"
+                  }
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "callId": "r1",
+              "toolId": "read_file",
+              "content": "contents of a"
+            },
+            {
+              "role": "tool",
+              "callId": "r2",
+              "toolId": "read_file",
+              "content": "contents of b"
+            },
+            {
+              "role": "tool",
+              "callId": "w1",
+              "toolId": "write_file",
+              "content": "wrote out.txt"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      }
+    ],
+    "streams": [
+      {
+        "streamId": "thread:<uuid-2>",
+        "events": [
+          {
+            "eventType": "turn.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "active",
+                "trigger": "user",
+                "input": "merge a and b into out",
+                "startedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-3>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-3>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-4>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "merge a and b into out"
+                }
+              }
+            },
+            "eventId": "<uuid-5>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-5>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-4>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "merge a and b into out"
+                }
+              }
+            },
+            "eventId": "<uuid-6>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-6>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-7>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-8>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-8>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 4,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-9>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "read_file",
+                  "callId": "r1",
+                  "input": {
+                    "path": "a.txt"
+                  }
+                }
+              }
+            },
+            "eventId": "<uuid-10>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-10>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 5,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-11>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "read_file",
+                  "callId": "r2",
+                  "input": {
+                    "path": "b.txt"
+                  }
+                }
+              }
+            },
+            "eventId": "<uuid-12>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-12>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 6,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-13>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "write_file",
+                  "callId": "w1",
+                  "input": {
+                    "path": "out.txt"
+                  }
+                }
+              }
+            },
+            "eventId": "<uuid-14>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-14>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 7,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.delta",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "itemId": "<uuid-7>",
+              "delta": "Gathering."
+            },
+            "eventId": "<uuid-15>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-15>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 8,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-7>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "Gathering.",
+                  "toolCalls": [
+                    {
+                      "callId": "r1",
+                      "toolId": "read_file",
+                      "input": {
+                        "path": "a.txt"
+                      }
+                    },
+                    {
+                      "callId": "r2",
+                      "toolId": "read_file",
+                      "input": {
+                        "path": "b.txt"
+                      }
+                    },
+                    {
+                      "callId": "w1",
+                      "toolId": "write_file",
+                      "input": {
+                        "path": "out.txt"
+                      }
+                    }
+                  ]
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-16>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-16>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 9,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-9>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "read_file",
+                  "callId": "r1",
+                  "input": {
+                    "path": "a.txt"
+                  },
+                  "output": {
+                    "path": "a.txt"
+                  },
+                  "content": "contents of a"
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-17>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-17>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 10,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-11>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "read_file",
+                  "callId": "r2",
+                  "input": {
+                    "path": "b.txt"
+                  },
+                  "output": {
+                    "path": "b.txt"
+                  },
+                  "content": "contents of b"
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-18>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-18>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 11,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-13>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "write_file",
+                  "callId": "w1",
+                  "input": {
+                    "path": "out.txt"
+                  },
+                  "output": {
+                    "written": true
+                  },
+                  "content": "wrote out.txt"
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-19>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-19>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 12,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "stepIndex": 1,
+              "stateDigest": "sha256:67ec97f62a5873788cef070c2c3cbbe3dd37a00e1d74542e862e646339856b57"
+            },
+            "eventId": "<uuid-20>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-20>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 13,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-21>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-22>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-22>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 14,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.delta",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "itemId": "<uuid-21>",
+              "delta": "Done."
+            },
+            "eventId": "<uuid-23>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-23>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 15,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-21>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "Done."
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-24>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-24>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 16,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "stepIndex": 2,
+              "stateDigest": "sha256:ab4e47ae1d2a3ebe4b178e022d4414c00d994f1d4231086159188bd1a776f5e8"
+            },
+            "eventId": "<uuid-25>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-25>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 17,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "turn.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "completed",
+                "trigger": "user",
+                "input": "merge a and b into out",
+                "startedAt": "<iso>",
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-26>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-26>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 18,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-27>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-28>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-28>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 13,
+                    "digest": "sha256:a4c471051cccc085d60b99c20115381897c20dd7f9f6410fd88224f797031f9b"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-29>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-29>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-27>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-28>",
+            "payload": {
+              "requestId": "<uuid-27>",
+              "manifestId": "<uuid-28>",
+              "stepIndex": 0,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:4041ed65a11c617c44122a2e47f261cbadf14193f0f09397cd7b19e72e94b0da",
+              "sources": {
+                "message:0": "{\"content\":\"merge a and b into out\",\"role\":\"user\"}"
+              }
+            },
+            "eventId": "<uuid-30>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-30>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-27>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-28>",
+            "payload": {
+              "requestId": "<uuid-27>",
+              "result": {
+                "stopReason": "tool_calls",
+                "usage": {
+                  "inputTokens": 6,
+                  "outputTokens": 10,
+                  "totalTokens": 16
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-31>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-31>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-27>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-32>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-33>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-33>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 13,
+                    "digest": "sha256:a4c471051cccc085d60b99c20115381897c20dd7f9f6410fd88224f797031f9b"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:1"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 1,
+                    "tokens": 62,
+                    "digest": "sha256:749bee9da995461342c79f993f6a8c20e257a58d5e82a6773790f00d649a095e"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:2"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 2,
+                    "tokens": 19,
+                    "digest": "sha256:0843f95460999b2a195e4f6215e752b1cc75c7d68b34d3950811a9f06771f313"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:3"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 3,
+                    "tokens": 19,
+                    "digest": "sha256:7fd66a2b3f93912d8ea96c43b087cb57962d550559043ad701e0a357e586a98f"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:4"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 4,
+                    "tokens": 20,
+                    "digest": "sha256:7ddbb6bfced22020ce3f847df52d1e6e3a47049a33b9f4dc474003fadb945597"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-34>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-34>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-32>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-33>",
+            "payload": {
+              "requestId": "<uuid-32>",
+              "manifestId": "<uuid-33>",
+              "stepIndex": 1,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:aab831b1a9f49ff89669471257e44bd7348b02f5e6491716049c7dbbe4501e67",
+              "sources": {
+                "message:0": "{\"content\":\"merge a and b into out\",\"role\":\"user\"}",
+                "message:1": "{\"content\":\"Gathering.\",\"role\":\"assistant\",\"toolCalls\":[{\"callId\":\"r1\",\"input\":{\"path\":\"a.txt\"},\"toolId\":\"read_file\"},{\"callId\":\"r2\",\"input\":{\"path\":\"b.txt\"},\"toolId\":\"read_file\"},{\"callId\":\"w1\",\"input\":{\"path\":\"out.txt\"},\"toolId\":\"write_file\"}]}",
+                "message:2": "{\"callId\":\"r1\",\"content\":\"contents of a\",\"role\":\"tool\",\"toolId\":\"read_file\"}",
+                "message:3": "{\"callId\":\"r2\",\"content\":\"contents of b\",\"role\":\"tool\",\"toolId\":\"read_file\"}",
+                "message:4": "{\"callId\":\"w1\",\"content\":\"wrote out.txt\",\"role\":\"tool\",\"toolId\":\"write_file\"}"
+              }
+            },
+            "eventId": "<uuid-35>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-35>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-32>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-33>",
+            "payload": {
+              "requestId": "<uuid-32>",
+              "result": {
+                "stopReason": "end_turn",
+                "usage": {
+                  "inputTokens": 18,
+                  "outputTokens": 5,
+                  "totalTokens": 23
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-36>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-36>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-32>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      }
+    ]
+  }
+}

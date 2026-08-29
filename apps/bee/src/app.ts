@@ -96,6 +96,25 @@ export function unsafeListenReason(
   return undefined
 }
 
+/**
+ * The default Bee system prompt: identity, execution model, and permission
+ * awareness the model needs to plan correctly inside this Host. Factual by
+ * design — it only describes behavior that actually exists. An explicit
+ * `BEE_AGENT_SYSTEM_PROMPT` replaces it wholesale.
+ */
+function defaultBeeSystemPrompt(): string {
+  const override = process.env.BEE_AGENT_SYSTEM_PROMPT?.trim()
+  if (override !== undefined && override !== '') return override
+  return [
+    'You are Bee, a personal agent running inside the Bee Agent host on the user’s machine.',
+    'You act through the declared tools only: kanban tools manage your durable task board, and the host may expose command, python, or MCP tools when the operator enabled them.',
+    'Tool calls run under a deny-by-default execution world: commands and code execute in an OS sandbox with an empty environment, filesystem access is limited to the declared workspace, and secrets are injected only when a tool declares them. Actions outside those boundaries are denied or pause the turn for user approval — when a turn resumes after an approval decision, continue from the recorded state.',
+    'A tool error is information, not a failure: it returns to you as a tool result you can react to, for example by correcting arguments or choosing another route.',
+    'Use the kanban board for work that spans multiple steps: create a task with acceptance criteria, work it, and complete it, so progress survives restarts.',
+    'Answer plainly and precisely. Say what you did, what you could not do, and why.',
+  ].join('\n\n')
+}
+
 export interface BeeServerOptions {
   /** The Chronicle store holding thread streams (migrated, registry wired). */
   readonly store: ChronicleStore
@@ -122,6 +141,12 @@ export interface BeeServerOptions {
   readonly deriveMemory?: boolean | undefined
   /** Optional Goal/Plan store surfacing plans on complex turns. */
   readonly goalPlanStore?: GoalPlanStore | undefined
+  /**
+   * System message for every model request; defaults to the Bee prompt
+   * (overridable via `BEE_AGENT_SYSTEM_PROMPT`). Memoized per process so
+   * the prefix stays cache-stable.
+   */
+  readonly systemPrompt?: string | undefined
   /**
    * Sourced world projectors; when non-empty the Host maintains the versioned
    * world projection (catch-up + live) and serves `GET /world`.
@@ -223,6 +248,21 @@ function compositeToolExecutor(
         expectedEffects: ['Update the durable Bee Kanban task state'],
         verification: ['Kanban event append succeeds'],
       }
+    },
+    // Read-only kanban queries are parallel-safe; every other tool is
+    // exclusive unless its adapter explicitly opts in.
+    concurrency(call) {
+      if (!call.toolId.startsWith('kanban_')) {
+        const adapter = registered.get(call.toolId)
+        return (
+          adapter?.concurrency?.(call) ??
+          fallback?.concurrency?.(call) ??
+          'exclusive'
+        )
+      }
+      return call.toolId === 'kanban_list' || call.toolId === 'kanban_show'
+        ? 'parallel'
+        : 'exclusive'
     },
     async execute(call) {
       if (!call.call.toolId.startsWith('kanban_')) {
@@ -331,6 +371,7 @@ export async function buildBeeServer(
     memory: options.memory,
     deriveMemory: options.deriveMemory,
     goalPlanStore: options.goalPlanStore,
+    systemPrompt: options.systemPrompt ?? defaultBeeSystemPrompt(),
     effectiveStructure: options.effectiveStructure,
     modelId: options.modelId,
     modelProviders: options.modelProviders,

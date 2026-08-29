@@ -1,0 +1,772 @@
+{
+  "name": "system-prompt",
+  "description": "A memoized system message leads every model-visible request: identical bytes across generations, before user history, with tool results keeping their model order behind it.",
+  "session": {
+    "llm": {
+      "script": [
+        {
+          "type": "respond",
+          "toolCalls": [
+            {
+              "callId": "c1",
+              "toolId": "probe",
+              "input": {}
+            }
+          ],
+          "latencyMs": 0
+        },
+        {
+          "type": "respond",
+          "deltas": ["Done."],
+          "latencyMs": 0
+        }
+      ]
+    },
+    "tools": {
+      "probe": [
+        {
+          "kind": "result",
+          "output": {},
+          "content": "ok"
+        }
+      ]
+    },
+    "options": {
+      "systemPrompt": "You are Bee, a personal agent in the Bee host."
+    }
+  },
+  "actions": [
+    {
+      "kind": "run",
+      "input": "go"
+    }
+  ],
+  "expected": {
+    "results": [
+      {
+        "status": "completed",
+        "output": "Done.",
+        "turn": {
+          "id": "<uuid-1>",
+          "threadId": "<uuid-2>",
+          "status": "completed",
+          "trigger": "user",
+          "input": "go",
+          "startedAt": "<iso>",
+          "endedAt": "<iso>"
+        }
+      }
+    ],
+    "modelCalls": [
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Bee, a personal agent in the Bee host."
+            },
+            {
+              "role": "user",
+              "content": "go"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      },
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Bee, a personal agent in the Bee host."
+            },
+            {
+              "role": "user",
+              "content": "go"
+            },
+            {
+              "role": "assistant",
+              "content": "",
+              "toolCalls": [
+                {
+                  "callId": "c1",
+                  "toolId": "probe",
+                  "input": {}
+                }
+              ]
+            },
+            {
+              "role": "tool",
+              "callId": "c1",
+              "toolId": "probe",
+              "content": "ok"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      }
+    ],
+    "streams": [
+      {
+        "streamId": "thread:<uuid-2>",
+        "events": [
+          {
+            "eventType": "turn.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "active",
+                "trigger": "user",
+                "input": "go",
+                "startedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-3>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-3>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-4>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "go"
+                }
+              }
+            },
+            "eventId": "<uuid-5>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-5>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-4>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "go"
+                }
+              }
+            },
+            "eventId": "<uuid-6>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-6>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-7>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-8>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-8>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 4,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-9>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "probe",
+                  "callId": "c1",
+                  "input": {}
+                }
+              }
+            },
+            "eventId": "<uuid-10>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-10>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 5,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-7>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "",
+                  "toolCalls": [
+                    {
+                      "callId": "c1",
+                      "toolId": "probe",
+                      "input": {}
+                    }
+                  ]
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-11>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-11>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 6,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-9>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "tool_call",
+                "payload": {
+                  "toolId": "probe",
+                  "callId": "c1",
+                  "input": {},
+                  "output": {},
+                  "content": "ok"
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-12>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-12>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 7,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "stepIndex": 1,
+              "stateDigest": "sha256:0eaf6581375e9f96a1b6b8086cf043698ff20ffb8e571a1561deff12fad3f0d3"
+            },
+            "eventId": "<uuid-13>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-13>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 8,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-14>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-15>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-15>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 9,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.delta",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "itemId": "<uuid-14>",
+              "delta": "Done."
+            },
+            "eventId": "<uuid-16>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-16>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 10,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-14>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "Done."
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-17>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-17>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 11,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "stepIndex": 2,
+              "stateDigest": "sha256:4f25c573d564aac56b0e2dbd6f681a153dc9474202338e41823358a0845ee0c7"
+            },
+            "eventId": "<uuid-18>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-18>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 12,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "turn.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "completed",
+                "trigger": "user",
+                "input": "go",
+                "startedAt": "<iso>",
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-19>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-19>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 13,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-20>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-21>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-21>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "instruction",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 19,
+                    "digest": "sha256:9b837db45dd4d9698a838cc4c1cb65042a46f9a102c7da8477c0f22fd308bc3b"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:1"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 1,
+                    "tokens": 8,
+                    "digest": "sha256:16085d724474bcc308e3aa64ad6ab1537444dc42cc3c669c1201312770b4d72e"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-22>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-22>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-20>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-21>",
+            "payload": {
+              "requestId": "<uuid-20>",
+              "manifestId": "<uuid-21>",
+              "stepIndex": 0,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:f02063c73b1a3ab065436f59e450052ade8da0829a33ae8da7605fa36f925a4b",
+              "sources": {
+                "message:0": "{\"content\":\"You are Bee, a personal agent in the Bee host.\",\"role\":\"system\"}",
+                "message:1": "{\"content\":\"go\",\"role\":\"user\"}"
+              }
+            },
+            "eventId": "<uuid-23>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-23>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-20>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-21>",
+            "payload": {
+              "requestId": "<uuid-20>",
+              "result": {
+                "stopReason": "tool_calls",
+                "usage": {
+                  "inputTokens": 12,
+                  "outputTokens": 0,
+                  "totalTokens": 12
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-24>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-24>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-20>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-25>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-26>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-26>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "instruction",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 19,
+                    "digest": "sha256:9b837db45dd4d9698a838cc4c1cb65042a46f9a102c7da8477c0f22fd308bc3b"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:1"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 1,
+                    "tokens": 8,
+                    "digest": "sha256:16085d724474bcc308e3aa64ad6ab1537444dc42cc3c669c1201312770b4d72e"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:2"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 2,
+                    "tokens": 23,
+                    "digest": "sha256:2e1ee5a2049edb162e8bb93e13f8bf0484a7cf62c6f90062333d8420d41dbd58"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:3"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 3,
+                    "tokens": 16,
+                    "digest": "sha256:6b43e9c5c079b2e0b7d3ec790b41cbf397d5c8feb3ebac5446de20fb0694e19f"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-27>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-27>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-25>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-26>",
+            "payload": {
+              "requestId": "<uuid-25>",
+              "manifestId": "<uuid-26>",
+              "stepIndex": 1,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:88bfb78eecf665f99cf28a8fd2b94207182019f2eaf140ffcad05762fce23962",
+              "sources": {
+                "message:0": "{\"content\":\"You are Bee, a personal agent in the Bee host.\",\"role\":\"system\"}",
+                "message:1": "{\"content\":\"go\",\"role\":\"user\"}",
+                "message:2": "{\"content\":\"\",\"role\":\"assistant\",\"toolCalls\":[{\"callId\":\"c1\",\"input\":{},\"toolId\":\"probe\"}]}",
+                "message:3": "{\"callId\":\"c1\",\"content\":\"ok\",\"role\":\"tool\",\"toolId\":\"probe\"}"
+              }
+            },
+            "eventId": "<uuid-28>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-28>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-25>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-26>",
+            "payload": {
+              "requestId": "<uuid-25>",
+              "result": {
+                "stopReason": "end_turn",
+                "usage": {
+                  "inputTokens": 13,
+                  "outputTokens": 5,
+                  "totalTokens": 18
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-29>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-29>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-25>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -18,6 +18,12 @@ export interface LlmToolCall {
   readonly callId: string
   readonly toolId: string
   readonly input: unknown
+  /**
+   * Set by the runtime when the model's arguments could not be parsed
+   * (e.g. malformed JSON). The loop must not execute the call; it feeds
+   * this back as an error tool result so the model can correct itself.
+   */
+  readonly inputError?: string | undefined
 }
 
 /** A tool declared in a ContextBundle, with a JSON Schema for its input. */

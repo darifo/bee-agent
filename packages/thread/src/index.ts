@@ -10,6 +10,7 @@ import type { ChronicleSchemaRegistry } from '@bee-agent/knowledge'
 import {
   AgentCheckpointEventSchema,
   AgentRecoveryFailedEventSchema,
+  ContextCompactedEventSchema,
   TurnCancelledEventSchema,
   ItemDeltaEventSchema,
   ItemFailedEventSchema,
@@ -64,6 +65,7 @@ export const THREAD_EVENT_TYPES = [
   'item.failed',
   'agent.checkpoint',
   'agent.recovery_failed',
+  'context.compacted',
 ] as const
 export type ThreadEventType = (typeof THREAD_EVENT_TYPES)[number]
 
@@ -117,6 +119,12 @@ const AgentRecoveryFailedPayloadSchema = AgentRecoveryFailedEventSchema.omit({
   turnId: true,
   event: true,
 })
+const ContextCompactedPayloadSchema = ContextCompactedEventSchema.omit({
+  sequence: true,
+  threadId: true,
+  turnId: true,
+  event: true,
+})
 
 const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'thread.created': ThreadCreatedPayloadSchema,
@@ -130,6 +138,7 @@ const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'item.failed': ItemFailedPayloadSchema,
   'agent.checkpoint': AgentCheckpointPayloadSchema,
   'agent.recovery_failed': AgentRecoveryFailedPayloadSchema,
+  'context.compacted': ContextCompactedPayloadSchema,
 }
 
 /** Registers every thread event type on a Chronicle registry. */
@@ -363,6 +372,24 @@ export function agentRecoveryFailedEvent(
   options: ThreadEventBuildOptions = {},
 ): NewChronicleEvent {
   return baseEvent('agent.recovery_failed', ids, failure, options)
+}
+
+export function contextCompactedEvent(
+  ids: { threadId: ThreadId; turnId: TurnId },
+  compaction: {
+    summary: string
+    coveredMessageCount: number
+    coveredDigest: string
+    coveredTokens: number
+  },
+  options: ThreadEventBuildOptions = {},
+): NewChronicleEvent {
+  return baseEvent(
+    'context.compacted',
+    ids,
+    { ...compaction, reason: 'context-pressure' },
+    options,
+  )
 }
 
 export function itemFailedEvent(

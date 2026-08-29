@@ -58,9 +58,84 @@ export async function postJson(
       `Model provider rejected the request: ${message}`,
       response.status,
       parsed,
+      retryAfterMs(response),
     )
   }
   return parsed
+}
+
+/** Parses Retry-After (seconds or HTTP-date) into milliseconds. */
+export function retryAfterMs(response: Response): number | undefined {
+  const raw = response.headers.get('retry-after')
+  if (raw === null) return undefined
+  const seconds = Number(raw)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const date = Date.parse(raw)
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now())
+  return undefined
+}
+
+/**
+ * POSTs and resolves as soon as the response headers arrive, so the body can
+ * be consumed as a stream. The timeout covers headers only: a legitimately
+ * long stream must not be killed by the request timeout. `ModelProviderError`
+ * carries the status and any Retry-After hint, mirroring {@link postJson}.
+ */
+export async function postForStream(
+  url: string,
+  apiKey: string,
+  body: unknown,
+  options: HttpOptions,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const fetchImpl = options.fetch ?? fetch.bind(globalThis)
+  const timeoutMs = options.timeoutMs ?? 120_000
+  const timeoutController = new AbortController()
+  const timer = setTimeout(() => timeoutController.abort(), timeoutMs)
+  const requestSignal =
+    signal !== undefined
+      ? AbortSignal.any([signal, timeoutController.signal])
+      : timeoutController.signal
+  let response: Response
+  try {
+    response = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: requestSignal,
+    })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    if (
+      error instanceof Error &&
+      (error.name === 'TimeoutError' || timeoutController.signal.aborted)
+    ) {
+      throw new ModelProviderError(
+        `Request to ${url} timed out after ${timeoutMs}ms`,
+      )
+    }
+    throw error
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!response.ok) {
+    const text = await response.text()
+    const parsed: unknown = text.length > 0 ? safeJsonParse(text) : undefined
+    const message =
+      isRecord(parsed) && typeof parsed.error === 'object'
+        ? errorMessage(parsed.error)
+        : `HTTP ${response.status}`
+    throw new ModelProviderError(
+      `Model provider rejected the request: ${message}`,
+      response.status,
+      parsed,
+      retryAfterMs(response),
+    )
+  }
+  return response
 }
 
 function safeJsonParse(text: string): unknown {

@@ -10,7 +10,21 @@ interface Call {
   readonly body: Record<string, unknown>
 }
 
-function fakeFetch(responses: unknown[], onCall?: (call: Call) => void) {
+/** A scripted response: JSON payload, or SSE chunks, or an error status. */
+type ScriptedResponse =
+  | { readonly kind: 'json'; readonly payload: unknown }
+  | { readonly kind: 'sse'; readonly chunks: unknown[] }
+  | {
+      readonly kind: 'error'
+      readonly status: number
+      readonly payload: unknown
+      readonly headers?: Record<string, string>
+    }
+
+function fakeFetch(
+  responses: ScriptedResponse[],
+  onCall?: (call: Call) => void,
+) {
   const calls: Call[] = []
   let index = 0
   const fetchImpl: typeof fetch = async (url, init) => {
@@ -24,19 +38,102 @@ function fakeFetch(responses: unknown[], onCall?: (call: Call) => void) {
     const call: Call = { url: url.toString(), init: init ?? {}, body }
     calls.push(call)
     onCall?.(call)
-    const payload = responses[index]
+    const scriptedResponse = responses[index]
     index += 1
-    const response = payload as { status?: number } | undefined
-    const status =
-      response !== null && typeof response === 'object' && 'status' in response
-        ? ((response as { status: number }).status ?? 200)
-        : 200
-    return new Response(JSON.stringify(payload), {
-      status,
+    if (scriptedResponse === undefined) {
+      throw new Error('fakeFetch ran out of scripted responses')
+    }
+    if (scriptedResponse.kind === 'sse') {
+      const text =
+        scriptedResponse.chunks
+          .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+          .join('') + 'data: [DONE]\n\n'
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(text))
+            controller.close()
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        },
+      )
+    }
+    if (scriptedResponse.kind === 'error') {
+      return new Response(JSON.stringify(scriptedResponse.payload), {
+        status: scriptedResponse.status,
+        headers: {
+          'content-type': 'application/json',
+          ...(scriptedResponse.headers ?? {}),
+        },
+      })
+    }
+    return new Response(JSON.stringify(scriptedResponse.payload), {
+      status: 200,
       headers: { 'content-type': 'application/json' },
     })
   }
   return { fetchImpl, calls }
+}
+
+function json(payload: unknown): ScriptedResponse {
+  return { kind: 'json', payload }
+}
+
+function sse(...chunks: unknown[]): ScriptedResponse {
+  return { kind: 'sse', chunks }
+}
+
+/** One streaming text chunk, in OpenAI wire shape. */
+function textDelta(content: string): unknown {
+  return { choices: [{ index: 0, delta: { content } }] }
+}
+
+/** One streaming tool-call fragment, in OpenAI wire shape. */
+function toolDelta(
+  index: number,
+  fragment: {
+    id?: string
+    name?: string
+    arguments?: string
+  },
+): unknown {
+  return {
+    choices: [
+      {
+        index: 0,
+        delta: {
+          tool_calls: [
+            {
+              index,
+              ...(fragment.id === undefined ? {} : { id: fragment.id }),
+              type: 'function',
+              function: {
+                ...(fragment.name === undefined ? {} : { name: fragment.name }),
+                ...(fragment.arguments === undefined
+                  ? {}
+                  : { arguments: fragment.arguments }),
+              },
+            },
+          ],
+        },
+      },
+    ],
+  }
+}
+
+function finish(reason: string): unknown {
+  return { choices: [{ index: 0, delta: {}, finish_reason: reason }] }
+}
+
+function usageChunk(usage: {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+}): unknown {
+  return { choices: [], usage }
 }
 
 function chatCompletion(
@@ -82,9 +179,18 @@ async function collect(
 }
 
 describe('OpenAIChatRuntime', () => {
-  it('streams model text and reports usage', async () => {
+  it('streams model text chunk by chunk and reports usage', async () => {
     const { fetchImpl, calls } = fakeFetch([
-      chatCompletion({ role: 'assistant', content: 'the answer is 84' }),
+      sse(
+        textDelta('the answer '),
+        textDelta('is 84'),
+        finish('stop'),
+        usageChunk({
+          prompt_tokens: 11,
+          completion_tokens: 7,
+          total_tokens: 18,
+        }),
+      ),
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -98,7 +204,8 @@ describe('OpenAIChatRuntime', () => {
     const result = await call.result
 
     expect(events).toEqual([
-      { kind: 'message-delta', delta: 'the answer is 84' },
+      { kind: 'message-delta', delta: 'the answer ' },
+      { kind: 'message-delta', delta: 'is 84' },
     ])
     expect(result.stopReason).toBe('end_turn')
     expect(result.usage).toEqual({
@@ -113,6 +220,8 @@ describe('OpenAIChatRuntime', () => {
     const headers = calls[0]?.init.headers as Record<string, string>
     expect(headers.authorization).toBe('Bearer sk-test')
     expect(calls[0]?.body.model).toBe('deepseek-chat')
+    expect(calls[0]?.body.stream).toBe(true)
+    expect(calls[0]?.body.stream_options).toEqual({ include_usage: true })
     expect(calls[0]?.body.messages).toEqual([
       { role: 'system', content: 'Be terse.' },
       { role: 'user', content: 'compute 12*7' },
@@ -121,31 +230,22 @@ describe('OpenAIChatRuntime', () => {
     expect(tools?.[0]?.function.name).toBe('tools_calculator')
   })
 
-  it('streams tool intents without executing them', async () => {
+  it('assembles tool intents from streamed argument fragments', async () => {
     const { fetchImpl } = fakeFetch([
-      {
-        choices: [
-          {
-            index: 0,
-            message: {
-              role: 'assistant',
-              content: null,
-              tool_calls: [
-                {
-                  id: 'call-1',
-                  type: 'function',
-                  function: {
-                    name: 'tools_calculator',
-                    arguments: '{"expression":"12*7"}',
-                  },
-                },
-              ],
-            },
-            finish_reason: 'tool_calls',
-          },
-        ],
-        usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
-      },
+      sse(
+        toolDelta(0, {
+          id: 'call-1',
+          name: 'tools_calculator',
+          arguments: '{"expr',
+        }),
+        toolDelta(0, { arguments: 'ession":"12*7"}' }),
+        finish('tool_calls'),
+        usageChunk({
+          prompt_tokens: 11,
+          completion_tokens: 7,
+          total_tokens: 18,
+        }),
+      ),
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -170,9 +270,83 @@ describe('OpenAIChatRuntime', () => {
     expect(result.stopReason).toBe('tool_calls')
   })
 
+  it('marks malformed streamed arguments as inputError instead of executing', async () => {
+    const { fetchImpl } = fakeFetch([
+      sse(
+        toolDelta(0, {
+          id: 'call-9',
+          name: 'tools_calculator',
+          arguments: '{"oops',
+        }),
+        finish('tool_calls'),
+      ),
+    ])
+    const runtime = new OpenAIChatRuntime({
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      fetch: fetchImpl,
+    })
+
+    const events = await collect(runtime.generate(bundle()).events)
+    expect(events).toEqual([
+      {
+        kind: 'tool-intent',
+        call: {
+          callId: 'call-9',
+          toolId: 'tools.calculator',
+          input: {},
+          inputError: expect.stringContaining('not valid JSON'),
+        },
+      },
+    ])
+  })
+
+  it('falls back to buffered JSON when the response is not event-stream', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      json(chatCompletion({ role: 'assistant', content: 'the answer is 84' })),
+    ])
+    const runtime = new OpenAIChatRuntime({
+      apiKey: 'sk-test',
+      model: 'deepseek-chat',
+      fetch: fetchImpl,
+    })
+
+    const call = runtime.generate(bundle())
+    const events = await collect(call.events)
+    const result = await call.result
+
+    expect(events).toEqual([
+      { kind: 'message-delta', delta: 'the answer is 84' },
+    ])
+    expect(result.stopReason).toBe('end_turn')
+    expect(result.usage).toEqual({
+      inputTokens: 11,
+      outputTokens: 7,
+      totalTokens: 18,
+    })
+    // Streaming was requested but the provider answered with JSON.
+    expect(calls[0]?.body.stream).toBe(true)
+  })
+
+  it('does not request streaming when the option is off', async () => {
+    const { fetchImpl, calls } = fakeFetch([
+      json(chatCompletion({ role: 'assistant', content: 'plain' })),
+    ])
+    const runtime = new OpenAIChatRuntime({
+      apiKey: 'sk-test',
+      model: 'm',
+      fetch: fetchImpl,
+      streaming: false,
+    })
+
+    await runtime.generate(bundle()).result
+    expect(calls[0]?.body.stream).toBeUndefined()
+    expect(runtime.capabilities().streaming).toBe(false)
+  })
+
   it('passes tool results back as assistant/tool messages', async () => {
     const { fetchImpl, calls } = fakeFetch([
-      chatCompletion({ role: 'assistant', content: '84' }),
+      json(chatCompletion({ role: 'assistant', content: '84' })),
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -229,10 +403,11 @@ describe('OpenAIChatRuntime', () => {
 
   it('parses structured decisions when a decision schema is present', async () => {
     const { fetchImpl, calls } = fakeFetch([
-      chatCompletion({
-        role: 'assistant',
-        content: '{"action":"respond","text":"hi"}',
-      }),
+      sse(
+        textDelta('{"action":"respond",'),
+        textDelta('"text":"hi"}'),
+        finish('stop'),
+      ),
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -247,7 +422,8 @@ describe('OpenAIChatRuntime', () => {
     const result = await call.result
 
     expect(events).toEqual([
-      { kind: 'message-delta', delta: '{"action":"respond","text":"hi"}' },
+      { kind: 'message-delta', delta: '{"action":"respond",' },
+      { kind: 'message-delta', delta: '"text":"hi"}' },
       {
         kind: 'decision',
         decision: { action: 'respond', text: 'hi' },
@@ -258,6 +434,19 @@ describe('OpenAIChatRuntime', () => {
     expect(calls[0]?.body.response_format).toEqual({ type: 'json_object' })
   })
 
+  it('maps a length finish reason to max_tokens', async () => {
+    const { fetchImpl } = fakeFetch([
+      sse(textDelta('partial answer'), finish('length')),
+    ])
+    const runtime = new OpenAIChatRuntime({
+      apiKey: 'sk-test',
+      model: 'm',
+      fetch: fetchImpl,
+    })
+    const result = await runtime.generate(bundle()).result
+    expect(result.stopReason).toBe('max_tokens')
+  })
+
   it('reports capabilities from options', () => {
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -266,7 +455,7 @@ describe('OpenAIChatRuntime', () => {
       maxOutputTokens: 4096,
     })
     expect(runtime.capabilities()).toEqual({
-      streaming: false,
+      streaming: true,
       tools: true,
       structuredDecisions: true,
       maxContextTokens: 64000,
@@ -278,7 +467,11 @@ describe('OpenAIChatRuntime', () => {
 describe('OpenAIChatRuntime error classification', () => {
   it('classifies 401 as fatal', async () => {
     const { fetchImpl } = fakeFetch([
-      { status: 401, error: { message: 'Invalid API key' } },
+      {
+        kind: 'error',
+        status: 401,
+        payload: { error: { message: 'Invalid API key' } },
+      },
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-bad',
@@ -295,9 +488,14 @@ describe('OpenAIChatRuntime error classification', () => {
     }
   })
 
-  it('classifies 429 as retryable', async () => {
+  it('classifies 429 as retryable and carries Retry-After', async () => {
     const { fetchImpl } = fakeFetch([
-      { status: 429, error: { message: 'rate limited' } },
+      {
+        kind: 'error',
+        status: 429,
+        payload: { error: { message: 'rate limited' } },
+        headers: { 'retry-after': '2' },
+      },
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -310,12 +508,17 @@ describe('OpenAIChatRuntime error classification', () => {
     expect(error).toBeInstanceOf(LlmRuntimeError)
     if (error instanceof LlmRuntimeError) {
       expect(error.retryability).toBe('retryable')
+      expect(error.retryAfterMs).toBe(2000)
     }
   })
 
   it('classifies context-length failures as context-overflow', async () => {
     const { fetchImpl } = fakeFetch([
-      { status: 400, error: { message: 'context_length_exceeded' } },
+      {
+        kind: 'error',
+        status: 400,
+        payload: { error: { message: 'context_length_exceeded' } },
+      },
     ])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
@@ -332,7 +535,7 @@ describe('OpenAIChatRuntime error classification', () => {
   })
 
   it('rejects responses without choices', async () => {
-    const { fetchImpl } = fakeFetch([{ object: 'list' }])
+    const { fetchImpl } = fakeFetch([json({ object: 'list' })])
     const runtime = new OpenAIChatRuntime({
       apiKey: 'sk-test',
       model: 'm',
@@ -341,6 +544,29 @@ describe('OpenAIChatRuntime error classification', () => {
     await expect(runtime.generate(bundle()).result).rejects.toThrow(
       ModelProtocolError,
     )
+  })
+
+  it('rejects a non-JSON streaming chunk as a protocol error', async () => {
+    const text = 'data: {not json}\n\ndata: [DONE]\n\n'
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(text))
+            controller.close()
+          },
+        }),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      )
+    const runtime = new OpenAIChatRuntime({
+      apiKey: 'sk-test',
+      model: 'm',
+      fetch: fetchImpl,
+    })
+    const call = runtime.generate(bundle())
+    await expect(call.result).rejects.toThrow(ModelProtocolError)
+    // The events iterator still ends (the failure surfaces via result).
+    expect(await collect(call.events)).toEqual([])
   })
 })
 

@@ -1,0 +1,804 @@
+{
+  "name": "thread-continuity",
+  "description": "Two turns on one thread: the second generation sees the first turn's user and assistant messages before its own input, as one conversation.",
+  "session": {
+    "llm": {
+      "script": [
+        {
+          "type": "respond",
+          "deltas": ["First answer."],
+          "latencyMs": 0
+        },
+        {
+          "type": "respond",
+          "deltas": ["Second answer."],
+          "latencyMs": 0
+        }
+      ]
+    },
+    "tools": {}
+  },
+  "actions": [
+    {
+      "kind": "run",
+      "input": "first question"
+    },
+    {
+      "kind": "run",
+      "input": "second question"
+    }
+  ],
+  "expected": {
+    "results": [
+      {
+        "status": "completed",
+        "output": "First answer.",
+        "turn": {
+          "id": "<uuid-1>",
+          "threadId": "<uuid-2>",
+          "status": "completed",
+          "trigger": "user",
+          "input": "first question",
+          "startedAt": "<iso>",
+          "endedAt": "<iso>"
+        }
+      },
+      {
+        "status": "completed",
+        "output": "Second answer.",
+        "turn": {
+          "id": "<uuid-3>",
+          "threadId": "<uuid-2>",
+          "status": "completed",
+          "trigger": "user",
+          "input": "second question",
+          "startedAt": "<iso>",
+          "endedAt": "<iso>"
+        }
+      }
+    ],
+    "modelCalls": [
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "first question"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      },
+      {
+        "bundle": {
+          "messages": [
+            {
+              "role": "user",
+              "content": "first question"
+            },
+            {
+              "role": "assistant",
+              "content": "First answer."
+            },
+            {
+              "role": "user",
+              "content": "second question"
+            }
+          ],
+          "tools": []
+        },
+        "options": {
+          "maxOutputTokens": 8192
+        }
+      }
+    ],
+    "streams": [
+      {
+        "streamId": "thread:<uuid-2>",
+        "events": [
+          {
+            "eventType": "turn.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "active",
+                "trigger": "user",
+                "input": "first question",
+                "startedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-4>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-4>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-5>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "first question"
+                }
+              }
+            },
+            "eventId": "<uuid-6>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-6>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-5>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "first question"
+                }
+              }
+            },
+            "eventId": "<uuid-7>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-7>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-8>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-9>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-9>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 4,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.delta",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "itemId": "<uuid-8>",
+              "delta": "First answer."
+            },
+            "eventId": "<uuid-10>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-10>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 5,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "item": {
+                "id": "<uuid-8>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-1>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "First answer."
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-11>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-11>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 6,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "stepIndex": 1,
+              "stateDigest": "sha256:3fa6511bdec48e61ab1d95b5790e771ff53fbc675db4607d5e77e22216f3a59a"
+            },
+            "eventId": "<uuid-12>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-12>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 7,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "turn.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-1>",
+                "threadId": "<uuid-2>",
+                "status": "completed",
+                "trigger": "user",
+                "input": "first question",
+                "startedAt": "<iso>",
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-13>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-13>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 8,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "turn.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-3>",
+                "threadId": "<uuid-2>",
+                "status": "active",
+                "trigger": "user",
+                "input": "second question",
+                "startedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-14>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-14>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 9,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "item": {
+                "id": "<uuid-15>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-3>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "second question"
+                }
+              }
+            },
+            "eventId": "<uuid-16>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-16>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 10,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "item": {
+                "id": "<uuid-15>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-3>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "user",
+                  "content": "second question"
+                }
+              }
+            },
+            "eventId": "<uuid-17>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-17>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 11,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.started",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "item": {
+                "id": "<uuid-18>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-3>",
+                "status": "active",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": ""
+                }
+              }
+            },
+            "eventId": "<uuid-19>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-19>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 12,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.delta",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "itemId": "<uuid-18>",
+              "delta": "Second answer."
+            },
+            "eventId": "<uuid-20>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-20>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 13,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "item.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "item": {
+                "id": "<uuid-18>",
+                "threadId": "<uuid-2>",
+                "turnId": "<uuid-3>",
+                "status": "completed",
+                "createdAt": "<iso>",
+                "type": "message",
+                "payload": {
+                  "role": "assistant",
+                  "content": "Second answer."
+                },
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-21>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-21>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 14,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "agent.checkpoint",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "stepIndex": 1,
+              "stateDigest": "sha256:0dab9e618e664badc8cd92e79bfe032a3eff13c930a53f9c94234ac82a7042f9"
+            },
+            "eventId": "<uuid-22>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-22>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 15,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "turn.completed",
+            "actor": {
+              "type": "agent",
+              "id": "bee"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "payload": {
+              "turn": {
+                "id": "<uuid-3>",
+                "threadId": "<uuid-2>",
+                "status": "completed",
+                "trigger": "user",
+                "input": "second question",
+                "startedAt": "<iso>",
+                "endedAt": "<iso>"
+              }
+            },
+            "eventId": "<uuid-23>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-23>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "thread:<uuid-2>",
+            "sequence": 16,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-24>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-25>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-25>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 11,
+                    "digest": "sha256:3829d9de1b44c9be1823fcfd8ca2996cd8eebaeca2e572716388d6aa6e024bb7"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-26>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-26>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-24>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-25>",
+            "payload": {
+              "requestId": "<uuid-24>",
+              "manifestId": "<uuid-25>",
+              "stepIndex": 0,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:fd9910e0a2802317f8d71a692de20146315bece8488b6cadd90f28dd23dbb814",
+              "sources": {
+                "message:0": "{\"content\":\"first question\",\"role\":\"user\"}"
+              }
+            },
+            "eventId": "<uuid-27>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-27>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-24>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-1>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-25>",
+            "payload": {
+              "requestId": "<uuid-24>",
+              "result": {
+                "stopReason": "end_turn",
+                "usage": {
+                  "inputTokens": 4,
+                  "outputTokens": 13,
+                  "totalTokens": 17
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-28>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-28>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-24>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      },
+      {
+        "streamId": "model-request:<uuid-29>",
+        "events": [
+          {
+            "eventType": "context.manifest",
+            "actor": {
+              "type": "system",
+              "id": "host"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-30>",
+            "payload": {
+              "manifest": {
+                "id": "<uuid-30>",
+                "promptVersion": "replay-prompt@1",
+                "structureVersion": "sha256:replay-structure",
+                "tokenBudget": 128000,
+                "sections": [
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:0"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 0,
+                    "tokens": 11,
+                    "digest": "sha256:3829d9de1b44c9be1823fcfd8ca2996cd8eebaeca2e572716388d6aa6e024bb7"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:1"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 1,
+                    "tokens": 12,
+                    "digest": "sha256:9ad12a74c382a9160b0e2e974f0547ec04690bf3a9f446e4637ba509c81ef901"
+                  },
+                  {
+                    "kind": "trajectory",
+                    "sourceIds": ["message:2"],
+                    "rendererVersion": "llm-message-json@1",
+                    "priority": 2,
+                    "tokens": 11,
+                    "digest": "sha256:3a784e6a437b300d72a0badecbad6848506433f578d5a9eb19aad1cd3b1a62c6"
+                  }
+                ],
+                "omissions": []
+              }
+            },
+            "eventId": "<uuid-31>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-31>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-29>",
+            "sequence": 1,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.requested",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-30>",
+            "payload": {
+              "requestId": "<uuid-29>",
+              "manifestId": "<uuid-30>",
+              "stepIndex": 0,
+              "attempt": 0,
+              "model": "fake-model",
+              "inputDigest": "sha256:ac09885a998de5930caf8cfc7573f09b79e8509b23583f86267e35403f523b1c",
+              "sources": {
+                "message:0": "{\"content\":\"first question\",\"role\":\"user\"}",
+                "message:1": "{\"content\":\"First answer.\",\"role\":\"assistant\"}",
+                "message:2": "{\"content\":\"second question\",\"role\":\"user\"}"
+              }
+            },
+            "eventId": "<uuid-32>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-32>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-29>",
+            "sequence": 2,
+            "ingestTime": "<iso>"
+          },
+          {
+            "eventType": "model.completed",
+            "actor": {
+              "type": "system",
+              "id": "model-request"
+            },
+            "threadId": "<uuid-2>",
+            "turnId": "<uuid-3>",
+            "structureVersion": "sha256:replay-structure",
+            "contextManifestId": "<uuid-30>",
+            "payload": {
+              "requestId": "<uuid-29>",
+              "result": {
+                "stopReason": "end_turn",
+                "usage": {
+                  "inputTokens": 11,
+                  "outputTokens": 14,
+                  "totalTokens": 25
+                },
+                "provider": {
+                  "id": "fake"
+                },
+                "latencyMs": 0
+              }
+            },
+            "eventId": "<uuid-33>",
+            "schemaVersion": 1,
+            "eventTime": "<iso>",
+            "correlationId": "<uuid-33>",
+            "classification": "internal",
+            "retentionClass": "default",
+            "streamId": "model-request:<uuid-29>",
+            "sequence": 3,
+            "ingestTime": "<iso>"
+          }
+        ]
+      }
+    ]
+  }
+}

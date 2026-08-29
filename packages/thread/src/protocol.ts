@@ -85,6 +85,8 @@ export const MessageItemPayloadSchema = z.object({
         callId: z.string().min(1),
         toolId: z.string().min(1),
         input: z.unknown(),
+        /** Provider-detected malformed arguments; the call never ran. */
+        inputError: z.string().optional(),
       }),
     )
     .optional(),
@@ -101,6 +103,8 @@ export const ToolCallItemPayloadSchema = z.object({
   toolId: z.string().min(1),
   callId: z.string().min(1),
   input: z.unknown(),
+  /** Provider-detected malformed arguments; the call never ran. */
+  inputError: z.string().optional(),
   output: z.unknown().optional(),
   /** Exact model-visible tool result, retained for deterministic recovery. */
   content: z.string().optional(),
@@ -328,6 +332,26 @@ export type AgentRecoveryFailedEvent = z.infer<
   typeof AgentRecoveryFailedEventSchema
 >
 
+/**
+ * A durable conversation summary (architecture §10.4, level-2 compaction):
+ * the covered message prefix of the thread's history is replaced — in the
+ * model-visible projection only — by the summary this event carries. The
+ * covered digest makes the summary self-verifying against the history it
+ * summarizes; the full history stays in Chronicle untouched.
+ */
+export const ContextCompactedEventSchema = TurnEventPositionSchema.extend({
+  event: z.literal('context.compacted'),
+  summary: z.string().min(1),
+  /** How many leading history messages the summary covers. */
+  coveredMessageCount: z.number().int().positive(),
+  /** sha256 over the covered history prefix at compaction time. */
+  coveredDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  /** Estimated tokens the covered span occupied. */
+  coveredTokens: z.number().int().positive(),
+  reason: z.literal('context-pressure'),
+})
+export type ContextCompactedEvent = z.infer<typeof ContextCompactedEventSchema>
+
 export const ThreadEventSchema = z.discriminatedUnion('event', [
   ThreadCreatedEventSchema,
   TurnStartedEventSchema,
@@ -340,6 +364,7 @@ export const ThreadEventSchema = z.discriminatedUnion('event', [
   ItemFailedEventSchema,
   AgentCheckpointEventSchema,
   AgentRecoveryFailedEventSchema,
+  ContextCompactedEventSchema,
 ])
 export type ThreadEvent = z.infer<typeof ThreadEventSchema>
 

@@ -3,6 +3,8 @@ export class ModelProviderError extends Error {
     message: string,
     readonly status?: number | undefined,
     readonly details?: unknown,
+    /** Backoff hint parsed from the response (Retry-After), in ms. */
+    readonly retryAfterMs?: number | undefined,
   ) {
     super(message)
     this.name = 'ModelProviderError'

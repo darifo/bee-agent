@@ -281,7 +281,10 @@ describe('module composition (Phase 4 acceptance)', () => {
         bundle: { messages: { role: string; content: string }[] }
         manifest: { sections: unknown[] }
       }
-      expect(replay.bundle.messages[0]).toMatchObject({
+      // The default Bee system prompt leads the model-visible request.
+      expect(replay.bundle.messages[0]).toMatchObject({ role: 'system' })
+      expect(replay.bundle.messages[0]?.content).toContain('You are Bee')
+      expect(replay.bundle.messages[1]).toMatchObject({
         role: 'user',
         content: 'From now on, always answer in Portuguese language.',
       })

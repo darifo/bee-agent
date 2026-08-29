@@ -226,10 +226,13 @@ describe('memory outage acceptance (Phase 4 exit condition)', () => {
       const turn = await runTurn(baseUrl, thread.id, 'Are you alive?')
       expect(turn.status).toBe('completed')
 
-      // No memory was recalled — and no system message pretending to be one.
-      expect(
-        llm.calls[0]!.bundle.messages.filter((m) => m.role === 'system'),
-      ).toHaveLength(0)
+      // No memory was recalled: the only system message is the Host's
+      // identity prompt — nothing pretending to be recall.
+      const systemMessages = llm.calls[0]!.bundle.messages.filter(
+        (m) => m.role === 'system',
+      )
+      expect(systemMessages).toHaveLength(1)
+      expect(systemMessages[0]?.content).toContain('You are Bee')
 
       // The Chronicle facts for the whole conversation are fully intact.
       const page = await readThreadEvents(server.store, thread.id)

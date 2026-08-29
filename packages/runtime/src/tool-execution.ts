@@ -30,6 +30,12 @@ export interface ToolExecutor {
   execute(input: ToolExecutionCall): Promise<ActionResult>
   /** Deterministically maps a sandbox result into model-facing tool content. */
   present?(result: ActionResult, call: LlmToolCall): ActionResult
+  /**
+   * Whether this call may run alongside sibling calls from the same
+   * generation. Absent means `exclusive`: tools opt into parallelism, they
+   * are never assumed into it (fail-closed, like every benchmark agent).
+   */
+  concurrency?(call: LlmToolCall): ToolConcurrency
 }
 
 /** One coherent tool plugin binding: model schema, policy default, and resolver. */
@@ -47,12 +53,16 @@ export type ToolExecutionOutcome =
       readonly detail: string
     }
 
+export type ToolConcurrency = 'parallel' | 'exclusive'
+
 export interface ToolExecutionPort {
   execute(
     input: ToolExecutionCall & {
       readonly approval?: 'approved' | 'rejected' | undefined
     },
   ): Promise<ToolExecutionOutcome>
+  /** Concurrency class of one call; `exclusive` unless declared otherwise. */
+  concurrency?(call: LlmToolCall): ToolConcurrency
 }
 
 export type ToolAuthorizationRule = AuthorizationDecision & {
@@ -110,6 +120,10 @@ export class ToolExecutionService implements ToolExecutionPort {
   constructor(world: ExecutionWorld, executor: ToolExecutor) {
     this.#world = world
     this.#executor = executor
+  }
+
+  concurrency(call: LlmToolCall): ToolConcurrency {
+    return this.#executor.concurrency?.(call) ?? 'exclusive'
   }
 
   async execute(

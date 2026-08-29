@@ -20,6 +20,7 @@ import type {
   ContextBundle,
   LlmCall,
   LlmCallOptions,
+  LlmCapabilities,
   LlmMessage,
   LlmRuntime,
   LlmToolSpec,
@@ -103,6 +104,12 @@ export interface ModelRequestInput {
   readonly stepIndex: number
   readonly attempt: number
   readonly bundle: ContextBundle
+  /**
+   * Context-policy elisions applied to this bundle, recorded as manifest
+   * omissions: what the model did not see, and why.
+   */
+  readonly elisions?:
+    readonly { sourceId: string; reason: string }[] | undefined
   readonly structureVersion?: string | undefined
   readonly options?: LlmCallOptions | undefined
 }
@@ -217,6 +224,11 @@ export class ModelRequestService {
     this.#options = options
   }
 
+  /** The bound model's limits, so callers can plan token budgets. */
+  capabilities(): LlmCapabilities {
+    return this.#options.llm.capabilities()
+  }
+
   async generate(input: ModelRequestInput): Promise<TrackedLlmCall> {
     const requestId = crypto.randomUUID()
     const manifestId = crypto.randomUUID()
@@ -231,6 +243,7 @@ export class ModelRequestService {
         this.#options.tokenBudget ??
         this.#options.llm.capabilities().maxContextTokens,
       sections: described.sections,
+      omissions: input.elisions ?? [],
     })
     const requested = RequestedPayloadSchema.parse({
       requestId,

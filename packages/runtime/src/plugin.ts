@@ -26,7 +26,7 @@ export const AGENT_LOOP_SERVICE = 'agentLoop'
 
 export interface AgentLoopPluginOptions extends Pick<
   AgentLoopOptions,
-  'toolSpecs' | 'hooks'
+  'toolSpecs' | 'hooks' | 'systemPrompt'
 > {
   readonly version?: string | undefined
 }
@@ -57,6 +57,9 @@ export function createAgentLoopPlugin(
           toolExecution: services.toolExecution,
           toolSpecs: options.toolSpecs,
           ...(options.hooks === undefined ? {} : { hooks: options.hooks }),
+          ...(options.systemPrompt === undefined
+            ? {}
+            : { systemPrompt: options.systemPrompt }),
         }),
       )
     },

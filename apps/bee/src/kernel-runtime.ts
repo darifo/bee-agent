@@ -63,6 +63,12 @@ export interface BeeKernelRuntimeOptions {
   readonly deriveMemory?: boolean | undefined
   /** Optional Goal/Plan store; complex turns surface a plan via the plan hook. */
   readonly goalPlanStore?: GoalPlanStore | undefined
+  /**
+   * System message prepended to every model request. When absent, the Host's
+   * default Bee prompt (or `BEE_AGENT_SYSTEM_PROMPT`) applies; sections stay
+   * memoized so the prefix is cache-stable.
+   */
+  readonly systemPrompt?: string | undefined
   readonly effectiveStructure?: EffectiveStructure | undefined
   readonly modelId?: string | undefined
   /** Additional providers keyed by `<structure model id>@<model version>`. */
@@ -334,6 +340,9 @@ function createHostPluginFactories(
       return {
         ...createAgentLoopPlugin({
           toolSpecs: options.toolSpecs,
+          ...(options.systemPrompt === undefined
+            ? {}
+            : { systemPrompt: options.systemPrompt }),
           ...(retrieve === undefined && plan === undefined
             ? {}
             : {

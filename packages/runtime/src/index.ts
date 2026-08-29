@@ -51,11 +51,33 @@ export type {
   ToolActionDescriptor,
   ToolAdapter,
   ToolAuthorizationRule,
+  ToolConcurrency,
   ToolExecutionCall,
   ToolExecutionOutcome,
   ToolExecutionPort,
   ToolExecutor,
 } from './tool-execution.ts'
+export {
+  DEFAULT_TOOL_RESULT_COMPACTION,
+  elisionsToOmissions,
+  estimateMessageTokens,
+  projectHistory,
+} from './context-policy.ts'
+export type {
+  ContextElision,
+  ProjectedHistory,
+  ToolResultCompactionPolicy,
+} from './context-policy.ts'
+export {
+  DEFAULT_SYSTEM_PROMPT_TOKEN_BUDGET,
+  SystemPromptAssembler,
+} from './system-prompt.ts'
+export type {
+  AssembledSystemPrompt,
+  SystemPromptAssemblerOptions,
+  SystemPromptSectionInput,
+} from './system-prompt.ts'
+export type { SystemPromptSource } from './agent-loop.ts'
 export {
   canonicalExistingPath,
   canonicalNativeExecutable,
