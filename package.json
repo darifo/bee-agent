@@ -19,6 +19,7 @@
     "version-packages": "changeset version"
   },
   "devDependencies": {
+    "@changesets/changelog-git": "^1.0.0",
     "@changesets/cli": "^2.29.7",
     "@eslint/js": "^9.39.1",
     "@types/node": "^22.19.1",
