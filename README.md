@@ -28,6 +28,14 @@ The implemented foundation is a local-first Personal Bee Host with:
 - a durable Kanban task plane;
 - budgeted context and lazy Tool/Skill indexes;
 - durable model requests and recoverable AgentLoop checkpoints;
+- streaming model interaction (SSE with Retry-After backoff), thread-wide
+  conversation continuity, a memoized system prompt, and two-level context
+  compaction (tool-result elision plus durable summarization) that folds the
+  model-visible view without ever rewriting the log;
+- parallel-safe tool dispatch with ordered commit and fail-closed
+  concurrency defaults;
+- a keyless recorded-session replay harness pinning the exact model-visible
+  requests and Chronicle streams across refactors;
 - a deny-by-default ExecutionWorld with approval, secret, sandbox, audit, and
   idempotency boundaries;
 - sandboxed Command, Python, and manifest-pinned MCP adapters;
@@ -99,11 +107,11 @@ checks enforce this repository-wide.
 | ----------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Kernel            | Available   | Proxy Context, scoped services, `inject`, Registry/Fiber lifecycle, owned effects, scopes, A/B/C reconcile with rollback, leases, quarantine and Doctor                                                                                                                                                                                                                            |
 | Structure         | Available   | Verified EffectiveStructure digest, trusted exact-version PluginCatalog, factory registry, config-source refresh, serialized reconcile, lifecycle facts and restart rebuild                                                                                                                                                                                                        |
-| Conversation      | Available   | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery                                                                                                                                                                                                                                                       |
+| Conversation      | Available   | Chronicle-backed Thread–Turn–Item commands, SSE replay/resume, approval suspension/resume, cancellation, checkpoint recovery; thread-wide conversation continuity (prior turns carried into each new one)                                                                                                                                                                          |
 | Tasks             | Available   | Durable Kanban state machine, dependencies, claim/lease/heartbeat, dispatcher recovery, REST/SDK/CLI/Web views                                                                                                                                                                                                                                                                     |
-| Context           | Available   | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate                                                                                                                                                                                                                                             |
-| Models            | Available   | OpenAI-compatible LLMRuntime, durable ModelRequestService, request/result/error facts, digest-checked recovery                                                                                                                                                                                                                                                                     |
-| Execution         | Available   | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs                                                                                                                                                                                                 |
+| Context           | Available   | ContextManifest, budget allocation, protected sections, omission records, Tool/Skill indexing and lazy resolution, token baseline gate; two-level compaction of the model-visible view — tool-result elision under a budget (errors and the recent window protected) and durable LLM summarization with digest-verified `context.compacted` events and a per-turn attempt breaker  |
+| Models            | Available   | OpenAI-compatible LLMRuntime with real SSE streaming (deltas as chunks, streamed tool-argument assembly, JSON fallback, header-only timeouts), Retry-After-aware backoff, tool-argument validation surfaced to the model, output-cap escalation on `max_tokens`, durable ModelRequestService with digest-checked recovery                                                          |
+| Execution         | Available   | ActionRequest, full permission-intersection snapshots, durable approvals, idempotency/reconciliation, system credentials, artifact scanning, routing sandboxes and snapshots/diffs; concurrency-classified tool dispatch — parallel-safe bounded batches, exclusive ordering, results committed in model order, suspended/crashed steps finish their remaining calls               |
 | Platform sandbox  | Available   | macOS Seatbelt and Linux bubblewrap providers, mandatory Ubuntu contracts, empty child environment, process-group cancellation and timeout/input/output bounds                                                                                                                                                                                                                     |
 | Command tool      | Available   | Opt-in `command_run`; Host allowlists native executables and a canonical workspace                                                                                                                                                                                                                                                                                                 |
 | Python tool       | Available   | Opt-in `python_run`; fixed native interpreter, bounded JSON stdin, explicit runtime read roots                                                                                                                                                                                                                                                                                     |
@@ -144,6 +152,8 @@ export BEE_AGENT_MODEL_API_KEY='<key>'
 export BEE_AGENT_MODEL_NAME='<model>'
 export BEE_AGENT_MODEL_BASE_URL='https://api.deepseek.com'
 export BEE_AGENT_SESSION_TOKEN='local-development-token'
+# optional: replace the default Bee system prompt wholesale
+# export BEE_AGENT_SYSTEM_PROMPT='Your instructions here'
 
 pnpm --filter @bee-agent/bee start
 ```

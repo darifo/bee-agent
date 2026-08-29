@@ -16,6 +16,13 @@
 
 Turn 的 `trigger` 字段区分来源：`user`（用户请求）与 `schedule`（调度器发起）。
 
+会话语义：同一 thread 的 Turn 是连续对话——每个新 Turn 的模型可见历史都携带
+此前所有 Turn 已完成的用户/助手消息与工具结果（按事件序）。上下文增长由两级压缩
+在模型可见视图上处理：超出预算的旧工具结果被省略为占位符（manifest 记录
+omission）；接近模型窗口阈值时，被覆盖的历史前缀经一次持久化模型调用压缩为
+摘要，并以 `context.compacted` 事件落盘（SSE 流中可见：`summary`、
+`coveredMessageCount`、`coveredDigest`）。完整历史始终保留在 Chronicle，日志只增不改。
+
 ## Kanban 任务平面
 
 | 方法        | 路径                             | 说明                                                             |

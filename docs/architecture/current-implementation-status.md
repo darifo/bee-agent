@@ -1,6 +1,6 @@
 # Bee Agent v1 current implementation status
 
-> Snapshot: 2026-08-28
+> Snapshot: 2026-08-29
 >
 > Branch: `main` (feature/v1.4.0 merged; Phase 4 complete)
 >
@@ -70,6 +70,66 @@ Turns retain their original lease until completion, failure, or cancellation.
   dispatcher recovery, SDK, CLI, and Web board.
 - Context budgets, protected sections, omission manifests, Tool/Skill index and
   resolver, and token-baseline regression gate.
+
+### AgentLoop interaction hardening (benchmark-driven pass)
+
+The model-interaction seam, dispatch, and context lifecycle were hardened
+against the converged patterns of the production agent codebases (Claude
+Code, Codex CLI, DeepSeek Harness, Hermes Agent):
+
+- **Streaming provider surface**: `OpenAIChatRuntime` streams over SSE
+  (`stream: true` + `include_usage`), pushing message deltas as chunks
+  arrive and assembling tool intents from streamed argument fragments; a
+  JSON (non-event-stream) response falls back to the buffered path, so both
+  wire shapes produce identical events. Request timeouts cover headers
+  only; long streams are not killed mid-flight. `Retry-After` is parsed
+  into `LlmRuntimeError.retryAfterMs`.
+- **Loop resilience**: retries back off (Retry-After, then exponential,
+  30s cap); malformed tool arguments surface as `inputError` on the call
+  and never execute — they return to the model as an error result; a
+  throwing tool is isolated as an `isError` tool message instead of failing
+  the turn (recorded as `item.completed` so checkpoint digests stay
+  rebuildable); `max_tokens` doubles the output cap and regenerates the
+  step rather than failing outright. Message deltas are buffered (256-char
+  flush) so streaming does not become one Chronicle write per chunk.
+- **Thread continuity**: a Turn's model-visible history starts with the
+  thread's prior turns — completed messages and tool calls across all
+  turns, in sequence order — so a thread is one conversation. Crash
+  recovery rebuilds the same construction (carried prefix + committed
+  turn items), keeping checkpoint digests verifiable.
+- **System prompt assembly**: one memoized system message (default Bee
+  identity/permissions prompt, `BEE_AGENT_SYSTEM_PROMPT` override, or a
+  budgeted `SystemPromptAssembler` over prioritized sections via the
+  context package's allocation) leads every request — byte-stable for
+  provider prefix caching; per-turn context stays in the late hook
+  messages.
+- **Context compaction, two levels, one discipline** — fold the
+  model-visible view, never the log. Level 1 projects old tool results to
+  deterministic placeholders under a token budget (errors and the recent
+  window protected; elisions recorded as manifest omissions). Level 2
+  summarizes the covered history prefix with one durable tool-free model
+  call over a threshold (default 70% of the context window) and records a
+  `context.compacted` event (summary, covered count, covered digest); the
+  projection folds the prefix into a single summary message, re-verifying
+  the digest on every fold and reload. A per-turn attempt budget (default 2) breaks failing summarizer loops.
+- **Tool concurrency**: tools declare `concurrency` (`parallel` |
+  `exclusive`; absent = exclusive, fail-closed). Consecutive same-class
+  intents form segments — parallel-safe calls dispatch as a bounded batch
+  (default 8) while exclusive calls stay ordered; results commit in model
+  order regardless of completion order. `kanban_list`/`kanban_show` are
+  parallel-safe. A suspended or crashed step finishes its unexecuted tool
+  calls on resume/recovery (idempotency keys make re-dispatch safe);
+  Chronicle appends serialize through a write queue.
+- **Keyless replay harness**: fixtures under
+  `packages/runtime/tests/replay/` script recorded model responses and
+  tool outcomes, run the real loop + ModelRequestService + Chronicle
+  pipeline, and diff turn results, the exact model-visible requests, and
+  every Chronicle stream against the recorded expectation (uuid/timestamp
+  normalization). Regenerate after intentional changes with
+  `REPLAY_RECORD=1 pnpm --filter @bee-agent/runtime test`. Its first
+  recordings caught and fixed three real defects (invalid
+  `isError: undefined` JSON in recorded sources, a concurrent-append race,
+  and the suspended-step sibling-call loss).
 
 ### Execution and tools
 

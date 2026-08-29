@@ -27,6 +27,10 @@ Bee Agent v1 正在 `main` 分支开发。它与冻结在
 - 持久 Kanban 任务平面；
 - 预算化上下文和 Tool/Skill 延迟解析；
 - 持久模型请求与可恢复 AgentLoop checkpoint；
+- 流式模型交互（SSE + Retry-After 退避）、thread 级会话连续性、memoize 系统提示词，
+  以及两级上下文压缩（工具结果省略 + 持久化摘要）——只折叠模型可见视图、永不改写日志；
+- fail-closed 的工具并发分类调度（并行安全工具有界并行、结果按模型序提交）；
+- keyless 录制会话回放 harness，把精确的模型可见请求与 Chronicle 流钉进回归基线；
 - deny-by-default 的 ExecutionWorld、审批、secret、sandbox、审计和幂等边界；
 - 沙箱化 Command、Python 与 manifest-pinned MCP adapters；
 - 个人记忆：Claim/Observation 契约、内嵌召回与近线派生、`/memory` 治理路由，
@@ -91,11 +95,11 @@ tool intent
 | ---------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Kernel     | 已可用 | Proxy Context、作用域服务、`inject`、Registry/Fiber、owned effects、A/B/C 调和与回滚、lease、quarantine 和 Doctor                                                                                                                                             |
 | Structure  | 已可用 | EffectiveStructure 摘要复算、受信任精确版本 PluginCatalog、factory registry、配置源刷新、串行 reconcile、生命周期事实与重启重建                                                                                                                               |
-| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复                                                                                                                                                                       |
+| 对话       | 已可用 | Chronicle-backed Thread–Turn–Item、SSE 重放/续传、审批挂起/恢复、取消和 checkpoint 恢复；thread 级会话连续性（先前 turn 的对话随新 turn 一并携带）                                                                                                            |
 | 任务       | 已可用 | 持久 Kanban 状态机、依赖、claim/lease/heartbeat、dispatcher 恢复，以及 REST/SDK/CLI/Web 视图                                                                                                                                                                  |
-| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁                                                                                                                                                          |
-| 模型       | 已可用 | OpenAI-compatible LLMRuntime、持久 ModelRequestService、请求/结果/错误事实与摘要校验恢复                                                                                                                                                                      |
-| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff                                                                                                                                |
+| 上下文     | 已可用 | ContextManifest、预算分配、受保护区段、omission 记录、Tool/Skill 索引与延迟解析、token baseline 门禁；模型可见视图两级压缩——预算内工具结果省略（错误结果与近期窗口受保护）+ LLM 摘要压缩（digest 校验的 `context.compacted` 事件、每 turn 尝试熔断）          |
+| 模型       | 已可用 | OpenAI-compatible LLMRuntime 真 SSE 流式（增量即推、流式工具参数组装、JSON 回退、超时仅覆盖响应头）、Retry-After 感知退避、工具参数校验回传模型、`max_tokens` 升档续跑，持久 ModelRequestService 摘要校验恢复                                                 |
+| 执行       | 已可用 | ActionRequest、完整权限交集快照、持久审批、幂等/重建、Keychain/Secret Service、artifact 防泄漏、sandbox routing、snapshot/diff；并发分类的工具调度——并行安全工具有界并行、独占工具保序、结果按模型序提交，挂起/崩溃的 step 会补完剩余调用                     |
 | 平台沙箱   | 已可用 | macOS Seatbelt 与 Linux bubblewrap、Ubuntu 真机 CI、空子进程环境、进程组取消、输入/超时/输出上限                                                                                                                                                              |
 | Command    | 已可用 | 可选 `command_run`；Host 固定 native executable allowlist 与 canonical workspace                                                                                                                                                                              |
 | Python     | 已可用 | 可选 `python_run`；固定 native interpreter、bounded JSON stdin、显式 runtime 只读根                                                                                                                                                                           |
@@ -136,6 +140,8 @@ export BEE_AGENT_MODEL_API_KEY='<key>'
 export BEE_AGENT_MODEL_NAME='<model>'
 export BEE_AGENT_MODEL_BASE_URL='https://api.deepseek.com'
 export BEE_AGENT_SESSION_TOKEN='local-development-token'
+# 可选：整体替换默认的 Bee 系统提示词
+# export BEE_AGENT_SYSTEM_PROMPT='你的指令'
 
 pnpm --filter @bee-agent/bee start
 ```
