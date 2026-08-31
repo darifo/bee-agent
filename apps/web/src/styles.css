@@ -806,3 +806,242 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- CTA 与线程元信息 ---------- */
+
+.cta {
+  margin-top: 26px;
+  padding: 12px 34px;
+  font-size: 16px;
+  font-weight: 800;
+  background: linear-gradient(
+    135deg,
+    var(--bee-primary),
+    var(--bee-primary-strong)
+  );
+  border: none;
+  border-radius: 999px;
+  color: #231d10;
+  box-shadow: 0 6px 20px rgba(230, 154, 13, 0.35);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.cta:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px rgba(230, 154, 13, 0.45);
+  border: none;
+}
+
+.thread-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 2px 0;
+}
+
+.thread-meta .stream-live {
+  margin: 0;
+}
+
+button.ghost {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+button.ghost:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+  box-shadow: none;
+}
+
+/* ---------- 看板泳道 ---------- */
+
+.kanban-composer {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.kanban-composer input {
+  flex: 1;
+  padding: 11px 16px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.kanban-composer input:focus {
+  outline: none;
+  border-color: var(--bee-primary-strong);
+  box-shadow: 0 0 0 3px var(--bee-amber-soft);
+}
+
+.kanban-composer button {
+  background: var(--bee-primary);
+  border: none;
+  color: #231d10;
+  font-weight: 700;
+  padding: 8px 20px;
+  white-space: nowrap;
+}
+
+.kanban-lanes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.kanban-lane {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  min-height: 200px;
+}
+
+.kanban-lane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding: 0 2px;
+}
+
+.kanban-lane-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: var(--text-soft);
+}
+
+.lane-count {
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--bee-amber-soft);
+  color: var(--bee-primary-strong);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lane-empty {
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 28px 0;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+
+.lane-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  animation: rise 0.22s ease-out;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.task-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow);
+}
+
+.task-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.task-card-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.task-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.task-card-actions button {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.task-card-actions button:first-child {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+
+.pri {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.pri-urgent {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.pri-high {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.pri-medium {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.pri-low {
+  background: var(--surface-2);
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+}
+
+.board-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+@media (max-width: 860px) {
+  .kanban-lanes {
+    grid-template-columns: 1fr;
+  }
+}

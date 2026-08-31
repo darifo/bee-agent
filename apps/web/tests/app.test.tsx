@@ -87,7 +87,7 @@ describe('App', () => {
   it('starts a conversation and sends a message', async () => {
     const { client, created, turns } = fakeClient()
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('新建对话'))
+    fireEvent.click(screen.getByText(/新建对话/))
     await waitFor(() => {
       expect(created).toEqual([{ title: 'Web conversation' }])
     })
@@ -114,7 +114,7 @@ describe('App', () => {
       ],
     })
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('新建对话'))
+    fireEvent.click(screen.getByText(/新建对话/))
     const input = await screen.findByPlaceholderText('给 Bee 发消息…')
     fireEvent.change(input, { target: { value: 'deploy' } })
     fireEvent.click(screen.getByText('发送'))
@@ -149,7 +149,7 @@ describe('App', () => {
     ]
     const { client } = fakeClient({ events })
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('新建对话'))
+    fireEvent.click(screen.getByText(/新建对话/))
     expect(await screen.findByText(/streamed hello/)).toBeDefined()
   })
 })

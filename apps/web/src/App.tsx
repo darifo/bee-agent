@@ -179,17 +179,6 @@ export function App({ client }: AppProps) {
           }
           aria-label="host status"
         />
-        {view === 'chat' ? (
-          threadId === null ? (
-            <button type="button" onClick={() => void start()} disabled={busy}>
-              新建对话
-            </button>
-          ) : (
-            <button type="button" onClick={() => setThreadId(null)}>
-              重置
-            </button>
-          )
-        ) : null}
       </header>
       {view === 'board' ? (
         <KanbanBoard client={client} />
@@ -214,6 +203,14 @@ export function App({ client }: AppProps) {
                 <li>「用 command_run 列出 /tmp」— 会先征求你的审批</li>
                 <li>「建个看板任务：整理文档」— 交给后台慢慢做</li>
               </ul>
+              <button
+                type="button"
+                className="cta"
+                onClick={() => void start()}
+                disabled={busy}
+              >
+                ✏️ 新建对话
+              </button>
             </section>
           ) : (
             <>
@@ -234,11 +231,20 @@ export function App({ client }: AppProps) {
                   </div>
                 ) : null}
               </section>
-              {live ? (
-                <p className="stream-live" aria-hidden="true">
-                  ● 实时连接
-                </p>
-              ) : null}
+              <div className="thread-meta">
+                {live ? (
+                  <span className="stream-live" aria-hidden="true">
+                    ● 实时连接
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setThreadId(null)}
+                >
+                  结束对话
+                </button>
+              </div>
               {pending !== undefined ? (
                 <div className="approval" role="alert">
                   <span>需要审批：{pending.title}</span>
