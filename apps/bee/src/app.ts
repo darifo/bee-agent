@@ -32,7 +32,11 @@ import type {
   ConfigSource,
 } from '@bee-agent/runtime'
 import { AgentScheduler } from '@bee-agent/runtime'
-import { ChronicleProposalStore, LearningLoop } from '@bee-agent/learning'
+import {
+  ChronicleProposalStore,
+  ExperimentWorld,
+  LearningLoop,
+} from '@bee-agent/learning'
 import type { LearningLoopBudget } from '@bee-agent/learning'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
@@ -470,7 +474,9 @@ export async function buildBeeServer(
               : { budget: options.learning.budget }),
           }),
     })
-    learning = { proposals, loop: loopRunner }
+    const experiments = new ExperimentWorld({ store, proposals })
+    await experiments.rebuild()
+    learning = { proposals, loop: loopRunner, experiments }
     const intervalMs =
       options.learning === true
         ? 3_600_000

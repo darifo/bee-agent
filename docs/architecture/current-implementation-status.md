@@ -278,8 +278,22 @@ Phase 5 has started on `develop`. Landed so far:
   `learning: { intervalMs }`). The loop never changes behavior directly —
   its only output is governed proposals (ADR 0025/0026 semantics).
 
-Still pending in Phase 5: ExperimentWorld with disposable worktrees and
-frozen datasets (WF5-C), autonomy-level activation plumbing (WF5-D beyond
+- ExperimentWorld (WF5-C): each experiment freezes a dataset of derived
+  trajectories digest-pinned over content (later conversation activity
+  cannot drift what is tested), runs an injectable evaluator in isolation —
+  read-only facts, no memory/structure/behavior writes — and emits a
+  durable report with a content-addressed changeset and a type-specific
+  rollback package. The default `evidence-verify@1` evaluator recomputes
+  the proposal's claimed pattern from the frozen data: inflated claims are
+  rejected and archived by the evidence gate; passing evidence waits in
+  review. Evaluator infrastructure failures persist
+  `learning.experiment.failed` and leave the proposal in testing for
+  retry. Routes: `POST /learning/proposals/:id/experiment`, `GET
+/learning/proposals/:id/experiments`. (Disposable worktrees for L3 code
+  changes ride the existing ExecutionWorktreeProvider when those proposal
+  types arrive.)
+
+Still pending in Phase 5: autonomy-level activation plumbing (WF5-D beyond
 proposal gating), anti-fake-improvement evaluation — holdout, baselines,
 time-out validation (WF5-E), and the acceptance ADRs 0025/0026.
 

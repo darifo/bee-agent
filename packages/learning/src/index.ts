@@ -56,3 +56,21 @@ export type {
   LearningLoopOptions,
   ProposalCandidate,
 } from './loop.ts'
+export {
+  EvidenceVerifyEvaluator,
+  ExperimentWorld,
+  ExperimentNotAllowedError,
+  changesetDigestOf,
+  freezeDataset,
+} from './experiment.ts'
+export type {
+  Evaluator,
+  EvaluatorInput,
+  EvaluatorOutput,
+  ExperimentReport,
+  ExperimentVerdict,
+  ExperimentWorldOptions,
+  FrozenDataset,
+  FrozenTrajectory,
+  RollbackPackage,
+} from './experiment.ts'

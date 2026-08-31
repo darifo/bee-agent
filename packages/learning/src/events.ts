@@ -23,6 +23,9 @@ export const LEARNING_EVENT_TYPES = [
   'learning.proposal.created',
   'learning.proposal.status_changed',
   'learning.loop.run',
+  'learning.experiment.started',
+  'learning.experiment.completed',
+  'learning.experiment.failed',
 ] as const
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number]
 
@@ -62,12 +65,60 @@ const LoopRunPayloadSchema = z.object({
   }),
 })
 
+const VerdictSchema = z.enum(['accept', 'reject', 'inconclusive'])
+
+const RollbackPackageSchema = z.object({
+  kind: z.enum([
+    'no-op',
+    'retract-skill',
+    'remove-guardrail',
+    'restore-planner-config',
+  ]),
+  description: z.string().min(1),
+})
+
+const ExperimentStartedPayloadSchema = z.object({
+  experimentId: z.uuid(),
+  proposalId: z.uuid(),
+  datasetDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  evaluatorId: z.string().min(1),
+  startedAt: z.iso.datetime(),
+})
+
+const ExperimentCompletedPayloadSchema = z.object({
+  experimentId: z.uuid(),
+  proposalId: z.uuid(),
+  datasetDigest: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  evaluatorId: z.string().min(1),
+  verdict: VerdictSchema,
+  metrics: z.record(z.string(), z.number()),
+  notes: z.string().min(1).optional(),
+  changesetDigest: z
+    .string()
+    .regex(/^sha256:[0-9a-f]{64}$/)
+    .optional(),
+  rollback: RollbackPackageSchema,
+  startedAt: z.iso.datetime(),
+  completedAt: z.iso.datetime(),
+})
+
+const ExperimentFailedPayloadSchema = z.object({
+  experimentId: z.uuid(),
+  proposalId: z.uuid(),
+  evaluatorId: z.string().min(1),
+  message: z.string().min(1),
+  failedAt: z.iso.datetime(),
+})
+
 const LEARNING_EVENT_PAYLOADS: Record<LearningEventType, z.ZodType<unknown>> = {
   'learning.proposal.created': z.object({
     proposal: ImprovementProposalSchema,
   }),
   'learning.proposal.status_changed': StatusChangedPayloadSchema,
   'learning.loop.run': LoopRunPayloadSchema,
+  'learning.experiment.started': ExperimentStartedPayloadSchema,
+  'learning.experiment.completed': ExperimentCompletedPayloadSchema,
+  'learning.experiment.failed': ExperimentFailedPayloadSchema,
 }
 
 export class UnknownLearningEventTypeError extends Error {
@@ -148,5 +199,38 @@ export function learningLoopRunEvent(
     eventType: 'learning.loop.run',
     actor: options.actor ?? LOOP_ACTOR,
     payload: LoopRunPayloadSchema.parse(report),
+  })
+}
+
+export function learningExperimentStartedEvent(
+  payload: z.infer<typeof ExperimentStartedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.experiment.started',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: ExperimentStartedPayloadSchema.parse(payload),
+  })
+}
+
+export function learningExperimentCompletedEvent(
+  payload: z.infer<typeof ExperimentCompletedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.experiment.completed',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: ExperimentCompletedPayloadSchema.parse(payload),
+  })
+}
+
+export function learningExperimentFailedEvent(
+  payload: z.infer<typeof ExperimentFailedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.experiment.failed',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: ExperimentFailedPayloadSchema.parse(payload),
   })
 }

@@ -1,11 +1,16 @@
 import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
 import {
+  ExperimentNotAllowedError,
   InvalidProposalTransitionError,
   ProposalNotFoundError,
   ProposalVersionConflictError,
 } from '@bee-agent/learning'
-import type { ChronicleProposalStore, LearningLoop } from '@bee-agent/learning'
+import type {
+  ChronicleProposalStore,
+  ExperimentWorld,
+  LearningLoop,
+} from '@bee-agent/learning'
 
 /**
  * Learning governance routes (v1 refactor plan §5.6): run the slow loop,
@@ -66,6 +71,7 @@ const TransitionBodySchema = z.object({
 export interface BeeLearningRuntime {
   readonly proposals: ChronicleProposalStore
   readonly loop: LearningLoop
+  readonly experiments: ExperimentWorld
 }
 
 export const learningRoutes: FastifyPluginAsync<{
@@ -108,6 +114,34 @@ export const learningRoutes: FastifyPluginAsync<{
       })
     }
     return { proposal }
+  })
+
+  app.post(
+    '/learning/proposals/:proposalId/experiment',
+    async (request, reply) => {
+      const { proposalId } = ProposalIdParamsSchema.parse(request.params)
+      try {
+        const report = await learning.experiments.runForProposal(proposalId)
+        return { report }
+      } catch (error) {
+        if (error instanceof ProposalNotFoundError) {
+          return reply
+            .code(404)
+            .send({ code: 'not-found', message: error.message })
+        }
+        if (error instanceof ExperimentNotAllowedError) {
+          return reply
+            .code(409)
+            .send({ code: 'conflict', message: error.message })
+        }
+        throw error
+      }
+    },
+  )
+
+  app.get('/learning/proposals/:proposalId/experiments', async (request) => {
+    const { proposalId } = ProposalIdParamsSchema.parse(request.params)
+    return { experiments: learning.experiments.reportsFor(proposalId) }
   })
 
   app.post(
