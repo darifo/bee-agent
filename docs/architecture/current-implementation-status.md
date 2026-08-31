@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-29
 >
-> Branch: `develop` (Phase 4 and Phase 5 complete)
+> Branch: `develop` (Phases 4 and 5 complete; Phase 6 in progress)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -316,6 +316,15 @@ Phase 5 has started on `develop`. Landed so far:
   activations for rolled-back proposals (`POST /learning/monitor` runs it
   on demand). The activation service enforces a change budget (default 5
   active activations) against uncontrolled drift.
+
+## Phase 6 progress
+
+- `bee doctor` and CLI governance (WF6-A first slice): `GET /diagnostics`
+  summarizes every subsystem in one call and degrades instead of failing on
+  provider outages; the client SDK gains diagnostics plus memory- and
+  learning-governance method families; the CLI adds `bee doctor`,
+  `bee memory list|forget|consolidate`, and the full `bee learning`
+  lifecycle — the Phase 5 governance arc is operable without curl.
 
 ## Phase 5 completion
 

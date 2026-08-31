@@ -288,7 +288,7 @@ packages/client   → thread（仅协议类型）
 
 ### 5.7 Phase 6：体验收敛与发布（工作流级）
 
-- **WF6-A 首启与诊断**：首次启动向导、权限说明、`bee doctor`、错误恢复指引。
+- **WF6-A 首启与诊断**（doctor done 2026-08-31）：`GET /diagnostics` 一次调用汇总全部子系统（总体状态/结构 doctor/记忆健康与计数/世界/调度/学习提案分布与预算/线程数），provider 故障降级不失败；client SDK 补 diagnostics + memory/learning 治理方法族；CLI 增加 `bee doctor`、`bee memory list|forget|consolidate` 与完整 `bee learning` 生命周期命令——Phase 5 治理弧线无需 curl 即可操作。首次启动向导与权限说明待做。
 - **WF6-B 管理界面**：记忆管理、Skill 管理、Timeline、后台资源控制。
 - **WF6-C v0 导入**：P0-7 设计的 export/import 工具实现（v0 SQLite/PG → v1 Chronicle 显式导入）。
 - **WF6-D 文档**：用户手册、插件开发文档、示例 bundle；README/README-ZH 全面重写。
