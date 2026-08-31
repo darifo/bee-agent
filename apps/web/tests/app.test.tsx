@@ -87,14 +87,14 @@ describe('App', () => {
   it('starts a conversation and sends a message', async () => {
     const { client, created, turns } = fakeClient()
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('New conversation'))
+    fireEvent.click(screen.getByText('新建对话'))
     await waitFor(() => {
       expect(created).toEqual([{ title: 'Web conversation' }])
     })
 
-    const input = await screen.findByPlaceholderText('Message Bee…')
+    const input = await screen.findByPlaceholderText('给 Bee 发消息…')
     fireEvent.change(input, { target: { value: 'hello' } })
-    fireEvent.click(screen.getByText('Send'))
+    fireEvent.click(screen.getByText('发送'))
     await waitFor(() => {
       expect(turns).toEqual([{ input: 'hello' }])
     })
@@ -114,13 +114,13 @@ describe('App', () => {
       ],
     })
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('New conversation'))
-    const input = await screen.findByPlaceholderText('Message Bee…')
+    fireEvent.click(screen.getByText('新建对话'))
+    const input = await screen.findByPlaceholderText('给 Bee 发消息…')
     fireEvent.change(input, { target: { value: 'deploy' } })
-    fireEvent.click(screen.getByText('Send'))
+    fireEvent.click(screen.getByText('发送'))
 
     expect(await screen.findByText(/Deploy to prod\?/)).toBeDefined()
-    fireEvent.click(screen.getByText('Approve'))
+    fireEvent.click(screen.getByText('批准'))
     await waitFor(() => {
       expect(decisions).toEqual([
         { approvalId: 'approval-1', decision: 'approved' },
@@ -149,7 +149,7 @@ describe('App', () => {
     ]
     const { client } = fakeClient({ events })
     render(<App client={client} />)
-    fireEvent.click(screen.getByText('New conversation'))
+    fireEvent.click(screen.getByText('新建对话'))
     expect(await screen.findByText(/streamed hello/)).toBeDefined()
   })
 })

@@ -104,45 +104,45 @@ export function App({ client }: AppProps) {
   return (
     <main className="console">
       <header className="console-head">
-        <h1>Bee</h1>
+        <h1>🐝 Bee</h1>
         <nav className="view-toggle">
           <button
             type="button"
             className={view === 'chat' ? 'active' : ''}
             onClick={() => setView('chat')}
           >
-            Chat
+            对话
           </button>
           <button
             type="button"
             className={view === 'board' ? 'active' : ''}
             onClick={() => setView('board')}
           >
-            Board
+            看板
           </button>
           <button
             type="button"
             className={view === 'memory' ? 'active' : ''}
             onClick={() => setView('memory')}
           >
-            Memory
+            记忆
           </button>
           <button
             type="button"
             className={view === 'learning' ? 'active' : ''}
             onClick={() => setView('learning')}
           >
-            Learning
+            学习
           </button>
         </nav>
         {view === 'chat' ? (
           threadId === null ? (
             <button type="button" onClick={() => void start()} disabled={busy}>
-              New conversation
+              新建对话
             </button>
           ) : (
             <button type="button" onClick={() => setThreadId(null)}>
-              Reset
+              重置
             </button>
           )
         ) : null}
@@ -160,7 +160,7 @@ export function App({ client }: AppProps) {
           ) : null}
           {threadId === null ? (
             <section className="task-detail-empty">
-              Start a conversation to talk to Bee.
+              开始一段对话，与 Bee 聊聊。
             </section>
           ) : (
             <>
@@ -171,20 +171,20 @@ export function App({ client }: AppProps) {
               </section>
               {pending !== undefined ? (
                 <div className="approval" role="alert">
-                  <span>Approval needed: {pending.title}</span>
+                  <span>需要审批：{pending.title}</span>
                   <button
                     type="button"
                     onClick={() => void decide('approved')}
                     disabled={busy}
                   >
-                    Approve
+                    批准
                   </button>
                   <button
                     type="button"
                     onClick={() => void decide('rejected')}
                     disabled={busy}
                   >
-                    Reject
+                    拒绝
                   </button>
                 </div>
               ) : null}
@@ -198,12 +198,12 @@ export function App({ client }: AppProps) {
                 <input
                   value={input}
                   onChange={(event) => setInput(event.target.value)}
-                  placeholder="Message Bee…"
+                  placeholder="给 Bee 发消息…"
                   disabled={busy}
-                  aria-label="message"
+                  aria-label="消息输入框"
                 />
                 <button type="submit" disabled={busy || input.trim() === ''}>
-                  Send
+                  发送
                 </button>
               </form>
             </>
@@ -214,31 +214,37 @@ export function App({ client }: AppProps) {
   )
 }
 
+function approvalLabel(status: string): string {
+  if (status === 'approved') return '已批准'
+  if (status === 'rejected') return '已拒绝'
+  return '待审批'
+}
+
 function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
   switch (entry.kind) {
     case 'user':
       return (
         <p className="msg msg-user">
-          <strong>you</strong> {entry.content}
+          <strong>我</strong> {entry.content}
         </p>
       )
     case 'assistant':
       return (
         <p className="msg msg-assistant">
-          <strong>bee</strong> {entry.content}
+          <strong>Bee</strong> {entry.content}
         </p>
       )
     case 'tool':
       return (
         <p className="msg msg-tool">
-          <em>tool {entry.toolId}</em>
+          <em>调用工具 {entry.toolId}</em>
         </p>
       )
     case 'approval':
       return (
         <p className="msg msg-approval">
           <em>
-            approval “{entry.title}” ({entry.status})
+            审批「{entry.title}」（{approvalLabel(entry.status)}）
           </em>
         </p>
       )

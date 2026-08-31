@@ -57,13 +57,13 @@ describe('governance views', () => {
     } as unknown as BeeAgentClient
     render(<App client={client} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Memory' }))
+    fireEvent.click(screen.getByRole('button', { name: '记忆' }))
     await waitFor(() => {
       expect(screen.getByText(/Prefer concise answers/)).toBeDefined()
     })
     expect(list).toHaveBeenCalledWith({})
 
-    fireEvent.click(screen.getByRole('button', { name: /forget/i }))
+    fireEvent.click(screen.getByRole('button', { name: /遗忘/ }))
     await waitFor(() => {
       expect(forget).toHaveBeenCalledWith(
         claim().id,
@@ -97,26 +97,26 @@ describe('governance views', () => {
     } as unknown as BeeAgentClient
     render(<App client={client} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Learning' }))
+    fireEvent.click(screen.getByRole('button', { name: '学习' }))
     await waitFor(() => {
       expect(screen.getByText(/skill:lookup/)).toBeDefined()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Experiment' }))
+    fireEvent.click(screen.getByRole('button', { name: '隔离实验' }))
     await waitFor(() => {
       expect(experiment).toHaveBeenCalledWith(reviewProposal.id)
-      expect(screen.getByText(/experiment: accept/)).toBeDefined()
+      expect(screen.getByText(/实验结论：通过/)).toBeDefined()
     })
 
     // The experiment's evidence gate already moved it to review; continue
     // trial → promote → rollback through the visible buttons.
-    fireEvent.click(screen.getByRole('button', { name: 'Trial' }))
+    fireEvent.click(screen.getByRole('button', { name: '试用' }))
     await waitFor(() =>
       expect(transition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'trial', expectedVersion: 2 }),
       ),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Promote' }))
+    fireEvent.click(screen.getByRole('button', { name: '批准生效' }))
     await waitFor(() =>
       expect(transition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'promoted', expectedVersion: 3 }),
@@ -124,9 +124,9 @@ describe('governance views', () => {
     )
     // The promoted proposal offers the one-click rollback.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Roll back' })).toBeDefined()
+      expect(screen.getByRole('button', { name: '回滚' })).toBeDefined()
     })
-    fireEvent.click(screen.getByRole('button', { name: 'Roll back' }))
+    fireEvent.click(screen.getByRole('button', { name: '回滚' }))
     await waitFor(() =>
       expect(transition).toHaveBeenCalledWith(
         expect.objectContaining({ to: 'rolled-back', expectedVersion: 4 }),

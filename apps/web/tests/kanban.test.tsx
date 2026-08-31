@@ -75,9 +75,9 @@ describe('KanbanBoard', () => {
     const { client, created } = fakeClient()
     render(<KanbanBoard client={client} />)
 
-    const input = await screen.findByLabelText('task title')
+    const input = await screen.findByLabelText('任务标题')
     fireEvent.change(input, { target: { value: 'Write a report' } })
-    fireEvent.click(screen.getByText('Create'))
+    fireEvent.click(screen.getByText('创建'))
 
     await waitFor(() => expect(created).toEqual(['Write a report']))
     expect(await screen.findByText('Write a report')).toBeDefined()
@@ -89,7 +89,7 @@ describe('KanbanBoard', () => {
     ])
     render(<KanbanBoard client={client} />)
 
-    fireEvent.click(await screen.findByText('Done'))
+    fireEvent.click(await screen.findByText('完成'))
     await waitFor(() => expect(completed).toEqual([taskId]))
   })
 
@@ -99,7 +99,7 @@ describe('KanbanBoard', () => {
     ])
     render(<KanbanBoard client={client} />)
 
-    fireEvent.click(await screen.findByText('Cancel'))
+    fireEvent.click(await screen.findByText('取消'))
     await waitFor(() => expect(cancelled).toEqual([taskId]))
   })
 })

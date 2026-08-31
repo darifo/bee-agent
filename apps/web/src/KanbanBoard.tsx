@@ -99,9 +99,9 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
           <input
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            placeholder="Task title"
+            placeholder="新任务标题…"
             disabled={busy}
-            aria-label="task title"
+            aria-label="任务标题"
           />
         </label>
         <button
@@ -109,7 +109,7 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
           onClick={() => void create()}
           disabled={busy || title.trim() === ''}
         >
-          Create
+          创建
         </button>
       </div>
 
@@ -128,10 +128,10 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
             {!TERMINAL.has(task.status) ? (
               <>
                 <button type="button" onClick={() => void complete(task.id)}>
-                  Done
+                  完成
                 </button>
                 <button type="button" onClick={() => void cancel(task.id)}>
-                  Cancel
+                  取消
                 </button>
               </>
             ) : null}
@@ -139,11 +139,11 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
         ))}
       </ul>
 
-      {tasks.length === 0 ? <p className="empty">No tasks yet.</p> : null}
+      {tasks.length === 0 ? <p className="empty">还没有任务。</p> : null}
 
       <div className="board-actions">
         <button type="button" onClick={() => void refresh()} disabled={busy}>
-          Refresh
+          刷新
         </button>
       </div>
     </section>
