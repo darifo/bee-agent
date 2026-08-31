@@ -570,6 +570,11 @@ program
     }
   })
 
+// Register every command on the real program before parsing; the in-process
+// smoke test builds its own program, but the CLI entry point must call this
+// itself or commander sees no commands at all.
+registerCommands(program)
+
 program.parseAsync().catch((error: unknown) => {
   printError(error)
   process.exitCode = 1
