@@ -91,6 +91,20 @@ export const learningRoutes: FastifyPluginAsync<{
     return learning.loop.budget()
   })
 
+  app.post('/learning/monitor', async () => {
+    const report = await learning.drift.check()
+    const reverted: { proposalId: string; claimId: string }[] = []
+    for (const check of report.checked) {
+      if (!check.rolledBack) continue
+      const result = await learning.activation?.revertByProposalId(
+        check.proposalId,
+        `drift monitor rolled back ${check.proposalId}`,
+      )
+      if (result !== undefined) reverted.push(result)
+    }
+    return { report, reverted }
+  })
+
   app.get('/learning/proposals', async (request) => {
     const query = ListQuerySchema.parse(request.query ?? {})
     return {

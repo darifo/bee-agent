@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-29
 >
-> Branch: `develop` (Phase 4 complete; Phase 5 in progress)
+> Branch: `develop` (Phase 4 and Phase 5 complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -317,10 +317,26 @@ Phase 5 has started on `develop`. Landed so far:
   on demand). The activation service enforces a change budget (default 5
   active activations) against uncontrolled drift.
 
-Still pending in Phase 5: the acceptance ADRs 0025/0026 and the exit
-demonstration (a real-trajectory candidate through isolated evaluation,
-user approval, and rollback — every link is in place, the demo runs it on
-a live Host).
+## Phase 5 completion
+
+Phase 5 is complete against the §7.1 exit condition — a real-trajectory
+candidate passed isolated evaluation, improved behavior after user
+approval, and was withdrawn — demonstrated on a live Host with a real
+model (11 checked steps): a real conversation drove three approved
+`command_run` calls; the slow loop derived `skill:command_run` from that
+trajectory (L2); ExperimentWorld froze the dataset and the evidence
+verifier recomputed the usage counts (accept); the user promoted through
+trial, activating the pattern through the memory channel; the next real
+model request demonstrably recalled the adopted pattern (verified via
+model-request replay); the drift monitor ran over post-adoption turns;
+and one click rolled the change back with the activation retracted.
+
+ADR 0025 (foreground/background separation) and ADR 0026 (Proposal–
+Experiment–Trial–Rollback governance) are accepted and implemented.
+Residual enhancements stay as post-phase backlog: richer injected
+evaluators (counterfactual replay, adversarial samples, holdout scoring,
+source weighting), the L3 worktree ChangeSet pipeline, and drift metrics
+beyond failure-rate/checkpoints.
 
 ## Phase 4 completion
 

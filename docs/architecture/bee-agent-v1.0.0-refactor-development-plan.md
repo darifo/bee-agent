@@ -284,7 +284,7 @@ packages/client   → thread（仅协议类型）
 - **WF5-C ExperimentWorld**（done 2026-08-31）：`ExperimentWorld`（learning 包）——冻结数据集（derived 轨迹内容 digest 钉死，后续对话不可漂移被测内容）、注入式 Evaluator 隔离求值（只读事实、不写记忆/结构/行为）、内容寻址 ChangeSet（proposedChange+provenance 的 canonical sha256）、按提案类型的回滚包；默认 `evidence-verify@1` 求值器直接从冻结数据复算声称的模式——虚报/编造证据被证据门拒绝并自动归档，通过者进入 review 等待用户；求值器基础设施故障持久化 `learning.experiment.failed` 且提案停留 testing 可重试；路由 `POST /learning/proposals/:id/experiment` 与 `GET .../experiments`。L3 代码类提案的一次性 worktree 复用现有 ExecutionWorktreeProvider，待该类提案出现时接入；模拟 secret 随之。
 - **WF5-D 自治分级落地**（done 2026-08-31）：L1/L2 提案 promoted 即经受治理记忆通道激活——激活声明的 provenance 引用 `learning.proposal.activated` 流位置，后续 Turn 经召回真实生效（批准=真实行为变化，非存档意图）；promoted 回滚一键撤回声明（`learning.proposal.activation-reverted` 持久化）；分级强制执行：L0 证据摘要永不激活、L3 在 worktree ChangeSet 管线建成前 fail closed；激活状态从 learning 流重建（重启可撤回）；`POST /learning/proposals/:id/activate` 幂等重试；后台节拍在每次循环运行后执行 L1 级记忆合并。
 - **WF5-E 防伪改进**（核心 done 2026-08-31）：漂移监控即时间外验证——采纳后的真实 Turn 是提案从未见过的 holdout；`DriftMonitor` 重派生不可变的采纳前证据轮为基线、派生激活后窗口、对比目标指标（skill/guardrail→工具失败率、planning→平均步数），超预算边际即自动回滚并把数字写入持久 reason；每次检查追加 `learning.drift.checked`（静默窗口也可审计）；样本不足不下判断。Host 在学习节拍上运行监控并对回滚提案自动撤回激活（`POST /learning/monitor` 按需运行）；激活服务强制变更预算（默认 5 个同时激活，防失控漂移）。冻结数据集（WF5-C）已承担防评测泄漏；来源权重与对抗样本随更丰富求值器接入。
-- **退出条件**（方案 §19）：至少一个真实轨迹产生的 Skill/Context 候选通过隔离评测，经用户批准改善任务且可撤回。
+- **退出条件**（方案 §19，verified 2026-08-31）：真实 Host + 真实模型演示 11 步全过——真实对话（3 次审批的 command_run）→ 慢循环产出 skill:command_run 提案（L2，3 轮证据）→ 隔离实验冻结数据集并复算用量（accept）→ 用户 trial→promoted → 记忆通道真实激活 → 下一轮真实模型请求经 replay 证实召回采纳模式 → 漂移监控运行 → 一键回滚撤回激活。ADR 0025/0026 已撰写。遗留转 backlog：更丰富注入式求值器（反事实重放/对抗样本/holdout 计分/来源权重）、L3 worktree ChangeSet 管线、更多漂移指标。
 
 ### 5.7 Phase 6：体验收敛与发布（工作流级）
 
@@ -314,8 +314,8 @@ packages/client   → thread（仅协议类型）
 | 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | accepted/implemented |
 | 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | accepted/implemented |
 | 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | accepted/implemented |
-| 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时           |
-| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时           |
+| 0025 | Separate foreground execution from background learning                             | P5   | accepted/implemented |
+| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | accepted/implemented |
 
 ## 6. 任务依赖图（Phase 0–2）
 
