@@ -524,6 +524,16 @@ export class BeeAgentClient {
   monitorLearningDrift(): Promise<unknown> {
     return this.#request<unknown>('POST', 'learning/monitor', { body: {} })
   }
+
+  /** Imports a v0 SQLite event store; `path` must be Host-local absolute. */
+  importV0(path: string): Promise<{
+    tasksImported: number
+    tasksSkipped: number
+    eventsRead: number
+    eventsImported: number
+  }> {
+    return this.#request('POST', 'import/v0', { body: { path } })
+  }
 }
 
 function isAbortError(

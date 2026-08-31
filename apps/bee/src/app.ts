@@ -52,6 +52,7 @@ import { learningRoutes } from './routes/learning.ts'
 import type { BeeLearningRuntime } from './routes/learning.ts'
 import { LearningActivationService } from './learning-activation.ts'
 import { diagnosticsRoutes } from './routes/diagnostics.ts'
+import { importRoutes } from './routes/import.ts'
 import { trajectoryRoutes } from './routes/trajectory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
@@ -566,6 +567,7 @@ export async function buildBeeServer(
   }
   await app.register(trajectoryRoutes)
   await app.register(diagnosticsRoutes)
+  await app.register(importRoutes)
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
     if (learningTimer !== undefined) clearInterval(learningTimer)

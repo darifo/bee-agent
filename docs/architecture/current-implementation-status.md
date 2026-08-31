@@ -325,6 +325,12 @@ Phase 5 has started on `develop`. Landed so far:
   learning-governance method families; the CLI adds `bee doctor`,
   `bee memory list|forget|consolidate`, and the full `bee learning`
   lifecycle — the Phase 5 governance arc is operable without curl.
+- v0 import tool (WF6-C): `POST /import/v0` / `bee import <path>` reads a
+  v0 SQLite event store read-only and converts each v0 task into one v1
+  thread — messages, callId-correlated tool traffic with isError, approval
+  decisions, and terminal turn events — with `v0-import` provenance on
+  every event and idempotent re-runs (the v0 task id doubles as the thread
+  id).
 - Web governance views (WF6-B): a Memory panel (claim list with status
   badges, one-click Forget, Consolidate) and a Learning panel (run the
   loop, fire the isolated experiment, drive review → trial → promote →

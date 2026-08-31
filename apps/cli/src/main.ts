@@ -554,6 +554,22 @@ export function registerCommands(program: Command): void {
     })
 }
 
+program
+  .command('import')
+  .description('Import a v0 SQLite event store into the Host')
+  .argument('<path>', 'absolute path to the v0 database file')
+  .action(async (path: string) => {
+    try {
+      const summary = await clientFrom(program).importV0(path)
+      console.log(
+        `imported ${summary.tasksImported} tasks (${summary.eventsImported} events); skipped ${summary.tasksSkipped} already-present`,
+      )
+    } catch (error) {
+      printError(error)
+      process.exitCode = 1
+    }
+  })
+
 program.parseAsync().catch((error: unknown) => {
   printError(error)
   process.exitCode = 1
