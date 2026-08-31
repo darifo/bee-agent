@@ -183,3 +183,39 @@ describe('session token', () => {
     await server.app.close()
   })
 })
+
+describe('CORS preflight under the session-token guard', () => {
+  it('answers OPTIONS preflights without credentials instead of 401', async () => {
+    const server = await build({ sessionToken: 'preflight-token' })
+    await server.app.listen({ host: '127.0.0.1', port: 0 })
+    await server.app.ready()
+    const baseUrl = `http://127.0.0.1:${
+      (server.app.server.address() as { port: number }).port
+    }`
+    try {
+      // The browser sends this exact preflight before an authorized
+      // cross-origin POST; preflights never carry credentials by spec.
+      const preflight = await fetch(`${baseUrl}/threads`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:5174',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'authorization,content-type',
+        },
+      })
+      expect(preflight.status).toBeLessThan(400)
+      expect(preflight.headers.get('access-control-allow-origin')).toBe(
+        'http://localhost:5174',
+      )
+      // The actual request still requires the token.
+      const unauthed = await fetch(`${baseUrl}/threads`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: '{}',
+      })
+      expect(unauthed.status).toBe(401)
+    } finally {
+      await server.app.close()
+    }
+  })
+})

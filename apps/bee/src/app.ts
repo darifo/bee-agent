@@ -533,6 +533,11 @@ export async function buildBeeServer(
   if (options.sessionToken !== undefined) {
     app.addHook('onRequest', async (request, reply) => {
       if (request.url === '/health') return
+      // CORS preflights (OPTIONS) never carry credentials by spec — the
+      // browser sends them before the actual authorized request. Guarding
+      // them would 401 the preflight and the browser surfaces the whole
+      // exchange as "Failed to fetch". The CORS plugin answers them.
+      if (request.method === 'OPTIONS') return
       const authorization = request.headers.authorization
       const provided = authorization?.startsWith('Bearer ')
         ? authorization.slice('Bearer '.length)
