@@ -8,6 +8,7 @@ import {
 } from '@bee-agent/learning'
 import type {
   ChronicleProposalStore,
+  DriftMonitor,
   ExperimentWorld,
   LearningLoop,
 } from '@bee-agent/learning'
@@ -74,6 +75,7 @@ export interface BeeLearningRuntime {
   readonly loop: LearningLoop
   readonly experiments: ExperimentWorld
   readonly activation: LearningActivationService | undefined
+  readonly drift: DriftMonitor
 }
 
 export const learningRoutes: FastifyPluginAsync<{

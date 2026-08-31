@@ -305,9 +305,22 @@ Phase 5 has started on `develop`. Landed so far:
   idempotent retry. The background cadence performs the L1-class memory
   consolidation after each loop run.
 
-Still pending in Phase 5: anti-fake-improvement evaluation — holdout,
-baselines, time-out validation, drift monitoring (WF5-E), and the
-acceptance ADRs 0025/0026.
+- Drift monitoring and the change budget (WF5-E core): post-adoption turns
+  are the holdout the proposal never saw. `DriftMonitor` re-derives the
+  immutable pre-adoption evidence turns as the baseline, derives the
+  post-activation window, and compares the target metric (tool failure
+  rate / average checkpoints); regression beyond budget margins rolls the
+  proposal back automatically with the numbers in the durable reason.
+  Every check appends `learning.drift.checked`; insufficient samples never
+  judge. The Host monitors on the learning cadence and auto-retracts
+  activations for rolled-back proposals (`POST /learning/monitor` runs it
+  on demand). The activation service enforces a change budget (default 5
+  active activations) against uncontrolled drift.
+
+Still pending in Phase 5: the acceptance ADRs 0025/0026 and the exit
+demonstration (a real-trajectory candidate through isolated evaluation,
+user approval, and rollback — every link is in place, the demo runs it on
+a live Host).
 
 ## Phase 4 completion
 

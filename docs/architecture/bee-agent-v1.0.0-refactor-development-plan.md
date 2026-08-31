@@ -283,7 +283,7 @@ packages/client   → thread（仅协议类型）
 - **WF5-B ImprovementProposal**（done 2026-08-31）：11 类变更目标、draft→testing→review→trial→promoted/rejected/rolled-back 生命周期（乐观并发 + 非法迁移拒绝）、L0–L3 autonomyLevel（循环自身永不超过 L2）、provenance 引用真实轨迹；`learning` Chronicle 流 + 可重建投影 + `/learning` 治理路由（运行/列表/详情/迁移，非法迁移与过期版本 409），Host 默认启用（小时级后台节拍，可调/可关）。
 - **WF5-C ExperimentWorld**（done 2026-08-31）：`ExperimentWorld`（learning 包）——冻结数据集（derived 轨迹内容 digest 钉死，后续对话不可漂移被测内容）、注入式 Evaluator 隔离求值（只读事实、不写记忆/结构/行为）、内容寻址 ChangeSet（proposedChange+provenance 的 canonical sha256）、按提案类型的回滚包；默认 `evidence-verify@1` 求值器直接从冻结数据复算声称的模式——虚报/编造证据被证据门拒绝并自动归档，通过者进入 review 等待用户；求值器基础设施故障持久化 `learning.experiment.failed` 且提案停留 testing 可重试；路由 `POST /learning/proposals/:id/experiment` 与 `GET .../experiments`。L3 代码类提案的一次性 worktree 复用现有 ExecutionWorktreeProvider，待该类提案出现时接入；模拟 secret 随之。
 - **WF5-D 自治分级落地**（done 2026-08-31）：L1/L2 提案 promoted 即经受治理记忆通道激活——激活声明的 provenance 引用 `learning.proposal.activated` 流位置，后续 Turn 经召回真实生效（批准=真实行为变化，非存档意图）；promoted 回滚一键撤回声明（`learning.proposal.activation-reverted` 持久化）；分级强制执行：L0 证据摘要永不激活、L3 在 worktree ChangeSet 管线建成前 fail closed；激活状态从 learning 流重建（重启可撤回）；`POST /learning/proposals/:id/activate` 幂等重试；后台节拍在每次循环运行后执行 L1 级记忆合并。
-- **WF5-E 防伪改进**：holdout、guardrail、基线对比、来源权重、时间外验证；退化检测与自动回滚。
+- **WF5-E 防伪改进**（核心 done 2026-08-31）：漂移监控即时间外验证——采纳后的真实 Turn 是提案从未见过的 holdout；`DriftMonitor` 重派生不可变的采纳前证据轮为基线、派生激活后窗口、对比目标指标（skill/guardrail→工具失败率、planning→平均步数），超预算边际即自动回滚并把数字写入持久 reason；每次检查追加 `learning.drift.checked`（静默窗口也可审计）；样本不足不下判断。Host 在学习节拍上运行监控并对回滚提案自动撤回激活（`POST /learning/monitor` 按需运行）；激活服务强制变更预算（默认 5 个同时激活，防失控漂移）。冻结数据集（WF5-C）已承担防评测泄漏；来源权重与对抗样本随更丰富求值器接入。
 - **退出条件**（方案 §19）：至少一个真实轨迹产生的 Skill/Context 候选通过隔离评测，经用户批准改善任务且可撤回。
 
 ### 5.7 Phase 6：体验收敛与发布（工作流级）

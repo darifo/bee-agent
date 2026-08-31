@@ -35,7 +35,7 @@ function createRegistryStore(): MemoryChronicleStore {
   return new MemoryChronicleStore(registry)
 }
 
-function tooling(): ToolExecutor {
+function tooling(failToggle?: { failing: boolean }): ToolExecutor {
   const executor: ToolExecutor = {
     describe(call) {
       return {
@@ -52,6 +52,14 @@ function tooling(): ToolExecutor {
       }
     },
     async execute() {
+      if (failToggle?.failing === true) {
+        return {
+          output: { error: 'drift scenario failure' },
+          content: 'drift scenario failure',
+          isError: true,
+          verification: [],
+        }
+      }
       return { output: { ok: true }, content: 'ok', verification: [] }
     },
   }

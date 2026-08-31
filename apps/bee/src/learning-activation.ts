@@ -20,6 +20,12 @@ import type { ImprovementProposal } from '@bee-agent/learning'
 export interface LearningActivationOptions {
   readonly store: ChronicleStore
   readonly memory: MemoryProvider
+  /**
+   * Change budget (§11.5 anti-drift): the maximum simultaneously active
+   * activations. Reaching it requires rolling one back before activating
+   * another improvement.
+   */
+  readonly maxActiveActivations?: number | undefined
   readonly now?: (() => string) | undefined
 }
 
@@ -62,12 +68,14 @@ function claimStatementFor(proposal: ImprovementProposal): string {
 export class LearningActivationService {
   readonly #store: ChronicleStore
   readonly #memory: MemoryProvider
+  readonly #maxActive: number
   readonly #now: () => string
   readonly #claims = new Map<string, string>() // proposalId → claimId
 
   constructor(options: LearningActivationOptions) {
     this.#store = options.store
     this.#memory = options.memory
+    this.#maxActive = options.maxActiveActivations ?? 5
     this.#now = options.now ?? (() => new Date().toISOString())
   }
 
@@ -113,6 +121,12 @@ export class LearningActivationService {
     if (existing !== undefined) {
       return { proposalId: proposal.id, claimId: existing, via: 'memory-claim' }
     }
+    if (this.#claims.size >= this.#maxActive) {
+      throw new ActivationNotPermittedError(
+        proposal.id,
+        `change budget reached: ${this.#claims.size} active activations (max ${this.#maxActive}); roll one back first`,
+      )
+    }
 
     // Record the activation first so the claim's provenance cites the exact
     // learning-stream position that adopted it.
@@ -157,6 +171,36 @@ export class LearningActivationService {
 
     this.#claims.set(proposal.id, claimId)
     return { proposalId: proposal.id, claimId, via: 'memory-claim' }
+  }
+
+  /** Monitor-driven retraction by proposal id; idempotent when absent. */
+  async revertByProposalId(
+    proposalId: string,
+    reason?: string,
+  ): Promise<{ proposalId: string; claimId: string } | undefined> {
+    const claimId = this.#claims.get(proposalId)
+    if (claimId === undefined) return undefined
+    await this.#memory.retract(
+      claimId,
+      reason ?? `learning proposal ${proposalId} rolled back`,
+    )
+    await this.#store.append(
+      LEARNING_STREAM_ID,
+      [
+        learningActivationRevertedEvent({
+          proposalId,
+          claimId,
+          ...(reason === undefined ? {} : { reason }),
+          revertedAt: this.#now(),
+        }),
+      ],
+      {
+        expectedSequence:
+          (await this.#store.getLatestSequence(LEARNING_STREAM_ID)) + 1,
+      },
+    )
+    this.#claims.delete(proposalId)
+    return { proposalId, claimId }
   }
 
   /** One-click rollback: retracts the activation claim durably. */

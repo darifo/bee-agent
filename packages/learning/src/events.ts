@@ -28,6 +28,7 @@ export const LEARNING_EVENT_TYPES = [
   'learning.experiment.failed',
   'learning.proposal.activated',
   'learning.proposal.activation-reverted',
+  'learning.drift.checked',
 ] as const
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number]
 
@@ -127,6 +128,23 @@ const ActivationRevertedPayloadSchema = z.object({
   revertedAt: z.iso.datetime(),
 })
 
+const DriftCheckedPayloadSchema = z.object({
+  ranAt: z.iso.datetime(),
+  checked: z
+    .array(
+      z.object({
+        proposalId: z.uuid(),
+        metric: z.string().min(1),
+        baseline: z.number(),
+        monitor: z.number(),
+        monitorTurns: z.number().int().nonnegative(),
+        verdict: z.enum(['ok', 'regression', 'insufficient-samples']),
+        rolledBack: z.boolean(),
+      }),
+    )
+    .max(64),
+})
+
 const LEARNING_EVENT_PAYLOADS: Record<LearningEventType, z.ZodType<unknown>> = {
   'learning.proposal.created': z.object({
     proposal: ImprovementProposalSchema,
@@ -138,6 +156,7 @@ const LEARNING_EVENT_PAYLOADS: Record<LearningEventType, z.ZodType<unknown>> = {
   'learning.experiment.failed': ExperimentFailedPayloadSchema,
   'learning.proposal.activated': ProposalActivatedPayloadSchema,
   'learning.proposal.activation-reverted': ActivationRevertedPayloadSchema,
+  'learning.drift.checked': DriftCheckedPayloadSchema,
 }
 
 export class UnknownLearningEventTypeError extends Error {
@@ -273,5 +292,16 @@ export function learningActivationRevertedEvent(
     eventType: 'learning.proposal.activation-reverted',
     actor: options.actor ?? LOOP_ACTOR,
     payload: ActivationRevertedPayloadSchema.parse(payload),
+  })
+}
+
+export function learningDriftCheckedEvent(
+  payload: z.infer<typeof DriftCheckedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.drift.checked',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: DriftCheckedPayloadSchema.parse(payload),
   })
 }

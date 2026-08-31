@@ -34,6 +34,7 @@ import type {
 import { AgentScheduler } from '@bee-agent/runtime'
 import {
   ChronicleProposalStore,
+  DriftMonitor,
   ExperimentWorld,
   LearningLoop,
 } from '@bee-agent/learning'
@@ -477,12 +478,13 @@ export async function buildBeeServer(
     })
     const experiments = new ExperimentWorld({ store, proposals })
     await experiments.rebuild()
+    const drift = new DriftMonitor({ store, proposals })
     const activation =
       options.memory === undefined
         ? undefined
         : new LearningActivationService({ store, memory: options.memory })
     await activation?.rebuild()
-    learning = { proposals, loop: loopRunner, experiments, activation }
+    learning = { proposals, loop: loopRunner, experiments, activation, drift }
     const intervalMs =
       options.learning === true
         ? 3_600_000
@@ -492,6 +494,19 @@ export async function buildBeeServer(
         void loopRunner
           .run()
           .then(() => options.memory?.consolidate())
+          .then(() => learning!.drift.check())
+          .then((report) =>
+            Promise.all(
+              report.checked
+                .filter((check) => check.rolledBack)
+                .map((check) =>
+                  learning!.activation?.revertByProposalId(
+                    check.proposalId,
+                    `drift monitor rolled back ${check.proposalId}`,
+                  ),
+                ),
+            ),
+          )
           .catch(() => undefined)
       }, intervalMs)
     }

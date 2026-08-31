@@ -85,9 +85,15 @@ function parseItemId(payload: unknown): string | undefined {
  * derives their deterministic facts. Failed turns are kept alongside
  * completed ones — failures are primary learning evidence (§11.2).
  */
+export interface SelectionOptions {
+  /** Only keep turns whose `turn.started` was ingested after this time. */
+  readonly since?: string | undefined
+}
+
 export async function selectAndDerive(
   store: ChronicleStore,
   budget: LearningLoopBudget,
+  options: SelectionOptions = {},
 ): Promise<DerivedTurn[]> {
   const derived: DerivedTurn[] = []
   const streams = [...(await store.listStreams())]
@@ -107,7 +113,11 @@ export async function selectAndDerive(
     for await (const event of store.readStream(streamId)) {
       if (event.eventType === 'turn.started') {
         const parsed = parseTurnStarted(event.payload)
-        if (parsed !== undefined && !turns.has(parsed.turnId)) {
+        if (
+          parsed !== undefined &&
+          !turns.has(parsed.turnId) &&
+          (options.since === undefined || event.ingestTime > options.since)
+        ) {
           turns.set(parsed.turnId, {
             threadId: parsed.threadId,
             status: parsed.status,
@@ -320,4 +330,65 @@ export class LearningLoop {
     )
     return report
   }
+}
+
+/**
+ * Re-derives specific turns by id — completed turns are immutable in
+ * Chronicle, so this reproduces the exact pre-adoption evidence the
+ * proposal was based on (the drift monitor's baseline).
+ */
+export async function deriveTurnsById(
+  store: ChronicleStore,
+  refs: readonly { threadId: string; turnId: string }[],
+): Promise<DerivedTurn[]> {
+  const derived: DerivedTurn[] = []
+  for (const ref of refs) {
+    let turn:
+      | {
+          threadId: string
+          status: string
+          checkpoints: number
+          toolCalls: { toolId: string; isError: boolean }[]
+        }
+      | undefined
+    for await (const event of store.readStream(`thread:${ref.threadId}`)) {
+      if (event.eventType === 'turn.started') {
+        const parsed = parseTurnStarted(event.payload)
+        if (parsed !== undefined && parsed.turnId === ref.turnId) {
+          turn = {
+            threadId: parsed.threadId,
+            status: parsed.status,
+            checkpoints: 0,
+            toolCalls: [],
+          }
+        }
+        continue
+      }
+      if (turn === undefined) continue
+      if (event.eventType === 'agent.checkpoint') {
+        if ((event.turnId ?? '') === ref.turnId) turn.checkpoints += 1
+        continue
+      }
+      if (event.eventType === 'item.completed') {
+        if ((event.turnId ?? '') !== ref.turnId) continue
+        if (parseItemId(event.payload) === undefined) continue
+        const item = (event.payload as { item: { payload: unknown } }).item
+          .payload as Record<string, unknown>
+        turn.toolCalls.push({
+          toolId: String(item.toolId),
+          isError: item.isError === true,
+        })
+      }
+    }
+    if (turn !== undefined) {
+      derived.push({
+        threadId: turn.threadId,
+        turnId: ref.turnId,
+        status: turn.status,
+        checkpoints: turn.checkpoints,
+        toolCalls: turn.toolCalls,
+      })
+    }
+  }
+  return derived
 }

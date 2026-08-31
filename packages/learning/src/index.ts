@@ -31,6 +31,7 @@ export {
   LEARNING_EVENT_TYPES,
   LEARNING_STREAM_ID,
   learningActivationRevertedEvent,
+  learningDriftCheckedEvent,
   learningLoopRunEvent,
   learningProposalActivatedEvent,
   learningProposalCreatedEvent,
@@ -49,6 +50,7 @@ export type { CreateProposalInput, ProposalQuery } from './store.ts'
 export {
   DEFAULT_LEARNING_BUDGET,
   LearningLoop,
+  deriveTurnsById,
   discoverPatterns,
   selectAndDerive,
 } from './loop.ts'
@@ -57,7 +59,16 @@ export type {
   LearningLoopBudget,
   LearningLoopOptions,
   ProposalCandidate,
+  SelectionOptions,
 } from './loop.ts'
+export { DEFAULT_DRIFT_BUDGET, DriftMonitor } from './drift.ts'
+export type {
+  DriftBudget,
+  DriftCheck,
+  DriftMonitorOptions,
+  DriftReport,
+  DriftVerdict,
+} from './drift.ts'
 export {
   EvidenceVerifyEvaluator,
   ExperimentWorld,
