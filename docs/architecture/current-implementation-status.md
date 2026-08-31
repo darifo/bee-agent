@@ -325,6 +325,11 @@ Phase 5 has started on `develop`. Landed so far:
   learning-governance method families; the CLI adds `bee doctor`,
   `bee memory list|forget|consolidate`, and the full `bee learning`
   lifecycle — the Phase 5 governance arc is operable without curl.
+- Web governance views (WF6-B): a Memory panel (claim list with status
+  badges, one-click Forget, Consolidate) and a Learning panel (run the
+  loop, fire the isolated experiment, drive review → trial → promote →
+  rollback, on-demand drift checks) join the chat and board views — the
+  same governance arc is operable from the browser.
 
 ## Phase 5 completion
 

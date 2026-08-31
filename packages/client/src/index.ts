@@ -15,3 +15,9 @@ export type {
 export { BeeAgentClientError, BeeAgentProtocolError } from './errors.ts'
 export { parseSseStream } from './sse.ts'
 export type { SseFrame } from './sse.ts'
+export type {
+  Diagnostics,
+  LearningProposalDto,
+  LearningTransitionInput,
+  MemoryClaimDto,
+} from './client.ts'
