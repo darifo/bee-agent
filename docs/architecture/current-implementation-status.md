@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-29
 >
-> Branch: `develop` (Phases 4 and 5 complete; Phase 6 in progress)
+> Branch: `develop` (v1.0.0 line; all six phases complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -316,6 +316,16 @@ Phase 5 has started on `develop`. Landed so far:
   activations for rolled-back proposals (`POST /learning/monitor` runs it
   on demand). The activation service enforces a change budget (default 5
   active activations) against uncontrolled drift.
+
+## v1.0.0 release
+
+Phase 6 is complete against the §20 acceptance criteria — see
+[`v1-release-acceptance.md`](./v1-release-acceptance.md) for the
+per-criterion verification with evidence and residuals. Changesets are
+consumed onto the v1.0.0 line (per-package independent versioning per ADR
+0008; the composition core — kernel, runtime, model-providers, client,
+web, cli — sits on 1.x). Residual content work that does not block the
+release: preset capability bundles and the MCP memory transport variant.
 
 ## Phase 6 progress
 

@@ -274,7 +274,7 @@ plugins/
       unified personal data directory; the MCP memory transport variant,
       checkpoint fork, and daemon form move to the backlog
 - [x] Phase 5: background learning and governed improvement — the four-stage slow loop, ImprovementProposal governance, ExperimentWorld isolated evaluation (evidence-verification gate), autonomy-level activation (approval takes effect and is reversible), drift monitoring with automatic rollback, and the change budget; the exit condition was verified on a live Host with a real model
-- [ ] Phase 6: experience convergence and v1 release
+- [x] Phase 6: experience convergence and v1 release — doctor/CLI governance, web governance views, the v0 import tool, user and plugin docs, the §20 acceptance report; changesets consumed onto the release line
 
 ## License
 
