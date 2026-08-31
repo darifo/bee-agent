@@ -43,6 +43,15 @@ const TRANSITION_LABELS: Record<string, string> = {
   rejected: '拒绝',
   'rolled-back': '回滚',
 }
+function statusIcon(status: string): string {
+  if (status === 'promoted') return '★'
+  if (status === 'trial') return '⧗'
+  if (status === 'testing') return '⚗'
+  if (status === 'review') return '👁'
+  if (status === 'rejected') return '✕'
+  if (status === 'rolled-back') return '↩'
+  return '✎'
+}
 function statusLabel(status: string): string {
   return STATUS_LABELS[status] ?? status
 }
@@ -189,7 +198,9 @@ export function LearningPanel({ client }: LearningPanelProps) {
               <span className={`badge badge-${proposal.status}`}>
                 {statusLabel(proposal.status)}
               </span>
-              <span className="proposal-target">{proposal.targetKey}</span>
+              <span className="proposal-target">
+                {statusIcon(proposal.status)} {proposal.targetKey}
+              </span>
               <span className="proposal-meta">
                 L{proposal.autonomyLevel} · {typeLabel(proposal.type)} ·{' '}
                 {originLabel(proposal.origin)}

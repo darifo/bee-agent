@@ -27,6 +27,13 @@ function claimStatusLabel(status: string): string {
 function claimKindLabel(kind: string): string {
   return KIND_LABELS[kind] ?? kind
 }
+function claimKindIcon(kind: string): string {
+  if (kind === 'preference') return '♡'
+  if (kind === 'fact') return '◆'
+  if (kind === 'correction') return '↺'
+  if (kind === 'procedure') return '⚙'
+  return '•'
+}
 
 export function MemoryPanel({ client }: MemoryPanelProps) {
   const [claims, setClaims] = useState<MemoryClaimDto[]>([])
@@ -101,7 +108,9 @@ export function MemoryPanel({ client }: MemoryPanelProps) {
               <span className={`badge badge-${claim.status}`}>
                 {claimStatusLabel(claim.status)}
               </span>
-              <span className="claim-kind">{claimKindLabel(claim.kind)}</span>
+              <span className="claim-kind">
+                {claimKindIcon(claim.kind)} {claimKindLabel(claim.kind)}
+              </span>
               <span className="claim-statement">{claim.statement}</span>
               {claim.status === 'active' ? (
                 <button

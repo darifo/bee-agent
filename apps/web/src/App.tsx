@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { TurnResult } from '@bee-agent/client'
-import type { BeeAgentClient } from '@bee-agent/client'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { BeeAgentClient, Diagnostics, TurnResult } from '@bee-agent/client'
 import { useThreadStream } from './hooks/useThreadStream.ts'
 import { deriveEntries } from './messages.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
@@ -39,8 +38,39 @@ export function App({ client }: AppProps) {
   const [error, setError] = useState<string | undefined>()
   const [pending, setPending] = useState<PendingApproval | undefined>()
 
-  const { events } = useThreadStream(client, threadId)
+  const [health, setHealth] = useState<Diagnostics | undefined>()
+  const transcriptRef = useRef<HTMLElement | null>(null)
+
+  const { events, live } = useThreadStream(client, threadId)
   const entries = useMemo(() => deriveEntries(events), [events])
+
+  // Poll the one-call health overview for the header status dot.
+  useEffect(() => {
+    let cancelled = false
+    const probe = async () => {
+      try {
+        const d = await client.diagnostics()
+        if (!cancelled) setHealth(d)
+      } catch {
+        if (!cancelled) setHealth(undefined)
+      }
+    }
+    void probe()
+    const timer = setInterval(probe, 30_000)
+    return () => {
+      cancelled = true
+      clearInterval(timer)
+    }
+  }, [client])
+
+  // Keep the newest message in view while Bee streams (jsdom has no
+  // scrollTo — the optional call keeps tests honest).
+  useEffect(() => {
+    transcriptRef.current?.scrollTo?.({
+      top: transcriptRef.current.scrollHeight,
+      behavior: 'smooth',
+    })
+  }, [entries.length, busy])
 
   const start = useCallback(async () => {
     setBusy(true)
@@ -104,7 +134,10 @@ export function App({ client }: AppProps) {
   return (
     <main className="console">
       <header className="console-head">
-        <h1>🐝 Bee</h1>
+        <div className="brand">
+          <h1>🐝 Bee</h1>
+          <span className="brand-sub">个人智能体控制台</span>
+        </div>
         <nav className="view-toggle">
           <button
             type="button"
@@ -135,6 +168,17 @@ export function App({ client }: AppProps) {
             学习
           </button>
         </nav>
+        <span
+          className={`status-dot ${health === undefined ? 'status-down' : health.status === 'ok' ? 'status-ok' : 'status-warn'}`}
+          title={
+            health === undefined
+              ? '无法连接主机'
+              : health.status === 'ok'
+                ? '主机运行正常'
+                : '主机降级中（见 doctor）'
+          }
+          aria-label="host status"
+        />
         {view === 'chat' ? (
           threadId === null ? (
             <button type="button" onClick={() => void start()} disabled={busy}>
@@ -159,16 +203,42 @@ export function App({ client }: AppProps) {
             <p className="console-error">{error}</p>
           ) : null}
           {threadId === null ? (
-            <section className="task-detail-empty">
-              开始一段对话，与 Bee 聊聊。
+            <section className="welcome">
+              <div className="welcome-bee" aria-hidden="true">
+                🐝
+              </div>
+              <h2>开始一段对话</h2>
+              <p>Bee 记得你的偏好、能安全地执行命令、会在看板上管理任务。</p>
+              <ul className="welcome-hints">
+                <li>「从现在起用中文写周报」— 它会记住这个偏好</li>
+                <li>「用 command_run 列出 /tmp」— 会先征求你的审批</li>
+                <li>「建个看板任务：整理文档」— 交给后台慢慢做</li>
+              </ul>
             </section>
           ) : (
             <>
-              <section className="transcript" aria-label="conversation">
+              <section
+                className="transcript"
+                aria-label="对话记录"
+                ref={transcriptRef}
+              >
                 {entries.map((entry, index) => (
                   <Entry key={`${index}-${entry.kind}`} entry={entry} />
                 ))}
+                {busy ? (
+                  <div className="typing" aria-label="Bee 正在输入">
+                    <span className="dot" />
+                    <span className="dot" />
+                    <span className="dot" />
+                    <em>Bee 正在思考…</em>
+                  </div>
+                ) : null}
               </section>
+              {live ? (
+                <p className="stream-live" aria-hidden="true">
+                  ● 实时连接
+                </p>
+              ) : null}
               {pending !== undefined ? (
                 <div className="approval" role="alert">
                   <span>需要审批：{pending.title}</span>
