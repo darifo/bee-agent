@@ -13,6 +13,8 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
+> 2026-08-31 Phase 5 启动（分支 `develop`）：WF5-A 慢循环核心与 WF5-B ImprovementProposal 模型已完成——`@bee-agent/learning` 包（提案域/生命周期/autonomy 分级/Chronicle 投影/预算化四阶段循环）+ Host `/learning` 治理路由与后台节拍；WF5-C/D/E 待做。
+
 > 2026-08-28 Phase 4 完成并合入 `main`（`Merge feature/v1.4.0 (Phase 4 complete)`）：新增单实例模块组合验收测试（kernel 图 × 执行 × 记忆召回/派生/治理 × 世界投影 × 时间/条件调度 × 轨迹回放 × 结构 lineage × 投影精确重建）与真实 Host 冒烟（真实模型：偏好派生 → 召回注入经 model-request replay 证实 → 世界投影 → 调度触发器实机 fire）；HTTP API 参考见 `docs/api.md`。
 
 > 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C（memory-remote 断路器/显式降级/health 事件 + HTTP transport 与线契约）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D（WorldModel 版本化投影 + StructureGraph lineage + 环境 projector + Host 实时投影 + `GET /world`）、WF4-E（Trajectory 因果视图 + 模型上下文精确重放路由）与 WF4-F（AgentScheduler 持久化时间/条件触发 + catch-up + `/scheduler` 路由）已完成；统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定）已落地。
@@ -277,20 +279,20 @@ packages/client   → thread（仅协议类型）
 
 ### 5.6 Phase 5：后台学习（工作流级）
 
-- **WF5-A 慢循环核心**：Selection/Derivation/Consolidation/Pattern discovery 四阶段（方案 §11.2），独立预算与后台队列，不阻塞 Turn。
-- **WF5-B ImprovementProposal**：类型全集 + 生命周期状态机 + autonomyLevel。
-- **WF5-C ExperimentWorld**：disposable sandbox/worktree、冻结数据集、模拟 secret、只读轨迹副本；输出内容寻址 ChangeSet + 指标 + 回滚包。
-- **WF5-D 自治分级落地**：L0/L1 默认启用、L2 一键批准、L3 仅 worktree ChangeSet；不可自升级别、不可改根信任区。
-- **WF5-E 防伪改进**：holdout、guardrail、基线对比、来源权重、时间外验证；退化检测与自动回滚。
-- **退出条件**（方案 §19）：至少一个真实轨迹产生的 Skill/Context 候选通过隔离评测，经用户批准改善任务且可撤回。
+- **WF5-A 慢循环核心**（done 2026-08-31）：`packages/learning` 的 `LearningLoop` 以单次预算化后台 pass 实现 Selection→Derivation→Consolidation→Pattern discovery——选取近期含工具调用的 Turn（含失败 Turn）、确定性派生使用/失败/步数事实、按阈值产出候选、对 open target 去重并施加每次运行提案上限；每次运行追加持久 `learning.loop.run` 审计事实；基线刻意保守确定性（高频工具→skill 候选、重复失败→guardrail 观察、近步数上限→planning 笔记），更丰富推断留注入位。
+- **WF5-B ImprovementProposal**（done 2026-08-31）：11 类变更目标、draft→testing→review→trial→promoted/rejected/rolled-back 生命周期（乐观并发 + 非法迁移拒绝）、L0–L3 autonomyLevel（循环自身永不超过 L2）、provenance 引用真实轨迹；`learning` Chronicle 流 + 可重建投影 + `/learning` 治理路由（运行/列表/详情/迁移，非法迁移与过期版本 409），Host 默认启用（小时级后台节拍，可调/可关）。
+- **WF5-C ExperimentWorld**（done 2026-08-31）：`ExperimentWorld`（learning 包）——冻结数据集（derived 轨迹内容 digest 钉死，后续对话不可漂移被测内容）、注入式 Evaluator 隔离求值（只读事实、不写记忆/结构/行为）、内容寻址 ChangeSet（proposedChange+provenance 的 canonical sha256）、按提案类型的回滚包；默认 `evidence-verify@1` 求值器直接从冻结数据复算声称的模式——虚报/编造证据被证据门拒绝并自动归档，通过者进入 review 等待用户；求值器基础设施故障持久化 `learning.experiment.failed` 且提案停留 testing 可重试；路由 `POST /learning/proposals/:id/experiment` 与 `GET .../experiments`。L3 代码类提案的一次性 worktree 复用现有 ExecutionWorktreeProvider，待该类提案出现时接入；模拟 secret 随之。
+- **WF5-D 自治分级落地**（done 2026-08-31）：L1/L2 提案 promoted 即经受治理记忆通道激活——激活声明的 provenance 引用 `learning.proposal.activated` 流位置，后续 Turn 经召回真实生效（批准=真实行为变化，非存档意图）；promoted 回滚一键撤回声明（`learning.proposal.activation-reverted` 持久化）；分级强制执行：L0 证据摘要永不激活、L3 在 worktree ChangeSet 管线建成前 fail closed；激活状态从 learning 流重建（重启可撤回）；`POST /learning/proposals/:id/activate` 幂等重试；后台节拍在每次循环运行后执行 L1 级记忆合并。
+- **WF5-E 防伪改进**（核心 done 2026-08-31）：漂移监控即时间外验证——采纳后的真实 Turn 是提案从未见过的 holdout；`DriftMonitor` 重派生不可变的采纳前证据轮为基线、派生激活后窗口、对比目标指标（skill/guardrail→工具失败率、planning→平均步数），超预算边际即自动回滚并把数字写入持久 reason；每次检查追加 `learning.drift.checked`（静默窗口也可审计）；样本不足不下判断。Host 在学习节拍上运行监控并对回滚提案自动撤回激活（`POST /learning/monitor` 按需运行）；激活服务强制变更预算（默认 5 个同时激活，防失控漂移）。冻结数据集（WF5-C）已承担防评测泄漏；来源权重与对抗样本随更丰富求值器接入。
+- **退出条件**（方案 §19，verified 2026-08-31）：真实 Host + 真实模型演示 11 步全过——真实对话（3 次审批的 command_run）→ 慢循环产出 skill:command_run 提案（L2，3 轮证据）→ 隔离实验冻结数据集并复算用量（accept）→ 用户 trial→promoted → 记忆通道真实激活 → 下一轮真实模型请求经 replay 证实召回采纳模式 → 漂移监控运行 → 一键回滚撤回激活。ADR 0025/0026 已撰写。遗留转 backlog：更丰富注入式求值器（反事实重放/对抗样本/holdout 计分/来源权重）、L3 worktree ChangeSet 管线、更多漂移指标。
 
 ### 5.7 Phase 6：体验收敛与发布（工作流级）
 
-- **WF6-A 首启与诊断**：首次启动向导、权限说明、`bee doctor`、错误恢复指引。
-- **WF6-B 管理界面**：记忆管理、Skill 管理、Timeline、后台资源控制。
+- **WF6-A 首启与诊断**（doctor done 2026-08-31）：`GET /diagnostics` 一次调用汇总全部子系统（总体状态/结构 doctor/记忆健康与计数/世界/调度/学习提案分布与预算/线程数），provider 故障降级不失败；client SDK 补 diagnostics + memory/learning 治理方法族；CLI 增加 `bee doctor`、`bee memory list|forget|consolidate` 与完整 `bee learning` 生命周期命令——Phase 5 治理弧线无需 curl 即可操作。首次启动向导与权限说明待做。
+- **WF6-B 管理界面**（记忆+学习 done 2026-08-31）：Web 控制台新增 Memory 面板（声明列表/状态徽章/一键遗忘/合并）与 Learning 面板（运行慢循环/触发隔离实验/review→trial→promote→rollback 全生命周期/按需漂移检查），与 Chat/Board 并列——治理弧线在浏览器可用。Skill 管理、Timeline、后台资源控制待做。
 - **WF6-C v0 导入**：P0-7 设计的 export/import 工具实现（v0 SQLite/PG → v1 Chronicle 显式导入）。
-- **WF6-D 文档**：用户手册、插件开发文档、示例 bundle；README/README-ZH 全面重写。
-- **WF6-E 发布**：方案 §20 验收全项通过；changeset 消费与 1.0.0 版本发布；当前实施分支经最终审计后合入 `main`。
+- **WF6-D 文档**（done 2026-08-31）：用户手册 `docs/user-guide.md`（十分钟上手/日常任务/执行能力开启/记忆与学习治理/排障/v0 迁移/安全边界一页版）与插件开发指南 `docs/plugin-development.md`（可复制模板/五条硬规则/tier 分级/结构管线/Chronicle 持久化/执行无直路/验收清单/参考实现索引）；双 README 与架构索引已链接。示例 bundle 待做。
+- **WF6-E 发布**（acceptance done 2026-08-31）：§20 六组验收逐项核验通过（证据与残余见 `v1-release-acceptance.md`；两项内容性残余——预置能力 bundle、MCP 记忆 transport 变体——不阻塞发布）；changeset 消费定版后 develop 合入 `main`。
 - **退出条件**（方案 §19）：新用户无需部署数据库或理解内部架构即可完成真实任务。
 
 ### 5.8 ADR 分配总表
@@ -312,8 +314,8 @@ packages/client   → thread（仅协议类型）
 | 0021 | Model Time, Environment, Structure, and Trajectory internally                      | P4   | accepted/implemented |
 | 0024 | Use memory-bee by default and memory-remote for every external memory              | P4   | accepted/implemented |
 | 0027 | Default to an embedded single-host runtime with optional remote adapters           | P4   | accepted/implemented |
-| 0025 | Separate foreground execution from background learning                             | P5   | 阶段验收时           |
-| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | 阶段验收时           |
+| 0025 | Separate foreground execution from background learning                             | P5   | accepted/implemented |
+| 0026 | Govern improvement through Proposal–Experiment–Trial–Rollback                      | P5   | accepted/implemented |
 
 ## 6. 任务依赖图（Phase 0–2）
 

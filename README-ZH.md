@@ -44,6 +44,8 @@ Bee Agent v1 正在 `main` 分支开发。它与冻结在
 
 现行设计和开发状态见 [`docs/architecture`](./docs/architecture)，架构决策见
 [`docs/adr`](./docs/adr)，HTTP API 参考见 [`docs/api.md`](./docs/api.md)。
+用户手册见 [`docs/user-guide.md`](./docs/user-guide.md)，插件开发指南见
+[`docs/plugin-development.md`](./docs/plugin-development.md)。
 
 ## 架构
 
@@ -251,8 +253,8 @@ plugins/
       治理路由、远程降级与 HTTP transport、世界模型与 StructureGraph
       投影、Trajectory 回放、时间/条件持久化调度器及统一个人数据目录；
       MCP 记忆 transport、checkpoint fork 与守护形态转入 backlog
-- [ ] Phase 5：后台学习与受治理改进
-- [ ] Phase 6：体验收敛与 v1 发布
+- [x] Phase 5：后台学习与受治理改进——慢循环四阶段、ImprovementProposal 治理、ExperimentWorld 隔离评测（证据复算门）、自治分级激活（批准即生效、可撤回）、漂移监控自动回滚与变更预算；退出条件已在真实 Host + 真实模型上验证
+- [x] Phase 6：体验收敛与 v1 发布——doctor/CLI 治理、Web 治理视图、v0 导入、用户与插件文档、§20 验收报告；changesets 已定版
 
 ## 许可证
 

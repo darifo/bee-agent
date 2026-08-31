@@ -4,6 +4,8 @@ import type { BeeAgentClient } from '@bee-agent/client'
 import { useThreadStream } from './hooks/useThreadStream.ts'
 import { deriveEntries } from './messages.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
+import { MemoryPanel } from './MemoryPanel.tsx'
+import { LearningPanel } from './LearningPanel.tsx'
 
 export interface AppProps {
   client: BeeAgentClient
@@ -15,7 +17,7 @@ interface PendingApproval {
   readonly title: string
 }
 
-type View = 'chat' | 'board'
+type View = 'chat' | 'board' | 'memory' | 'learning'
 
 function outputOf(result: TurnResult): string {
   if (result.status === 'completed') return result.output
@@ -118,6 +120,20 @@ export function App({ client }: AppProps) {
           >
             Board
           </button>
+          <button
+            type="button"
+            className={view === 'memory' ? 'active' : ''}
+            onClick={() => setView('memory')}
+          >
+            Memory
+          </button>
+          <button
+            type="button"
+            className={view === 'learning' ? 'active' : ''}
+            onClick={() => setView('learning')}
+          >
+            Learning
+          </button>
         </nav>
         {view === 'chat' ? (
           threadId === null ? (
@@ -133,6 +149,10 @@ export function App({ client }: AppProps) {
       </header>
       {view === 'board' ? (
         <KanbanBoard client={client} />
+      ) : view === 'memory' ? (
+        <MemoryPanel client={client} />
+      ) : view === 'learning' ? (
+        <LearningPanel client={client} />
       ) : (
         <>
           {error !== undefined ? (

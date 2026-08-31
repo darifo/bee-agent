@@ -108,6 +108,86 @@ export interface BeeAgentClientOptions {
  * turn's item events stream over Server-Sent Events with `Last-Event-ID`
  * recovery (architecture §9.1, §16.4).
  */
+
+// ---------------------------------------------------------------------------
+// Diagnostics, memory governance, learning governance, scheduling (Phase 4/6)
+// ---------------------------------------------------------------------------
+
+export interface Diagnostics {
+  readonly status: 'ok' | 'degraded'
+  readonly structure: {
+    readonly activeVersion: string | null
+    readonly restartRequired: boolean
+    readonly restartRequiredPlugins: readonly string[]
+    readonly doctor: unknown
+    readonly configSource: unknown
+  }
+  readonly memory:
+    | { readonly enabled: false }
+    | {
+        readonly enabled: true
+        readonly health: { readonly status: string; readonly detail?: string }
+        readonly claims: {
+          readonly total: number
+          readonly active: number
+          readonly retracted: number
+        }
+      }
+  readonly world:
+    | { readonly enabled: false }
+    | {
+        readonly enabled: true
+        readonly version: number
+        readonly entities: number
+        readonly relations: number
+      }
+  readonly scheduler:
+    | { readonly enabled: false }
+    | { readonly enabled: true; readonly triggers: number }
+  readonly learning:
+    | { readonly enabled: false }
+    | {
+        readonly enabled: true
+        readonly byStatus: Record<string, number>
+        readonly loopBudget: unknown
+        readonly driftBudget: unknown
+      }
+  readonly threads: { readonly streams: number }
+}
+
+export interface MemoryClaimDto {
+  readonly id: string
+  readonly kind: string
+  readonly statement: string
+  readonly status: string
+  readonly autonomyLevel?: number
+}
+
+export interface LearningProposalDto {
+  readonly id: string
+  readonly type: string
+  readonly targetKey: string
+  readonly hypothesis: string
+  readonly status: string
+  readonly autonomyLevel: number
+  readonly origin: string
+  readonly version: number
+}
+
+export interface LearningTransitionInput {
+  readonly proposalId: string
+  readonly to:
+    | 'draft'
+    | 'testing'
+    | 'review'
+    | 'trial'
+    | 'promoted'
+    | 'rejected'
+    | 'rolled-back'
+  readonly expectedVersion: number
+  readonly reason?: string
+}
+
 export class BeeAgentClient {
   readonly #baseUrl: URL
   readonly #fetch: typeof fetch
@@ -349,6 +429,110 @@ export class BeeAgentClient {
         `Response from '${path}' is not valid JSON`,
       )
     }
+  }
+  /** One-call health overview for `bee doctor`. */
+  diagnostics(): Promise<Diagnostics> {
+    return this.#request<Diagnostics>('GET', 'diagnostics')
+  }
+
+  // --- memory governance -----------------------------------------------
+
+  listMemoryClaims(query: {
+    status?: 'active' | 'superseded' | 'retracted'
+    kind?: 'preference' | 'fact' | 'correction' | 'procedure'
+  }): Promise<readonly MemoryClaimDto[]> {
+    const params = new URLSearchParams(
+      Object.entries(query).filter(([, v]) => v !== undefined) as [
+        string,
+        string,
+      ][],
+    )
+    const suffix = params.size === 0 ? '' : `?${params.toString()}`
+    return this.#request<{ claims: readonly MemoryClaimDto[] }>(
+      'GET',
+      `memory/claims${suffix}`,
+    ).then((body) => body.claims)
+  }
+
+  forgetMemoryClaim(claimId: string, reason?: string): Promise<MemoryClaimDto> {
+    return this.#request<{ claim: MemoryClaimDto }>(
+      'POST',
+      `memory/claims/${claimId}/retract`,
+      { body: reason === undefined ? {} : { reason } },
+    ).then((body) => body.claim)
+  }
+
+  consolidateMemory(): Promise<unknown> {
+    return this.#request<unknown>('POST', 'memory/consolidate', { body: {} })
+  }
+
+  // --- learning governance ---------------------------------------------
+
+  runLearningLoop(): Promise<unknown> {
+    return this.#request<unknown>('POST', 'learning/run', { body: {} })
+  }
+
+  listLearningProposals(query: {
+    status?: string
+    type?: string
+    origin?: 'loop' | 'user'
+  }): Promise<readonly LearningProposalDto[]> {
+    const params = new URLSearchParams(
+      Object.entries(query).filter(([, v]) => v !== undefined) as [
+        string,
+        string,
+      ][],
+    )
+    const suffix = params.size === 0 ? '' : `?${params.toString()}`
+    return this.#request<{ proposals: readonly LearningProposalDto[] }>(
+      'GET',
+      `learning/proposals${suffix}`,
+    ).then((body) => body.proposals)
+  }
+
+  getLearningProposal(proposalId: string): Promise<LearningProposalDto> {
+    return this.#request<{ proposal: LearningProposalDto }>(
+      'GET',
+      `learning/proposals/${proposalId}`,
+    ).then((body) => body.proposal)
+  }
+
+  runLearningExperiment(proposalId: string): Promise<unknown> {
+    return this.#request<{ report: unknown }>(
+      'POST',
+      `learning/proposals/${proposalId}/experiment`,
+      { body: {} },
+    ).then((body) => body.report)
+  }
+
+  transitionLearningProposal(
+    input: LearningTransitionInput,
+  ): Promise<LearningProposalDto> {
+    return this.#request<{ proposal: LearningProposalDto }>(
+      'POST',
+      `learning/proposals/${input.proposalId}/transition`,
+      {
+        body: {
+          to: input.to,
+          expectedVersion: input.expectedVersion,
+          ...(input.reason === undefined ? {} : { reason: input.reason }),
+        },
+      },
+    ).then((body) => body.proposal)
+  }
+
+  monitorLearningDrift(): Promise<unknown> {
+    return this.#request<unknown>('POST', 'learning/monitor', { body: {} })
+  }
+
+  /** Imports a v0 SQLite event store; `path` must be Host-local absolute. */
+  importV0(path: string): Promise<{
+    tasksImported: number
+    tasksSkipped: number
+    eventsRead: number
+    eventsImported: number
+  }> {
+    return this.#request('POST', 'import/v0', { body: { path } })
   }
 }
 

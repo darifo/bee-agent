@@ -55,7 +55,9 @@ The implemented foundation is a local-first Personal Bee Host with:
 The authoritative design and implementation status live in
 [`docs/architecture`](./docs/architecture); architectural decisions live in
 [`docs/adr`](./docs/adr); the HTTP API reference lives in
-[`docs/api.md`](./docs/api.md).
+[`docs/api.md`](./docs/api.md). The user guide lives in
+[`docs/user-guide.md`](./docs/user-guide.md) and the plugin development
+guide in [`docs/plugin-development.md`](./docs/plugin-development.md).
 
 ## Architecture
 
@@ -271,8 +273,8 @@ plugins/
       projections, trajectory replay, the time/condition scheduler, and the
       unified personal data directory; the MCP memory transport variant,
       checkpoint fork, and daemon form move to the backlog
-- [ ] Phase 5: background learning and governed improvement
-- [ ] Phase 6: experience convergence and v1 release
+- [x] Phase 5: background learning and governed improvement — the four-stage slow loop, ImprovementProposal governance, ExperimentWorld isolated evaluation (evidence-verification gate), autonomy-level activation (approval takes effect and is reversible), drift monitoring with automatic rollback, and the change budget; the exit condition was verified on a live Host with a real model
+- [x] Phase 6: experience convergence and v1 release — doctor/CLI governance, web governance views, the v0 import tool, user and plugin docs, the §20 acceptance report; changesets consumed onto the release line
 
 ## License
 

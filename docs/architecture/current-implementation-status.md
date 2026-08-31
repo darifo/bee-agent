@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-29
 >
-> Branch: `main` (feature/v1.4.0 merged; Phase 4 complete)
+> Branch: `develop` (v1.0.0 line; all six phases complete)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -254,6 +254,127 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   `BEE_AGENT_DATA_DIR` or the platform convention (macOS Application
   Support / XDG data home) instead of the working directory; an explicit
   `BEE_AGENT_STORAGE_SQLITE_FILENAME` still wins.
+
+## Phase 5 progress (slow loop foundation)
+
+Phase 5 has started on `develop`. Landed so far:
+
+- ImprovementProposal domain in `@bee-agent/learning` (WF5-B): 11 change
+  types, the draft→testing→review→trial→promoted/rejected/rolled-back
+  lifecycle with optimistic concurrency and illegal-transition rejection,
+  and L0–L3 autonomy levels where the loop itself may never exceed L2
+  (architecture §11.4). Proposals persist on a serialized `learning`
+  Chronicle stream behind a rebuildable projection.
+- The slow loop (WF5-A core): one budgeted background pass — Selection →
+  Derivation → Consolidation → Pattern discovery over recent tool-using
+  trajectories. The baselines are deliberately conservative and
+  deterministic: high-frequency tool usage becomes skill candidates,
+  repeated tool failures become guardrail observations, near-cap turn
+  lengths become planning notes. Open targets dedupe, per-run proposal
+  caps apply, and every run appends a durable `learning.loop.run` report.
+- Host wiring: `POST /learning/run`, `GET /learning/budget`, proposal
+  listing/detail, and user-driven lifecycle transitions (409 on illegal
+  jumps or stale versions); optional background cadence (default hourly,
+  `learning: { intervalMs }`). The loop never changes behavior directly —
+  its only output is governed proposals (ADR 0025/0026 semantics).
+
+- ExperimentWorld (WF5-C): each experiment freezes a dataset of derived
+  trajectories digest-pinned over content (later conversation activity
+  cannot drift what is tested), runs an injectable evaluator in isolation —
+  read-only facts, no memory/structure/behavior writes — and emits a
+  durable report with a content-addressed changeset and a type-specific
+  rollback package. The default `evidence-verify@1` evaluator recomputes
+  the proposal's claimed pattern from the frozen data: inflated claims are
+  rejected and archived by the evidence gate; passing evidence waits in
+  review. Evaluator infrastructure failures persist
+  `learning.experiment.failed` and leave the proposal in testing for
+  retry. Routes: `POST /learning/proposals/:id/experiment`, `GET
+/learning/proposals/:id/experiments`. (Disposable worktrees for L3 code
+  changes ride the existing ExecutionWorktreeProvider when those proposal
+  types arrive.)
+
+- Autonomy-level activation (WF5-D): promoting an L1/L2 proposal takes
+  effect immediately through the governed memory channel — the activation
+  claim carries the `learning.proposal.activated` stream position as
+  provenance and is recalled into subsequent turns, so approval is a real
+  behavior change. Rolling back a promoted proposal retracts the claim
+  (one-click revert, `learning.proposal.activation-reverted`). Levels are
+  enforced: L0 evidence summaries never activate; L3 fails closed until
+  the worktree ChangeSet pipeline exists. Activation state rebuilds from
+  the learning stream; `POST /learning/proposals/:id/activate` is the
+  idempotent retry. The background cadence performs the L1-class memory
+  consolidation after each loop run.
+
+- Drift monitoring and the change budget (WF5-E core): post-adoption turns
+  are the holdout the proposal never saw. `DriftMonitor` re-derives the
+  immutable pre-adoption evidence turns as the baseline, derives the
+  post-activation window, and compares the target metric (tool failure
+  rate / average checkpoints); regression beyond budget margins rolls the
+  proposal back automatically with the numbers in the durable reason.
+  Every check appends `learning.drift.checked`; insufficient samples never
+  judge. The Host monitors on the learning cadence and auto-retracts
+  activations for rolled-back proposals (`POST /learning/monitor` runs it
+  on demand). The activation service enforces a change budget (default 5
+  active activations) against uncontrolled drift.
+
+## v1.0.0 release
+
+Phase 6 is complete against the §20 acceptance criteria — see
+[`v1-release-acceptance.md`](./v1-release-acceptance.md) for the
+per-criterion verification with evidence and residuals. Changesets are
+consumed onto the v1.0.0 line (per-package independent versioning per ADR
+0008; the composition core — kernel, runtime, model-providers, client,
+web, cli — sits on 1.x). Residual content work that does not block the
+release: preset capability bundles and the MCP memory transport variant.
+
+## Phase 6 progress
+
+- `bee doctor` and CLI governance (WF6-A first slice): `GET /diagnostics`
+  summarizes every subsystem in one call and degrades instead of failing on
+  provider outages; the client SDK gains diagnostics plus memory- and
+  learning-governance method families; the CLI adds `bee doctor`,
+  `bee memory list|forget|consolidate`, and the full `bee learning`
+  lifecycle — the Phase 5 governance arc is operable without curl.
+- User and plugin documentation (WF6-D): `docs/user-guide.md` (ten-minute
+  start, everyday tasks, enabling execution tools, memory and learning
+  governance, troubleshooting, v0 migration, a one-page security boundary)
+  and `docs/plugin-development.md` (copyable plugin template, the five hard
+  rules, replacement tiers, the structure pipeline, Chronicle persistence,
+  the no-direct-execution rule, an acceptance checklist, and a
+  complexity-ordered list of reference implementations); linked from both
+  READMEs and the architecture index.
+- v0 import tool (WF6-C): `POST /import/v0` / `bee import <path>` reads a
+  v0 SQLite event store read-only and converts each v0 task into one v1
+  thread — messages, callId-correlated tool traffic with isError, approval
+  decisions, and terminal turn events — with `v0-import` provenance on
+  every event and idempotent re-runs (the v0 task id doubles as the thread
+  id).
+- Web governance views (WF6-B): a Memory panel (claim list with status
+  badges, one-click Forget, Consolidate) and a Learning panel (run the
+  loop, fire the isolated experiment, drive review → trial → promote →
+  rollback, on-demand drift checks) join the chat and board views — the
+  same governance arc is operable from the browser.
+
+## Phase 5 completion
+
+Phase 5 is complete against the §7.1 exit condition — a real-trajectory
+candidate passed isolated evaluation, improved behavior after user
+approval, and was withdrawn — demonstrated on a live Host with a real
+model (11 checked steps): a real conversation drove three approved
+`command_run` calls; the slow loop derived `skill:command_run` from that
+trajectory (L2); ExperimentWorld froze the dataset and the evidence
+verifier recomputed the usage counts (accept); the user promoted through
+trial, activating the pattern through the memory channel; the next real
+model request demonstrably recalled the adopted pattern (verified via
+model-request replay); the drift monitor ran over post-adoption turns;
+and one click rolled the change back with the activation retracted.
+
+ADR 0025 (foreground/background separation) and ADR 0026 (Proposal–
+Experiment–Trial–Rollback governance) are accepted and implemented.
+Residual enhancements stay as post-phase backlog: richer injected
+evaluators (counterfactual replay, adversarial samples, holdout scoring,
+source weighting), the L3 worktree ChangeSet pipeline, and drift metrics
+beyond failure-rate/checkpoints.
 
 ## Phase 4 completion
 

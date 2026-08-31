@@ -72,6 +72,18 @@ omission）；接近模型窗口阈值时，被覆盖的历史前缀经一次持
 | GET  | `/threads/:threadId/turns/:turnId/trajectory` | 该 Turn 的因果链：`generations`（stepIndex/attempt、structureVersion、inputDigest、stopReason、usage）、`tools`（capability、授权 decision、outcome、execution 流位置）、`checkpoints` |
 | GET  | `/model-requests/:requestId/replay`           | 精确重放某次模型调用的可见上下文（manifest + sources + 重建 bundle，digest 校验）                                                                                                      |
 
+## 后台学习（Phase 5，治理）
+
+| 方法 | 路径                                         | 说明                                                                                                  |
+| ---- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| POST | `/learning/run`                              | 手动跑一次慢循环（Selection→Derivation→Consolidation→Pattern），返回运行报告；Host 默认每小时自动运行 |
+| GET  | `/learning/budget`                           | 当前循环预算（轨迹上限/每次提案上限/各阈值）                                                          |
+| GET  | `/learning/proposals`                        | 提案列表，过滤 `?status=`、`?type=`、`?origin=loop\|user`、`?autonomyLevel=0-3`、`?limit=`            |
+| GET  | `/learning/proposals/:proposalId`            | 提案详情（假设、证据轨迹、预期收益、风险、评测与回滚计划）                                            |
+| POST | `/learning/proposals/:proposalId/transition` | 用户驱动的生命周期迁移，body `{to, expectedVersion, reason?}`；非法迁移或过期版本返回 409             |
+
+提案生命周期：`draft → testing → review → trial → promoted`，任一非终态可 `rejected`，`trial/promoted` 可 `rolled-back`。循环只产出提案、绝不直接改变行为；每次运行都有持久审计事实。
+
 ## 结构治理（本地管理面）
 
 | 方法 | 路径                   | 说明                                                                                          |

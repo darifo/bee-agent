@@ -1,6 +1,8 @@
 # Architecture documents
 
-This directory separates the target architecture, executable development plan,
+User-facing docs live one level up: [`../user-guide.md`](../user-guide.md)
+(usage) and [`../plugin-development.md`](../plugin-development.md)
+(plugins). This directory separates the target architecture, executable development plan,
 security model, and completed kernel research. The HTTP surface of the running
 Host is documented in [`../api.md`](../api.md). For current implementation
 status, read the documents in this order:
@@ -15,6 +17,8 @@ status, read the documents in this order:
    implemented Context–Registry–Fiber and StructureGeneration rules.
 5. [`bee-agent-v1.0.0-threat-model.md`](./bee-agent-v1.0.0-threat-model.md)
    — security goals, implemented mitigations, and pending controls.
+6. [`v1-release-acceptance.md`](./v1-release-acceptance.md) — the §20
+   release acceptance verification (per-criterion evidence and residuals).
 
 Historical research documents remain useful evidence but do not override the
 implemented ADRs or current status:

@@ -123,6 +123,9 @@ importers:
       '@bee-agent/knowledge':
         specifier: workspace:*
         version: link:../../packages/knowledge
+      '@bee-agent/learning':
+        specifier: workspace:*
+        version: link:../../packages/learning
       '@bee-agent/memory-bee':
         specifier: workspace:*
         version: link:../../plugins/memory-bee
@@ -153,6 +156,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
+      better-sqlite3:
+        specifier: ^12.4.1
+        version: 12.11.1
       fastify:
         specifier: ^5.12.1
         version: 5.12.1
@@ -160,6 +166,9 @@ importers:
         specifier: ^4.1.13
         version: 4.4.3
     devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       vitest:
         specifier: ^4.0.15
         version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
@@ -283,7 +292,24 @@ importers:
         specifier: ^4.0.15
         version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
-  packages/learning: {}
+  packages/learning:
+    dependencies:
+      '@bee-agent/kernel':
+        specifier: workspace:*
+        version: link:../kernel
+      '@bee-agent/knowledge':
+        specifier: workspace:*
+        version: link:../knowledge
+      '@bee-agent/thread':
+        specifier: workspace:*
+        version: link:../thread
+      zod:
+        specifier: ^4.1.13
+        version: 4.4.3
+    devDependencies:
+      vitest:
+        specifier: ^4.0.15
+        version: 4.1.11(@types/node@22.20.1)(jsdom@26.1.0)(vite@8.2.2(@types/node@22.20.1)(esbuild@0.27.7))
 
   packages/model-providers:
     dependencies:
