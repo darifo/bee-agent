@@ -49,6 +49,7 @@ import { memoryRoutes } from './routes/memory.ts'
 import { schedulerRoutes } from './routes/scheduler.ts'
 import { learningRoutes } from './routes/learning.ts'
 import type { BeeLearningRuntime } from './routes/learning.ts'
+import { LearningActivationService } from './learning-activation.ts'
 import { trajectoryRoutes } from './routes/trajectory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
@@ -476,14 +477,22 @@ export async function buildBeeServer(
     })
     const experiments = new ExperimentWorld({ store, proposals })
     await experiments.rebuild()
-    learning = { proposals, loop: loopRunner, experiments }
+    const activation =
+      options.memory === undefined
+        ? undefined
+        : new LearningActivationService({ store, memory: options.memory })
+    await activation?.rebuild()
+    learning = { proposals, loop: loopRunner, experiments, activation }
     const intervalMs =
       options.learning === true
         ? 3_600_000
         : (options.learning.intervalMs ?? 3_600_000)
     if (intervalMs > 0) {
       learningTimer = setInterval(() => {
-        void loopRunner.run().catch(() => undefined)
+        void loopRunner
+          .run()
+          .then(() => options.memory?.consolidate())
+          .catch(() => undefined)
       }, intervalMs)
     }
   }

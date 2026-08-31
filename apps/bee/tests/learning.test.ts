@@ -13,6 +13,7 @@ import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerLearningChronicleEvents } from '@bee-agent/learning'
 import { createMemoryKanbanStore } from '@bee-agent/kanban/testing'
 import type { ToolExecutor } from '@bee-agent/runtime'
+import { EmbeddedMemoryProvider } from '@bee-agent/memory-bee'
 import { buildBeeServer } from '../src/index.ts'
 import type { BeeServer } from '../src/index.ts'
 
@@ -98,6 +99,7 @@ describe('host learning integration (Phase 5)', () => {
           reason: 'Integration capability',
         },
       ],
+      memory: new EmbeddedMemoryProvider({ store }),
       // Timer disabled; the test drives runs manually.
       learning: { intervalMs: 0 },
       logger: false,

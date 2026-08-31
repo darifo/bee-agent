@@ -30,7 +30,9 @@ export type {
 export {
   LEARNING_EVENT_TYPES,
   LEARNING_STREAM_ID,
+  learningActivationRevertedEvent,
   learningLoopRunEvent,
+  learningProposalActivatedEvent,
   learningProposalCreatedEvent,
   learningProposalStatusChangedEvent,
   learningStreamId,

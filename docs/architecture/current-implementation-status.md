@@ -293,9 +293,21 @@ Phase 5 has started on `develop`. Landed so far:
   changes ride the existing ExecutionWorktreeProvider when those proposal
   types arrive.)
 
-Still pending in Phase 5: autonomy-level activation plumbing (WF5-D beyond
-proposal gating), anti-fake-improvement evaluation — holdout, baselines,
-time-out validation (WF5-E), and the acceptance ADRs 0025/0026.
+- Autonomy-level activation (WF5-D): promoting an L1/L2 proposal takes
+  effect immediately through the governed memory channel — the activation
+  claim carries the `learning.proposal.activated` stream position as
+  provenance and is recalled into subsequent turns, so approval is a real
+  behavior change. Rolling back a promoted proposal retracts the claim
+  (one-click revert, `learning.proposal.activation-reverted`). Levels are
+  enforced: L0 evidence summaries never activate; L3 fails closed until
+  the worktree ChangeSet pipeline exists. Activation state rebuilds from
+  the learning stream; `POST /learning/proposals/:id/activate` is the
+  idempotent retry. The background cadence performs the L1-class memory
+  consolidation after each loop run.
+
+Still pending in Phase 5: anti-fake-improvement evaluation — holdout,
+baselines, time-out validation, drift monitoring (WF5-E), and the
+acceptance ADRs 0025/0026.
 
 ## Phase 4 completion
 

@@ -11,6 +11,7 @@ import type {
   ExperimentWorld,
   LearningLoop,
 } from '@bee-agent/learning'
+import type { LearningActivationService } from '../learning-activation.ts'
 
 /**
  * Learning governance routes (v1 refactor plan §5.6): run the slow loop,
@@ -72,6 +73,7 @@ export interface BeeLearningRuntime {
   readonly proposals: ChronicleProposalStore
   readonly loop: LearningLoop
   readonly experiments: ExperimentWorld
+  readonly activation: LearningActivationService | undefined
 }
 
 export const learningRoutes: FastifyPluginAsync<{
@@ -145,17 +147,61 @@ export const learningRoutes: FastifyPluginAsync<{
   })
 
   app.post(
+    '/learning/proposals/:proposalId/activate',
+    async (request, reply) => {
+      const { proposalId } = ProposalIdParamsSchema.parse(request.params)
+      if (learning.activation === undefined) {
+        return reply.code(409).send({
+          code: 'conflict',
+          message: 'Learning activation requires a memory provider',
+        })
+      }
+      const current = await learning.proposals.get(proposalId)
+      if (current === undefined) {
+        return reply.code(404).send({ code: 'not-found', message: 'not found' })
+      }
+      try {
+        const result = await learning.activation.apply(current)
+        return { activation: result }
+      } catch (error) {
+        return reply.code(409).send({
+          code: 'conflict',
+          message: error instanceof Error ? error.message : String(error),
+        })
+      }
+    },
+  )
+
+  app.post(
     '/learning/proposals/:proposalId/transition',
     async (request, reply) => {
       const { proposalId } = ProposalIdParamsSchema.parse(request.params)
       const body = TransitionBodySchema.parse(request.body)
       try {
+        const before = await learning.proposals.get(proposalId)
         const proposal = await learning.proposals.transition(proposalId, {
           to: body.to,
           expectedVersion: body.expectedVersion,
           ...(body.reason === undefined ? {} : { reason: body.reason }),
         })
-        return { proposal }
+        // Autonomy semantics (§11.4): promoting is the one-click enable, so
+        // the change takes effect immediately through the governed channel;
+        // rolling back a promoted proposal retracts the activation.
+        let activation: unknown
+        if (
+          body.to === 'promoted' &&
+          before?.status !== 'promoted' &&
+          learning.activation !== undefined
+        ) {
+          activation = await learning.activation.apply(proposal)
+        } else if (
+          body.to === 'rolled-back' &&
+          before?.status === 'promoted' &&
+          learning.activation !== undefined
+        ) {
+          activation = await learning.activation.revert(proposal, body.reason)
+        }
+        return { proposal, ...(activation === undefined ? {} : { activation }) }
       } catch (error) {
         if (error instanceof ProposalNotFoundError) {
           return reply

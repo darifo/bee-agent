@@ -26,6 +26,8 @@ export const LEARNING_EVENT_TYPES = [
   'learning.experiment.started',
   'learning.experiment.completed',
   'learning.experiment.failed',
+  'learning.proposal.activated',
+  'learning.proposal.activation-reverted',
 ] as const
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number]
 
@@ -110,6 +112,21 @@ const ExperimentFailedPayloadSchema = z.object({
   failedAt: z.iso.datetime(),
 })
 
+const ProposalActivatedPayloadSchema = z.object({
+  proposalId: z.uuid(),
+  /** The governed channel the change took effect through. */
+  via: z.enum(['memory-claim']),
+  claimId: z.uuid(),
+  activatedAt: z.iso.datetime(),
+})
+
+const ActivationRevertedPayloadSchema = z.object({
+  proposalId: z.uuid(),
+  claimId: z.uuid(),
+  reason: z.string().min(1).optional(),
+  revertedAt: z.iso.datetime(),
+})
+
 const LEARNING_EVENT_PAYLOADS: Record<LearningEventType, z.ZodType<unknown>> = {
   'learning.proposal.created': z.object({
     proposal: ImprovementProposalSchema,
@@ -119,6 +136,8 @@ const LEARNING_EVENT_PAYLOADS: Record<LearningEventType, z.ZodType<unknown>> = {
   'learning.experiment.started': ExperimentStartedPayloadSchema,
   'learning.experiment.completed': ExperimentCompletedPayloadSchema,
   'learning.experiment.failed': ExperimentFailedPayloadSchema,
+  'learning.proposal.activated': ProposalActivatedPayloadSchema,
+  'learning.proposal.activation-reverted': ActivationRevertedPayloadSchema,
 }
 
 export class UnknownLearningEventTypeError extends Error {
@@ -232,5 +251,27 @@ export function learningExperimentFailedEvent(
     eventType: 'learning.experiment.failed',
     actor: options.actor ?? LOOP_ACTOR,
     payload: ExperimentFailedPayloadSchema.parse(payload),
+  })
+}
+
+export function learningProposalActivatedEvent(
+  payload: z.infer<typeof ProposalActivatedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.proposal.activated',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: ProposalActivatedPayloadSchema.parse(payload),
+  })
+}
+
+export function learningActivationRevertedEvent(
+  payload: z.infer<typeof ActivationRevertedPayloadSchema>,
+  options: LearningEventBuildOptions = {},
+): NewChronicleEvent {
+  return newChronicleEvent({
+    eventType: 'learning.proposal.activation-reverted',
+    actor: options.actor ?? LOOP_ACTOR,
+    payload: ActivationRevertedPayloadSchema.parse(payload),
   })
 }

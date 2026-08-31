@@ -239,6 +239,8 @@ export class ChronicleProposalStore {
       case 'learning.experiment.started':
       case 'learning.experiment.completed':
       case 'learning.experiment.failed':
+      case 'learning.proposal.activated':
+      case 'learning.proposal.activation-reverted':
         return
       default:
         throw new UnknownLearningEventTypeError(event.eventType)
