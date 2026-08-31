@@ -271,7 +271,7 @@ plugins/
       projections, trajectory replay, the time/condition scheduler, and the
       unified personal data directory; the MCP memory transport variant,
       checkpoint fork, and daemon form move to the backlog
-- [ ] Phase 5: background learning and governed improvement
+- [ ] Phase 5 (in progress): background learning and governed improvement — the four-stage slow loop and ImprovementProposal governance (/learning routes + background cadence) have landed; ExperimentWorld, autonomy-level activation, and anti-fake-improvement evaluation remain
 - [ ] Phase 6: experience convergence and v1 release
 
 ## License

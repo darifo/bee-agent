@@ -32,6 +32,8 @@ import type {
   ConfigSource,
 } from '@bee-agent/runtime'
 import { AgentScheduler } from '@bee-agent/runtime'
+import { ChronicleProposalStore, LearningLoop } from '@bee-agent/learning'
+import type { LearningLoopBudget } from '@bee-agent/learning'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import { sendErrorResponse } from './errors.ts'
 import {
@@ -41,6 +43,8 @@ import {
 import { kanbanRoutes } from './routes/kanban.ts'
 import { memoryRoutes } from './routes/memory.ts'
 import { schedulerRoutes } from './routes/scheduler.ts'
+import { learningRoutes } from './routes/learning.ts'
+import type { BeeLearningRuntime } from './routes/learning.ts'
 import { trajectoryRoutes } from './routes/trajectory.ts'
 import { threadRoutes } from './routes/threads.ts'
 import { structureRoutes } from './routes/structure.ts'
@@ -159,6 +163,18 @@ export interface BeeServerOptions {
    */
   readonly scheduler?:
     boolean | { readonly tickIntervalMs?: number | undefined } | undefined
+  /**
+   * Background learning (Phase 5): `true` enables the slow loop with the
+   * default hourly cadence; an object tunes the interval (0 disables the
+   * timer, manual runs stay available) and the loop budget.
+   */
+  readonly learning?:
+    | boolean
+    | {
+        readonly intervalMs?: number | undefined
+        readonly budget?: Partial<LearningLoopBudget> | undefined
+      }
+    | undefined
   readonly restoreActiveStructure?: boolean | undefined
   readonly logger?: boolean | undefined
   /** CORS origin policy; defaults to loopback-only (never reflects any). */
@@ -183,6 +199,7 @@ export interface BeeServer {
   readonly world: WorldModelStore | undefined
   readonly worldProjection: WorldProjectionService | undefined
   readonly scheduler: AgentScheduler | undefined
+  readonly learning: BeeLearningRuntime | undefined
   reconcileStructure(structure: EffectiveStructure): Promise<ReconcileResult>
 }
 
@@ -433,6 +450,38 @@ export async function buildBeeServer(
     }
   }
 
+  // Background learning (Phase 5): the slow loop reads durable trajectories
+  // and writes ImprovementProposals — never behavior — on its own cadence.
+  // `true` enables it with the default hourly interval; manual
+  // `POST /learning/run` is always available when enabled.
+  let learning: BeeLearningRuntime | undefined
+  let learningTimer: ReturnType<typeof setInterval> | undefined
+  if (options.learning !== undefined && options.learning !== false) {
+    const proposals = new ChronicleProposalStore(store)
+    await proposals.rebuild()
+    const loopRunner = new LearningLoop({
+      store,
+      proposals,
+      ...(options.learning === true
+        ? {}
+        : {
+            ...(options.learning.budget === undefined
+              ? {}
+              : { budget: options.learning.budget }),
+          }),
+    })
+    learning = { proposals, loop: loopRunner }
+    const intervalMs =
+      options.learning === true
+        ? 3_600_000
+        : (options.learning.intervalMs ?? 3_600_000)
+    if (intervalMs > 0) {
+      learningTimer = setInterval(() => {
+        void loopRunner.run().catch(() => undefined)
+      }, intervalMs)
+    }
+  }
+
   const corsOrigin = options.corsOrigin ?? loopbackOrigins
 
   const app = Fastify({ logger: options.logger ?? true })
@@ -446,6 +495,7 @@ export async function buildBeeServer(
     memory: options.memory,
     world,
     scheduler,
+    learning,
   })
 
   if (options.sessionToken !== undefined) {
@@ -480,9 +530,13 @@ export async function buildBeeServer(
   if (scheduler !== undefined) {
     await app.register(schedulerRoutes, { scheduler })
   }
+  if (learning !== undefined) {
+    await app.register(learningRoutes, { learning })
+  }
   await app.register(trajectoryRoutes)
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    if (learningTimer !== undefined) clearInterval(learningTimer)
     schedulerUnsubscribe?.()
     scheduler?.stop()
     worldProjection?.stop()
@@ -501,6 +555,7 @@ export async function buildBeeServer(
     world,
     worldProjection,
     scheduler,
+    learning,
     reconcileStructure: (structure) => runtime.reconcile(structure),
   }
 }

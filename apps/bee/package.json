@@ -19,9 +19,10 @@
     "start": "node --env-file-if-exists=.env dist/main.js"
   },
   "dependencies": {
-    "@bee-agent/kernel": "workspace:*",
     "@bee-agent/kanban": "workspace:*",
+    "@bee-agent/kernel": "workspace:*",
     "@bee-agent/knowledge": "workspace:*",
+    "@bee-agent/learning": "workspace:*",
     "@bee-agent/memory-bee": "workspace:*",
     "@bee-agent/memory-remote": "workspace:*",
     "@bee-agent/model-providers": "workspace:*",

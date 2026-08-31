@@ -16,6 +16,7 @@ import {
 } from '@bee-agent/storage-sqlite'
 import { OpenAIChatRuntime } from '@bee-agent/model-providers'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
+import { registerLearningChronicleEvents } from '@bee-agent/learning'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
 import { CommandToolAdapter } from '@bee-agent/tool-command'
 import {
@@ -133,6 +134,7 @@ registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
 registerRuntimeChronicleEvents(registry)
 registerKanbanChronicleEvents(registry)
+registerLearningChronicleEvents(registry)
 registerMemoryChronicleEvents(registry)
 registerWorldChronicleEvents(registry)
 
@@ -191,6 +193,7 @@ const server = await buildBeeServer({
     new ExecutionResourceProjector(),
   ],
   scheduler: true,
+  learning: true,
   ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
     ...[commandTool, pythonTool].filter(

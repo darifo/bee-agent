@@ -2,7 +2,7 @@
 
 > Snapshot: 2026-08-29
 >
-> Branch: `main` (feature/v1.4.0 merged; Phase 4 complete)
+> Branch: `develop` (Phase 4 complete; Phase 5 in progress)
 >
 > Migration: clean break from `v0.11.0-legacy`
 
@@ -254,6 +254,34 @@ memory-remote` provides the `MemoryBridgeTransport` seam (plus an in-process
   `BEE_AGENT_DATA_DIR` or the platform convention (macOS Application
   Support / XDG data home) instead of the working directory; an explicit
   `BEE_AGENT_STORAGE_SQLITE_FILENAME` still wins.
+
+## Phase 5 progress (slow loop foundation)
+
+Phase 5 has started on `develop`. Landed so far:
+
+- ImprovementProposal domain in `@bee-agent/learning` (WF5-B): 11 change
+  types, the draft→testing→review→trial→promoted/rejected/rolled-back
+  lifecycle with optimistic concurrency and illegal-transition rejection,
+  and L0–L3 autonomy levels where the loop itself may never exceed L2
+  (architecture §11.4). Proposals persist on a serialized `learning`
+  Chronicle stream behind a rebuildable projection.
+- The slow loop (WF5-A core): one budgeted background pass — Selection →
+  Derivation → Consolidation → Pattern discovery over recent tool-using
+  trajectories. The baselines are deliberately conservative and
+  deterministic: high-frequency tool usage becomes skill candidates,
+  repeated tool failures become guardrail observations, near-cap turn
+  lengths become planning notes. Open targets dedupe, per-run proposal
+  caps apply, and every run appends a durable `learning.loop.run` report.
+- Host wiring: `POST /learning/run`, `GET /learning/budget`, proposal
+  listing/detail, and user-driven lifecycle transitions (409 on illegal
+  jumps or stale versions); optional background cadence (default hourly,
+  `learning: { intervalMs }`). The loop never changes behavior directly —
+  its only output is governed proposals (ADR 0025/0026 semantics).
+
+Still pending in Phase 5: ExperimentWorld with disposable worktrees and
+frozen datasets (WF5-C), autonomy-level activation plumbing (WF5-D beyond
+proposal gating), anti-fake-improvement evaluation — holdout, baselines,
+time-out validation (WF5-E), and the acceptance ADRs 0025/0026.
 
 ## Phase 4 completion
 

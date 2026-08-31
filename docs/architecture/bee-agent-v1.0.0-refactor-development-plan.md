@@ -13,6 +13,8 @@
 
 > 2026-08-26 Phase 3 完成：ADR 0023/0033/0034、权限交集快照、ExecutionWorld、Seatbelt/bwrap CI、Keychain/Secret Service、Command/Python/MCP、worktree、bounded delegation 与 RemoteAgent v2 已落地；Phase 4 可按 §5.5 启动。
 
+> 2026-08-31 Phase 5 启动（分支 `develop`）：WF5-A 慢循环核心与 WF5-B ImprovementProposal 模型已完成——`@bee-agent/learning` 包（提案域/生命周期/autonomy 分级/Chronicle 投影/预算化四阶段循环）+ Host `/learning` 治理路由与后台节拍；WF5-C/D/E 待做。
+
 > 2026-08-28 Phase 4 完成并合入 `main`（`Merge feature/v1.4.0 (Phase 4 complete)`）：新增单实例模块组合验收测试（kernel 图 × 执行 × 记忆召回/派生/治理 × 世界投影 × 时间/条件调度 × 轨迹回放 × 结构 lineage × 投影精确重建）与真实 Host 冒烟（真实模型：偏好派生 → 召回注入经 model-request replay 证实 → 世界投影 → 调度触发器实机 fire）；HTTP API 参考见 `docs/api.md`。
 
 > 2026-08-27 Phase 4 启动（分支 `feature/v1.4.0`）：WF4-A MemoryProvider 契约与契约套件、WF4-B 核心（内嵌 memory-bee 提供者 + retrieve hook 召回 + 近线派生 worker + 记忆治理路由 + Goal/Plan hook 接线 + `BEE_AGENT_STRUCTURE_FILE` 热重载）、WF4-C（memory-remote 断路器/显式降级/health 事件 + HTTP transport 与线契约）、§7.2 P4 CI 门禁（矛盾/时间有效性/outage 降级/fake clock 跨天召回）、WF4-D（WorldModel 版本化投影 + StructureGraph lineage + 环境 projector + Host 实时投影 + `GET /world`）、WF4-E（Trajectory 因果视图 + 模型上下文精确重放路由）与 WF4-F（AgentScheduler 持久化时间/条件触发 + catch-up + `/scheduler` 路由）已完成；统一个人数据目录（`BEE_AGENT_DATA_DIR`/平台约定）已落地。
@@ -277,8 +279,8 @@ packages/client   → thread（仅协议类型）
 
 ### 5.6 Phase 5：后台学习（工作流级）
 
-- **WF5-A 慢循环核心**：Selection/Derivation/Consolidation/Pattern discovery 四阶段（方案 §11.2），独立预算与后台队列，不阻塞 Turn。
-- **WF5-B ImprovementProposal**：类型全集 + 生命周期状态机 + autonomyLevel。
+- **WF5-A 慢循环核心**（done 2026-08-31）：`packages/learning` 的 `LearningLoop` 以单次预算化后台 pass 实现 Selection→Derivation→Consolidation→Pattern discovery——选取近期含工具调用的 Turn（含失败 Turn）、确定性派生使用/失败/步数事实、按阈值产出候选、对 open target 去重并施加每次运行提案上限；每次运行追加持久 `learning.loop.run` 审计事实；基线刻意保守确定性（高频工具→skill 候选、重复失败→guardrail 观察、近步数上限→planning 笔记），更丰富推断留注入位。
+- **WF5-B ImprovementProposal**（done 2026-08-31）：11 类变更目标、draft→testing→review→trial→promoted/rejected/rolled-back 生命周期（乐观并发 + 非法迁移拒绝）、L0–L3 autonomyLevel（循环自身永不超过 L2）、provenance 引用真实轨迹；`learning` Chronicle 流 + 可重建投影 + `/learning` 治理路由（运行/列表/详情/迁移，非法迁移与过期版本 409），Host 默认启用（小时级后台节拍，可调/可关）。
 - **WF5-C ExperimentWorld**：disposable sandbox/worktree、冻结数据集、模拟 secret、只读轨迹副本；输出内容寻址 ChangeSet + 指标 + 回滚包。
 - **WF5-D 自治分级落地**：L0/L1 默认启用、L2 一键批准、L3 仅 worktree ChangeSet；不可自升级别、不可改根信任区。
 - **WF5-E 防伪改进**：holdout、guardrail、基线对比、来源权重、时间外验证；退化检测与自动回滚。

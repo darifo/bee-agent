@@ -251,7 +251,7 @@ plugins/
       治理路由、远程降级与 HTTP transport、世界模型与 StructureGraph
       投影、Trajectory 回放、时间/条件持久化调度器及统一个人数据目录；
       MCP 记忆 transport、checkpoint fork 与守护形态转入 backlog
-- [ ] Phase 5：后台学习与受治理改进
+- [ ] Phase 5（进行中）：后台学习与受治理改进——慢循环四阶段与 ImprovementProposal 治理（/learning 路由 + 后台节拍）已落地；ExperimentWorld、自治分级激活与防伪评测待做
 - [ ] Phase 6：体验收敛与 v1 发布
 
 ## 许可证
