@@ -325,6 +325,14 @@ Phase 5 has started on `develop`. Landed so far:
   learning-governance method families; the CLI adds `bee doctor`,
   `bee memory list|forget|consolidate`, and the full `bee learning`
   lifecycle — the Phase 5 governance arc is operable without curl.
+- User and plugin documentation (WF6-D): `docs/user-guide.md` (ten-minute
+  start, everyday tasks, enabling execution tools, memory and learning
+  governance, troubleshooting, v0 migration, a one-page security boundary)
+  and `docs/plugin-development.md` (copyable plugin template, the five hard
+  rules, replacement tiers, the structure pipeline, Chronicle persistence,
+  the no-direct-execution rule, an acceptance checklist, and a
+  complexity-ordered list of reference implementations); linked from both
+  READMEs and the architecture index.
 - v0 import tool (WF6-C): `POST /import/v0` / `bee import <path>` reads a
   v0 SQLite event store read-only and converts each v0 task into one v1
   thread — messages, callId-correlated tool traffic with isError, approval

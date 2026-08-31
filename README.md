@@ -55,7 +55,9 @@ The implemented foundation is a local-first Personal Bee Host with:
 The authoritative design and implementation status live in
 [`docs/architecture`](./docs/architecture); architectural decisions live in
 [`docs/adr`](./docs/adr); the HTTP API reference lives in
-[`docs/api.md`](./docs/api.md).
+[`docs/api.md`](./docs/api.md). The user guide lives in
+[`docs/user-guide.md`](./docs/user-guide.md) and the plugin development
+guide in [`docs/plugin-development.md`](./docs/plugin-development.md).
 
 ## Architecture
 

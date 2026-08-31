@@ -1,6 +1,8 @@
 # Architecture documents
 
-This directory separates the target architecture, executable development plan,
+User-facing docs live one level up: [`../user-guide.md`](../user-guide.md)
+(usage) and [`../plugin-development.md`](../plugin-development.md)
+(plugins). This directory separates the target architecture, executable development plan,
 security model, and completed kernel research. The HTTP surface of the running
 Host is documented in [`../api.md`](../api.md). For current implementation
 status, read the documents in this order:

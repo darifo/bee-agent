@@ -291,7 +291,7 @@ packages/client   → thread（仅协议类型）
 - **WF6-A 首启与诊断**（doctor done 2026-08-31）：`GET /diagnostics` 一次调用汇总全部子系统（总体状态/结构 doctor/记忆健康与计数/世界/调度/学习提案分布与预算/线程数），provider 故障降级不失败；client SDK 补 diagnostics + memory/learning 治理方法族；CLI 增加 `bee doctor`、`bee memory list|forget|consolidate` 与完整 `bee learning` 生命周期命令——Phase 5 治理弧线无需 curl 即可操作。首次启动向导与权限说明待做。
 - **WF6-B 管理界面**（记忆+学习 done 2026-08-31）：Web 控制台新增 Memory 面板（声明列表/状态徽章/一键遗忘/合并）与 Learning 面板（运行慢循环/触发隔离实验/review→trial→promote→rollback 全生命周期/按需漂移检查），与 Chat/Board 并列——治理弧线在浏览器可用。Skill 管理、Timeline、后台资源控制待做。
 - **WF6-C v0 导入**：P0-7 设计的 export/import 工具实现（v0 SQLite/PG → v1 Chronicle 显式导入）。
-- **WF6-D 文档**：用户手册、插件开发文档、示例 bundle；README/README-ZH 全面重写。
+- **WF6-D 文档**（done 2026-08-31）：用户手册 `docs/user-guide.md`（十分钟上手/日常任务/执行能力开启/记忆与学习治理/排障/v0 迁移/安全边界一页版）与插件开发指南 `docs/plugin-development.md`（可复制模板/五条硬规则/tier 分级/结构管线/Chronicle 持久化/执行无直路/验收清单/参考实现索引）；双 README 与架构索引已链接。示例 bundle 待做。
 - **WF6-E 发布**：方案 §20 验收全项通过；changeset 消费与 1.0.0 版本发布；当前实施分支经最终审计后合入 `main`。
 - **退出条件**（方案 §19）：新用户无需部署数据库或理解内部架构即可完成真实任务。
 

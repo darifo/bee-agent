@@ -44,6 +44,8 @@ Bee Agent v1 正在 `main` 分支开发。它与冻结在
 
 现行设计和开发状态见 [`docs/architecture`](./docs/architecture)，架构决策见
 [`docs/adr`](./docs/adr)，HTTP API 参考见 [`docs/api.md`](./docs/api.md)。
+用户手册见 [`docs/user-guide.md`](./docs/user-guide.md)，插件开发指南见
+[`docs/plugin-development.md`](./docs/plugin-development.md)。
 
 ## 架构
 
