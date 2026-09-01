@@ -119,7 +119,7 @@ describe('FetchWebTransport', () => {
       payload: { url: 'https://example.com/news', maxBytes: 4096 },
       secrets: new Map(),
     })
-    expect(result.isError).toBeUndefined()
+    expect(result.isError).toBe(false)
     // The source link leads the content so the model can always cite it.
     expect(
       result.content.startsWith('原文链接: https://example.com/news'),
@@ -219,7 +219,7 @@ describe('FetchWebTransport', () => {
       },
       secrets: new Map(),
     })
-    expect(page.isError).toBeUndefined()
+    expect(page.isError).toBe(false)
   })
 
   it('sends the Tavily key only in the transport, never in the payload', async () => {
@@ -266,6 +266,297 @@ describe('FetchWebTransport', () => {
     })
     expect(result.isError).toBe(true)
     expect(result.content).toContain('network down')
+  })
+})
+
+describe('FetchWebTransport optimizations', () => {
+  it('decodes GBK pages instead of mojibake', async () => {
+    // "中文" encoded in GBK: D6D0 CEC4.
+    const gbkBytes = new Uint8Array([0xd6, 0xd0, 0xce, 0xc4])
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(gbkBytes, {
+          headers: { 'content-type': 'text/html; charset=GBK' },
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://news.example.cn',
+      payload: { url: 'https://news.example.cn/hello' },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('中文')
+  })
+
+  it('parses RSS feeds into a structured item list with links', async () => {
+    const rss = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel><title>Guardian World</title>
+<item><title>Nepal floods</title><link>https://www.theguardian.com/world/a1</link><pubDate>Tue, 01 Sep 2026 08:00:00 GMT</pubDate><description>Death toll rises.</description></item>
+<item><title>UN reparations</title><link>https://www.theguardian.com/world/a2</link><description><![CDATA[CERD <b>guidance</b> issued.]]></description></item>
+</channel></rss>`
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(rss, {
+          headers: { 'content-type': 'application/rss+xml; charset=utf-8' },
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://www.theguardian.com',
+      payload: { url: 'https://www.theguardian.com/world/rss' },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('[RSS/Atom 订阅源]')
+    expect(result.content).toContain('标题: Guardian World')
+    expect(result.content).toContain(
+      '1. Nepal floods（Tue, 01 Sep 2026 08:00:00 GMT）',
+    )
+    expect(result.content).toContain(
+      '原文链接: https://www.theguardian.com/world/a1',
+    )
+    expect(result.content).toContain('摘要: Death toll rises.')
+    // CDATA + inline tags are stripped in summaries.
+    expect(result.content).toContain('摘要: CERD guidance issued.')
+    expect((result.output as { items: number }).items).toBe(2)
+  })
+
+  it('extracts main content and drops navigation chrome', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          '<html><body>' +
+            '<nav><a href="/home">Home</a><a href="/sport">Sport</a></nav>' +
+            '<main><h1>Big Story</h1><p>The real content is here.</p></main>' +
+            '<footer>Copyright junk</footer>' +
+            '</body></html>',
+          { headers: { 'content-type': 'text/html' } },
+        ),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://example.com',
+      payload: { url: 'https://example.com/story' },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('Big Story')
+    expect(result.content).toContain('The real content is here.')
+    expect(result.content).not.toContain('Home')
+    expect(result.content).not.toContain('Copyright junk')
+  })
+
+  it('serves repeated fetches from the short-TTL cache', async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response('<main><p>Once</p></main>', {
+          headers: { 'content-type': 'text/html' },
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const first = await transport.request({
+      target: 'https://example.com',
+      payload: { url: 'https://example.com/cached' },
+      secrets: new Map(),
+    })
+    const second = await transport.request({
+      target: 'https://example.com',
+      payload: { url: 'https://example.com/cached' },
+      secrets: new Map(),
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(first.output).not.toHaveProperty('cached')
+    expect((second.output as { cached?: boolean }).cached).toBe(true)
+    expect(second.content).toContain('[缓存命中]')
+    expect(
+      second.content.endsWith(
+        first.content.split('\n\n').slice(2).join('\n\n') || '',
+      ),
+    ).toBe(true)
+  })
+
+  it('enforces its own timeout when the server hangs', async () => {
+    const fetchImpl = vi.fn(
+      (_input: unknown, init?: { signal?: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          )
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+      fetchTimeoutMs: 30,
+    })
+    const result = await transport.request({
+      target: 'https://slow.example.com',
+      payload: { url: 'https://slow.example.com/x' },
+      secrets: new Map(),
+    })
+    expect(result.isError).toBe(true)
+    expect(result.content).toContain('timed out after 30ms')
+  })
+
+  it('warns honestly when a page looks JavaScript-rendered', async () => {
+    const shell =
+      '<html><body><div id="root"></div>' +
+      '<script>/*' +
+      'x'.repeat(12_000) +
+      '*/</script></body></html>'
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(shell, { headers: { 'content-type': 'text/html' } }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://spa.example.com',
+      payload: { url: 'https://spa.example.com/' },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('JavaScript 渲染')
+    expect(result.content).toContain('RSS/Atom')
+  })
+
+  it('trims long text at a paragraph boundary with a marker', async () => {
+    const paragraphs = Array.from(
+      { length: 200 },
+      (_, i) => `<p>段落 ${i}，内容填充。</p>`,
+    ).join('')
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(`<main>${paragraphs}</main>`, {
+          headers: { 'content-type': 'text/html' },
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://example.com',
+      payload: { url: 'https://example.com/long', maxBytes: 800 },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('…[已按大小截断]')
+    expect(
+      (result.output as { contentTruncated: boolean }).contentTruncated,
+    ).toBe(true)
+  })
+})
+
+describe('FetchWebTransport hardening', () => {
+  it('closes a script block cut open by the download cap', async () => {
+    // An unterminated <script> larger than the download cap: the cut lands
+    // inside the block, so the virtual closer must kick in.
+    const shell =
+      '<html><body><main><p>真正的正文在这里。</p></main><script>var env = "' +
+      'x'.repeat(2_200_000) +
+      '"</script></body></html>'
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(shell, { headers: { 'content-type': 'text/html' } }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const result = await transport.request({
+      target: 'https://cnn.example.com',
+      payload: { url: 'https://cnn.example.com/' },
+      secrets: new Map(),
+    })
+    expect(result.content).toContain('真正的正文在这里。')
+    expect(result.content).not.toMatch(/x{50}/)
+    expect(
+      (result.output as { downloadTruncated: boolean }).downloadTruncated,
+    ).toBe(true)
+  })
+
+  it('hits the cache across different maxBytes requests', async () => {
+    const paragraphs = Array.from(
+      { length: 120 },
+      (_, i) => `<p>第 ${i} 段。</p>`,
+    ).join('')
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(`<main>${paragraphs}</main>`, {
+          headers: { 'content-type': 'text/html' },
+        }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+    })
+    const first = await transport.request({
+      target: 'https://example.com',
+      payload: { url: 'https://example.com/doc', maxBytes: 400 },
+      secrets: new Map(),
+    })
+    expect(first.content).toContain('…[已按大小截断]')
+    const second = await transport.request({
+      target: 'https://example.com',
+      // no maxBytes this time — different trim, same cache entry
+      payload: { url: 'https://example.com/doc' },
+      secrets: new Map(),
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect((second.output as { cached?: boolean }).cached).toBe(true)
+    expect(
+      (second.output as { contentTruncated?: boolean }).contentTruncated,
+    ).toBe(false)
+  })
+
+  it('validates every redirect hop against the allowlist', async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === 'https://www.news.example/front') {
+        return new Response('', {
+          status: 302,
+          headers: { location: 'https://edition.news.example/front' },
+        })
+      }
+      if (url === 'https://edition.news.example/front') {
+        return new Response('<main><p>OK</p></main>', {
+          headers: { 'content-type': 'text/html' },
+        })
+      }
+      if (url === 'https://www.news.example/trap') {
+        return new Response('', {
+          status: 301,
+          headers: { location: 'https://tracker.example/leak' },
+        })
+      }
+      throw new Error(`unexpected ${url}`)
+    })
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+      allowedOrigins: [
+        'https://www.news.example',
+        'https://edition.news.example',
+      ],
+    })
+    const ok = await transport.request({
+      target: 'https://www.news.example',
+      payload: { url: 'https://www.news.example/front' },
+      secrets: new Map(),
+    })
+    expect(ok.isError).toBe(false)
+    expect(ok.content).toContain('OK')
+    expect((ok.output as { url: string }).url).toBe(
+      'https://edition.news.example/front',
+    )
+    const leak = await transport.request({
+      target: 'https://www.news.example',
+      payload: { url: 'https://www.news.example/trap' },
+      secrets: new Map(),
+    })
+    expect(leak.isError).toBe(true)
+    expect(leak.content).toContain('outside the allowlisted origins')
   })
 })
 

@@ -24,7 +24,7 @@ export const WEB_SEARCH_TOOL_ID = 'web_search'
 
 const DEFAULT_TIMEOUT_MS = 20_000
 const DEFAULT_MAX_BYTES = 65_536
-const MAX_DOWNLOAD_BYTES = 262_144
+const MAX_DOWNLOAD_BYTES = 2_097_152
 
 // ---------------------------------------------------------------------------
 // web_fetch
@@ -74,8 +74,9 @@ export class WebFetchToolAdapter implements ToolAdapter {
     this.spec = {
       id: WEB_FETCH_TOOL_ID,
       description:
-        `Fetch one web page and return its readable text (size-capped). ` +
-        `The text keeps article links as Markdown [label](url) and leads with the page-level source link — when you summarize items from the page, cite each item with its own 原文链接 from those Markdown links. ` +
+        `Fetch one web page and return its readable text (size-capped, trimmed at paragraph boundaries). ` +
+        `Pages are readability-extracted (navigation removed, main/article content kept) and charset-aware (GBK/Big5 etc.); article links stay as Markdown [label](url) and the result leads with 原文链接/标题/摘要 — cite each item with its own 原文链接. ` +
+        `RSS/Atom URLs return a parsed item list (title, link, date, summary) — prefer feeds for large or JS-rendered pages; repeated fetches within ~10 minutes are served from cache. ` +
         `Allowed origins (research channels configured by the host): ${[...this.#origins].join(', ')}. Any other origin fails closed.`,
       inputSchema: {
         type: 'object',
@@ -246,6 +247,17 @@ export interface FetchWebTransportOptions {
   /** Fetch implementation; defaults to the global fetch. */
   readonly fetch?: typeof fetch | undefined
   readonly maxDownloadBytes?: number | undefined
+  /** Hard per-request timeout; the loop's abort signal still wins. */
+  readonly fetchTimeoutMs?: number | undefined
+  /** Short-lived page cache; 0 disables. Defaults to 10 minutes. */
+  readonly cacheTtlMs?: number | undefined
+  readonly cacheMaxEntries?: number | undefined
+  /**
+   * When provided, redirects are followed hop by hop and every hop's origin
+   * must be on this list (ADR 0023 exact-origin discipline covers the whole
+   * chain, not just the first request). Absent → redirects follow freely.
+   */
+  readonly allowedOrigins?: readonly string[] | undefined
 }
 
 export interface WebSearchResult {
@@ -300,18 +312,306 @@ export function htmlToText(html: string, baseUrl?: string | undefined): string {
       },
     )
     .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&amp;/gi, '&')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/&#x27;/gi, "'")
+    .replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z][a-zA-Z0-9]*);/g, decodeEntity)
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n+/g, '\n')
     .split('\n')
     .map((line) => line.trim())
     .join('\n')
+    .trim()
+}
+
+/** Common named HTML entities beyond the always-handled amp/lt/gt set. */
+const NAMED_ENTITIES: Readonly<Record<string, string>> = {
+  nbsp: ' ',
+  amp: '&',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  apos: "'",
+  hellip: '…',
+  mdash: '—',
+  ndash: '–',
+  lsquo: '\u2018',
+  rsquo: '\u2019',
+  ldquo: '\u201C',
+  rdquo: '\u201D',
+  bull: '•',
+  middot: '·',
+  copy: '©',
+  reg: '®',
+  trade: '™',
+  deg: '°',
+  plusmn: '±',
+  times: '×',
+  divide: '÷',
+  laquo: '«',
+  raquo: '»',
+  minus: '−',
+  sup2: '²',
+  sup3: '³',
+  frac12: '½',
+  euro: '€',
+  pound: '£',
+  yen: '¥',
+  sect: '§',
+  para: '¶',
+  dagger: '†',
+}
+
+function decodeEntity(_match: string, body: string): string {
+  if (body.startsWith('#x') || body.startsWith('#X')) {
+    const code = Number.parseInt(body.slice(2), 16)
+    return Number.isFinite(code) ? String.fromCodePoint(code) : body
+  }
+  if (body.startsWith('#')) {
+    const code = Number.parseInt(body.slice(1), 10)
+    return Number.isFinite(code) ? String.fromCodePoint(code) : body
+  }
+  const named = NAMED_ENTITIES[body.toLowerCase()]
+  return named ?? body
+}
+
+/**
+ * Readability-style main-content selection (dependency-free): chrome blocks
+ * (nav/header/footer/aside/form) go first, then the largest <main>/<article>
+ * region wins when one exists — homepages keep their headlines and drop the
+ * navigation noise.
+ */
+export function extractMainHtml(html: string): string {
+  const stripped = html.replace(
+    /<(nav|header|footer|aside|form|svg)\b[^>]*>[\s\S]*?<\/\1>/gi,
+    ' ',
+  )
+  const candidates: string[] = []
+  for (const match of stripped.matchAll(
+    /<(main|article)\b[^>]*>([\s\S]*?)<\/\1>/gi,
+  )) {
+    candidates.push(match[2] ?? '')
+  }
+  if (candidates.length === 0) return stripped
+  // The largest region by tag-stripped length is the content, not a widget.
+  const textLength = (value: string): number =>
+    value.replace(/<[^>]+>/g, '').length
+  return candidates.reduce((best, next) =>
+    textLength(next) > textLength(best) ? next : best,
+  )
+}
+
+/** Reads at most `maxBytes` from the response stream; flags truncation. */
+async function readBounded(
+  response: Response,
+  maxBytes: number,
+): Promise<{ bytes: Uint8Array; truncated: boolean }> {
+  const reader = response.body?.getReader()
+  if (reader === undefined) {
+    const buffer = await response.arrayBuffer()
+    const bytes = new Uint8Array(buffer).subarray(0, maxBytes)
+    return {
+      bytes: new Uint8Array(bytes),
+      truncated: buffer.byteLength > maxBytes,
+    }
+  }
+  const chunks: Uint8Array[] = []
+  let total = 0
+  let truncated = false
+  let settled = false
+  while (total < maxBytes) {
+    const read = await reader.read()
+    if (read.done === true || read.value === undefined) {
+      settled = true
+      break
+    }
+    const room = maxBytes - total
+    if (read.value.length > room) {
+      chunks.push(read.value.subarray(0, room))
+      total += room
+      truncated = true
+      settled = true
+      await reader.cancel().catch(() => undefined)
+      break
+    }
+    chunks.push(read.value)
+    total += read.value.length
+  }
+  // A chunk boundary can fill the budget exactly; the cap only counts as
+  // non-truncating when the stream itself ended within it. Re-reading a
+  // cancelled stream returns done, so this probe must never run after the
+  // overflow branch above settled the answer.
+  if (!settled && total >= maxBytes) {
+    const probe = await reader.read()
+    truncated = probe.done !== true
+    await reader.cancel().catch(() => undefined)
+  }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.length
+  }
+  return { bytes, truncated }
+}
+
+const SUPPORTED_CHARSETS = new Set([
+  'utf-8',
+  'utf8',
+  'gbk',
+  'gb2312',
+  'gb18030',
+  'big5',
+  'shift_jis',
+  'shift-jis',
+  'euc-jp',
+  'euc-kr',
+  'iso-8859-1',
+  'windows-1252',
+  'us-ascii',
+])
+
+/** Decodes bytes with the declared (or sniffed) charset; UTF-8 on failure. */
+function decodeBytes(bytes: Uint8Array, charset: string): string {
+  const label = charset.trim().toLowerCase().replaceAll('"', '')
+  if (SUPPORTED_CHARSETS.has(label)) {
+    try {
+      return new TextDecoder(label, { fatal: false }).decode(bytes)
+    } catch {
+      // fall through to UTF-8
+    }
+  }
+  return new TextDecoder('utf-8', { fatal: false }).decode(bytes)
+}
+
+function charsetFromContentType(contentType: string): string | undefined {
+  const match = /charset=([^;]+)/i.exec(contentType)
+  return match?.[1]
+}
+
+function charsetFromHtmlHead(bytes: Uint8Array): string | undefined {
+  const head = new TextDecoder('utf-8', { fatal: false })
+    .decode(bytes.subarray(0, 2048))
+    .toLowerCase()
+  const meta =
+    /<meta[^>]+charset=["']?([a-z0-9_-]+)/.exec(head) ??
+    /<\?xml[^>]+encoding=["']?([a-z0-9_-]+)/.exec(head)
+  return meta?.[1]
+}
+
+/** Trims at a paragraph boundary instead of mid-sentence when over budget. */
+function trimAtBoundary(
+  text: string,
+  limit: number,
+): {
+  text: string
+  truncated: boolean
+} {
+  if (text.length <= limit) return { text, truncated: false }
+  const window = text.slice(0, limit)
+  const cut = Math.max(window.lastIndexOf('\n\n'), window.lastIndexOf('\n'))
+  const at = cut > limit * 0.5 ? cut : limit
+  return { text: `${text.slice(0, at)}…[已按大小截断]`, truncated: true }
+}
+
+interface FeedItem {
+  readonly title: string
+  readonly link: string
+  readonly date: string
+  readonly summary: string
+}
+
+function stripCdata(value: string): string {
+  return value
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_m, code: string) =>
+      String.fromCodePoint(Number(code)),
+    )
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function firstTag(block: string, tag: string): string {
+  const match = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(
+    block,
+  )
+  return match === null ? '' : stripCdata(match[1] ?? '')
+}
+
+/** Dependency-free RSS 2.0 / Atom parser for feed-shaped responses. */
+export function parseFeed(xml: string): {
+  title: string
+  items: readonly FeedItem[]
+} {
+  const channelTitle =
+    firstTag(
+      xml.slice(0, xml.search(/<(item|entry)\b/i) || xml.length),
+      'title',
+    ) || firstTag(xml, 'title')
+  const items: FeedItem[] = []
+  for (const match of xml.matchAll(
+    /<item\b[^>]*>([\s\S]*?)<\/item>|<entry\b[^>]*>([\s\S]*?)<\/entry>/gi,
+  )) {
+    const block = match[1] ?? match[2] ?? ''
+    let link = firstTag(block, 'link')
+    if (link === '') {
+      const href = /<link[^>]*href=["']([^"']+)["']/i.exec(block)
+      link = href?.[1] ?? ''
+    }
+    const title = firstTag(block, 'title')
+    if (link === '' && title === '') continue
+    const date =
+      firstTag(block, 'pubdate') ||
+      firstTag(block, 'published') ||
+      firstTag(block, 'updated') ||
+      firstTag(block, 'dc:date')
+    const summary = (
+      firstTag(block, 'description') ||
+      firstTag(block, 'summary') ||
+      firstTag(block, 'content') ||
+      firstTag(block, 'content:encoded')
+    )
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    items.push({
+      title,
+      link,
+      date,
+      summary: summary.slice(0, 300),
+    })
+    if (items.length === 50) break
+  }
+  return { title: channelTitle, items }
+}
+
+function isFeedResponse(contentType: string, decoded: string): boolean {
+  if (/\+xml|\/xml/i.test(contentType) && !/xhtml/i.test(contentType)) {
+    return true
+  }
+  const head = decoded.slice(0, 1000)
+  return /^\s*<\?xml[^>]*\?>\s*<(rss|feed)\b/i.test(head)
+}
+
+function extractMetaDescription(html: string): string {
+  const match =
+    /<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i.exec(
+      html,
+    ) ??
+    /<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["']/i.exec(
+      html,
+    )
+  return match === null ? '' : decodeEntitiesAttribute(match[1] ?? '')
+}
+
+function decodeEntitiesAttribute(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .trim()
 }
 
@@ -337,11 +637,74 @@ export class FetchWebTransport implements NetworkTransport {
   readonly #fetch: typeof fetch
   readonly #backend: WebSearchBackend | undefined
   readonly #maxDownloadBytes: number
+  readonly #fetchTimeoutMs: number
+  readonly #cacheTtlMs: number
+  readonly #cacheMaxEntries: number
+  readonly #allowedOrigins: ReadonlySet<string> | undefined
+  readonly #cache = new Map<
+    string,
+    {
+      readonly at: number
+      readonly header: string
+      readonly bodyText: string
+      readonly output: Record<string, unknown>
+    }
+  >()
 
   constructor(options: FetchWebTransportOptions = {}) {
     this.#fetch = options.fetch ?? fetch.bind(globalThis)
     this.#backend = options.searchBackend
     this.#maxDownloadBytes = options.maxDownloadBytes ?? MAX_DOWNLOAD_BYTES
+    this.#fetchTimeoutMs = options.fetchTimeoutMs ?? 20_000
+    this.#cacheTtlMs = options.cacheTtlMs ?? 600_000
+    this.#cacheMaxEntries = options.cacheMaxEntries ?? 50
+    this.#allowedOrigins =
+      options.allowedOrigins === undefined
+        ? undefined
+        : new Set(options.allowedOrigins.map((origin) => originOf(origin)))
+  }
+
+  /**
+   * Follows redirects one hop at a time, validating each hop's origin
+   * against the allowlist. A redirect outside the reviewed origins fails
+   * closed instead of silently leaking the request to an unreviewed host.
+   */
+  async #fetchFollowing(
+    url: string,
+    init: RequestInit,
+  ): Promise<{ response: Response; finalUrl: string }> {
+    if (this.#allowedOrigins === undefined) {
+      const response = await this.#fetch(url, { ...init, redirect: 'follow' })
+      return { response, finalUrl: response.url || url }
+    }
+    let current = url
+    for (let hop = 0; hop < 8; hop += 1) {
+      const response = await this.#fetch(current, {
+        ...init,
+        redirect: 'manual',
+      })
+      const location = response.headers.get('location')
+      if (
+        location === null ||
+        (response.status >= 200 &&
+          response.status < 400 &&
+          response.status < 300)
+      ) {
+        return { response, finalUrl: response.url || current }
+      }
+      if (response.status < 300 || response.status >= 400) {
+        return { response, finalUrl: response.url || current }
+      }
+      const next = new URL(location, current).toString()
+      const origin = originOf(next)
+      if (!this.#allowedOrigins.has(origin)) {
+        throw new Error(
+          `redirect ${response.status} to '${origin}' is outside the allowlisted origins`,
+        )
+      }
+      current = next
+    }
+    throw new Error('too many redirects (limit 8)')
   }
 
   async request(input: {
@@ -395,53 +758,148 @@ export class FetchWebTransport implements NetworkTransport {
         `web_fetch URL origin '${origin}' does not match the authorized target '${target}'`,
       )
     }
+    const wanted =
+      typeof payload.maxBytes === 'number' && payload.maxBytes > 0
+        ? payload.maxBytes
+        : DEFAULT_MAX_BYTES
+    // The cache is keyed by URL alone: the stored text is re-trimmed per
+    // request, so a different maxBytes still hits.
+    const cached = this.#readCache(url)
+    if (cached !== undefined) {
+      const trimmed = trimAtBoundary(cached.bodyText, wanted)
+      return {
+        output: {
+          ...cached.output,
+          cached: true,
+          returnedBytes: trimmed.text.length,
+          contentTruncated: trimmed.truncated,
+        },
+        content:
+          `${cached.header}\n\n[缓存命中] ` +
+          `该页面在短时间内已抓取过，本次未重新下载。\n\n${trimmed.text}`,
+        isError: false,
+        verification: ['Served from the short-lived page cache'],
+      }
+    }
+    const timeoutSignal = AbortSignal.timeout(this.#fetchTimeoutMs)
+    const combined =
+      signal === undefined
+        ? timeoutSignal
+        : AbortSignal.any([signal, timeoutSignal])
     try {
-      const response = await this.#fetch(url, {
-        signal: signal ?? null,
+      const { response, finalUrl } = await this.#fetchFollowing(url, {
+        signal: combined,
         redirect: 'follow',
         headers: {
           accept:
-            'text/html,application/xhtml+xml,text/plain;q=0.9,application/json;q=0.8,*/*;q=0.5',
+            'text/html,application/xhtml+xml,application/rss+xml,application/atom+xml,text/plain;q=0.9,application/json;q=0.8,*/*;q=0.5',
           'user-agent': 'bee-agent/1.0 (personal agent; +local)',
         },
       })
       const contentType = response.headers.get('content-type') ?? ''
-      const raw = sliceToBytes(await response.text(), this.#maxDownloadBytes)
-      const wanted =
-        typeof payload.maxBytes === 'number' && payload.maxBytes > 0
-          ? payload.maxBytes
-          : DEFAULT_MAX_BYTES
-      const isHtml =
-        contentType.includes('html') || /^\s*<(!doctype|html)/i.test(raw)
-      const body = (isHtml ? htmlToText(raw, response.url || url) : raw).slice(
-        0,
-        wanted,
+      const { bytes, truncated } = await readBounded(
+        response,
+        this.#maxDownloadBytes,
       )
-      // Source attribution travels with the content itself: the model
-      // quotes what it read, so the original link (post-redirect final URL)
-      // and title lead every fetch result.
-      const finalUrl = response.url || url
-      const title = isHtml ? extractTitle(raw) : ''
-      const header = [
-        `原文链接: ${finalUrl}`,
-        ...(title === '' ? [] : [`标题: ${title}`]),
-      ].join('\n')
-      if (!response.ok) {
-        return {
-          output: { url, status: response.status, contentType },
-          content: `HTTP ${response.status} from ${finalUrl}\n\n${body}`,
-          isError: response.status >= 400,
-          verification: [],
-        }
-      }
-      return {
-        output: {
+      const charset =
+        charsetFromContentType(contentType) ?? charsetFromHtmlHead(bytes)
+      let decoded = decodeBytes(bytes, charset ?? 'utf-8')
+      // A download cut inside an open <script>/<style>/<title> block would
+      // leave the strip regexes unmatched and dump code into the text;
+      // close the tags virtually so extraction still works.
+      if (truncated) decoded += '</script></style></title>'
+
+      if (isFeedResponse(contentType, decoded)) {
+        const feed = parseFeed(decoded)
+        const shown = feed.items.slice(0, 30)
+        const content = [
+          `[RSS/Atom 订阅源] 原文链接: ${finalUrl}`,
+          ...(feed.title === '' ? [] : [`标题: ${feed.title}`]),
+          `共解析 ${feed.items.length} 条（显示前 ${shown.length} 条）`,
+          '',
+          ...shown.map(
+            (item, index) =>
+              `${index + 1}. ${item.title}` +
+              `${item.date === '' ? '' : `（${item.date}）`}\n` +
+              `   原文链接: ${item.link}` +
+              (item.summary === '' ? '' : `\n   摘要: ${item.summary}`),
+          ),
+        ].join('\n')
+        const output: Record<string, unknown> = {
           url: finalUrl,
           status: response.status,
           contentType,
-          returnedBytes: body.length,
-        },
-        content: `${header}\n\n${body}`,
+          kind: 'feed',
+          items: feed.items.length,
+          downloadTruncated: truncated,
+        }
+        if (response.ok) {
+          this.#writeCache(url, {
+            at: Date.now(),
+            header: content.split('\n').slice(0, 2).join('\n'),
+            bodyText: content,
+            output: { ...output, cached: undefined },
+          })
+        }
+        return {
+          output,
+          content: response.ok
+            ? content
+            : `HTTP ${response.status} from ${finalUrl}\n\n${content}`,
+          isError: !response.ok,
+          verification: [
+            `Parsed ${feed.items.length} feed items from ${finalUrl}`,
+          ],
+        }
+      }
+
+      const isHtml =
+        contentType.includes('html') || /^\s*<(!doctype|html)/i.test(decoded)
+      const rawText = isHtml
+        ? htmlToText(extractMainHtml(decoded), finalUrl)
+        : decoded
+      const trimmed = trimAtBoundary(rawText, wanted)
+      const body = trimmed.text
+      const title = isHtml ? extractTitle(decoded) : ''
+      const description = isHtml ? extractMetaDescription(decoded) : ''
+      // Source attribution travels with the content itself: the model
+      // quotes what it read, so the original link (post-redirect final URL),
+      // title, and meta description lead every fetch result.
+      const header = [
+        `原文链接: ${finalUrl}`,
+        ...(title === '' ? [] : [`标题: ${title}`]),
+        ...(description === '' || description === title
+          ? []
+          : [`摘要: ${description.slice(0, 200)}`]),
+      ].join('\n')
+      let content = `${header}\n\n${body}`
+      if (isHtml && body.length < 300 && bytes.length > 10_000) {
+        content +=
+          '\n\n⚠ 该页面可能依赖 JavaScript 渲染，静态抓取只获得了以上少量文本；可尝试该站点的 RSS/Atom 订阅源。'
+      }
+      const output: Record<string, unknown> = {
+        url: finalUrl,
+        status: response.status,
+        contentType,
+        kind: isHtml ? 'html' : 'text',
+        returnedBytes: body.length,
+        contentTruncated: trimmed.truncated,
+        downloadTruncated: truncated,
+      }
+      if (response.ok) {
+        this.#writeCache(url, {
+          at: Date.now(),
+          header,
+          bodyText: rawText,
+          output: { ...output, cached: undefined },
+        })
+      }
+      return {
+        output,
+        content: response.ok
+          ? content
+          : `HTTP ${response.status} from ${finalUrl}\n\n${content}`,
+        isError: !response.ok,
         verification: [
           `Fetched ${finalUrl} as ${contentType || 'unknown type'} with source link attached`,
         ],
@@ -450,9 +908,51 @@ export class FetchWebTransport implements NetworkTransport {
       if (signal?.aborted) {
         return errorResult(`web_fetch to ${url} was cancelled`)
       }
+      if (timeoutSignal.aborted) {
+        return errorResult(
+          `web_fetch to ${url} timed out after ${this.#fetchTimeoutMs}ms`,
+        )
+      }
       return errorResult(
         `web_fetch to ${url} failed: ${error instanceof Error ? error.message : String(error)}`,
       )
+    }
+  }
+
+  #readCache(url: string):
+    | {
+        readonly at: number
+        readonly header: string
+        readonly bodyText: string
+        readonly output: Record<string, unknown>
+      }
+    | undefined {
+    if (this.#cacheTtlMs <= 0) return undefined
+    const entry = this.#cache.get(url)
+    if (entry === undefined) return undefined
+    if (Date.now() - entry.at > this.#cacheTtlMs) {
+      this.#cache.delete(url)
+      return undefined
+    }
+    return entry
+  }
+
+  #writeCache(
+    url: string,
+    entry: {
+      readonly at: number
+      readonly header: string
+      readonly bodyText: string
+      readonly output: Record<string, unknown>
+    },
+  ): void {
+    if (this.#cacheTtlMs <= 0) return
+    this.#cache.delete(url)
+    this.#cache.set(url, entry)
+    while (this.#cache.size > this.#cacheMaxEntries) {
+      const oldest = this.#cache.keys().next().value
+      if (oldest === undefined) break
+      this.#cache.delete(oldest)
     }
   }
 
@@ -577,8 +1077,4 @@ export class FetchWebTransport implements NetworkTransport {
       }))
       .filter((result) => result.url !== '')
   }
-}
-
-function sliceToBytes(text: string, maxBytes: number): string {
-  return text.length <= maxBytes ? text : text.slice(0, maxBytes)
 }

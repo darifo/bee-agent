@@ -186,7 +186,14 @@ const commandSandbox = new PlatformCommandSandbox()
 // hand out fresh instances per action.
 const networkSandbox = new AllowlistedNetworkSandbox(
   webNetworkTargets,
-  new FetchWebTransport({ searchBackend }),
+  // The transport re-validates redirect hops against the same reviewed
+  // origin list, so a 301 cannot quietly leave the allowlisted set.
+  new FetchWebTransport({
+    searchBackend,
+    ...(webFetchOrigins.length === 0
+      ? {}
+      : { allowedOrigins: webFetchOrigins }),
+  }),
 )
 const sandboxProvider =
   webNetworkTargets.length === 0
