@@ -1375,40 +1375,53 @@ button.entry-head:hover {
   }
 }
 
-/* === 会话侧栏 + Markdown ================================================== */
+/* === 底部历史会话条 + Markdown ============================================ */
 
-.chat-layout {
-  display: grid;
-  grid-template-columns: 250px minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-  flex: 1;
-  min-height: 0;
-}
-
-.chat-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.thread-sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 14px 12px;
+.thread-history {
+  margin-top: 16px;
+  padding: 12px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  max-height: 100%;
-  overflow: hidden;
 }
 
-button.sidebar-new {
-  padding: 9px 12px;
-  font-size: 14px;
+.history-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.history-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.history-pager {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.history-pager button {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+
+.history-page-no {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+button.history-new {
+  padding: 6px 14px;
+  font-size: 13px;
   font-weight: 700;
   background: linear-gradient(
     135deg,
@@ -1416,7 +1429,7 @@ button.sidebar-new {
     var(--bee-primary-strong)
   );
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: 999px;
   color: #231d10;
   cursor: pointer;
   transition:
@@ -1424,40 +1437,33 @@ button.sidebar-new {
     box-shadow 0.15s ease;
 }
 
-button.sidebar-new:hover:not(:disabled) {
+button.history-new:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(230, 154, 13, 0.35);
 }
 
-button.sidebar-new:disabled {
+button.history-new:disabled {
   opacity: 0.55;
   cursor: default;
 }
 
-.sidebar-empty {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-faint);
-}
-
-.thread-list {
+.history-page {
   list-style: none;
-  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  overflow-y: auto;
 }
 
-button.thread-item {
+button.history-item {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 9px 10px;
-  background: none;
-  border: 1px solid transparent;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   text-align: left;
   cursor: pointer;
@@ -1466,17 +1472,17 @@ button.thread-item {
     border-color 0.15s ease;
 }
 
-button.thread-item:hover {
-  background: var(--surface-2);
+button.history-item:hover {
+  border-color: var(--border-strong);
 }
 
-button.thread-item.active {
+button.history-item.active {
   background: var(--bee-amber-soft);
   border-color: var(--bee-primary-strong);
 }
 
-.thread-item-title {
-  font-size: 13.5px;
+.history-item-title {
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   overflow: hidden;
@@ -1484,17 +1490,9 @@ button.thread-item.active {
   white-space: nowrap;
 }
 
-.thread-item-meta {
+.history-item-meta {
   font-size: 11.5px;
   color: var(--text-faint);
-}
-
-.thread-item-preview {
-  font-size: 12px;
-  color: var(--text-soft);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Assistant markdown: headings scaled down to chat rhythm, code in honey
@@ -1598,11 +1596,7 @@ button.thread-item.active {
 }
 
 @media (max-width: 860px) {
-  .chat-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .thread-sidebar {
-    max-height: 200px;
+  .history-pager {
+    margin-left: 0;
   }
 }
