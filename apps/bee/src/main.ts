@@ -44,6 +44,7 @@ import {
   AllowlistedNetworkSandbox,
   RoutingSandboxProvider,
 } from '@bee-agent/runtime'
+import { TimeService } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 import { resolveBeeDataDir } from './data-dir.ts'
 
@@ -243,6 +244,20 @@ if (memoryRemoteUrl === undefined || memoryRemoteUrl === '') {
 
 // Optional watched desired-state file; reload failures retain the active
 // generation and surface through GET /structure.
+// Accurate time: local clock + HTTP Date-header calibration, UTC+8 by
+// default. Injected into every model request and exposed as time_now.
+const timeSources = (process.env.BEE_AGENT_TIME_SOURCES ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value !== '')
+const time = new TimeService({
+  ...(process.env.BEE_AGENT_TIMEZONE?.trim() !== undefined &&
+  process.env.BEE_AGENT_TIMEZONE?.trim() !== ''
+    ? { timezone: process.env.BEE_AGENT_TIMEZONE!.trim() }
+    : {}),
+  ...(timeSources.length === 0 ? {} : { networkSources: timeSources }),
+})
+
 const structureFile = process.env.BEE_AGENT_STRUCTURE_FILE?.trim()
 const configSource =
   structureFile === undefined || structureFile === ''
@@ -254,6 +269,7 @@ const server = await buildBeeServer({
   kanban,
   llm,
   memory,
+  time,
   goalPlanStore: new MemoryGoalPlanStore(),
   worldProjectors: [
     new ThreadToolProjector(),

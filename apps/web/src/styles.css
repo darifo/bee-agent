@@ -1600,3 +1600,12 @@ button.history-item.active {
     margin-left: 0;
   }
 }
+
+/* Message timestamps. */
+.msg-time {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}

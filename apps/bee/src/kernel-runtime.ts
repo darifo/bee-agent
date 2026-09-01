@@ -13,6 +13,8 @@ import {
 } from '@bee-agent/kernel'
 import type {
   AgentLoopRecoverInput,
+  AgentLoopRetrieveHook,
+  LlmMessage,
   AgentLoopResumeInput,
   AgentLoopRunInput,
   AgentLoopTurnResult,
@@ -35,6 +37,8 @@ import {
   createAgentLoopPlugin,
   createGoalPlanHook,
   createMemoryRetrieveHook,
+  createTimeRetrieveHook,
+  type TimeService,
   createModelRequestPlugin,
   createToolExecutionPlugin,
 } from '@bee-agent/runtime'
@@ -59,6 +63,8 @@ export interface BeeKernelRuntimeOptions {
    * retrieve hook and completed Turns feed the near-line derivation worker.
    */
   readonly memory?: MemoryProvider | undefined
+  /** Accurate clock: per-request time injection + the built-in time_now tool. */
+  readonly time?: TimeService | undefined
   /** Disable near-line derivation while keeping recall (default: enabled). */
   readonly deriveMemory?: boolean | undefined
   /** Optional Goal/Plan store; complex turns surface a plan via the plan hook. */
@@ -338,10 +344,34 @@ function createHostPluginFactories(
   factories.register({
     id: 'bee.agent-loop',
     create(structure) {
+      // Retrieve hooks compose: the accurate clock first (so the model sees
+      // "now" even when memory is unavailable), then memory recall. The
+      // AgentLoop calls the composed hook before every model request, which
+      // is what keeps the injected time fresh on every step.
+      const retrieveHooks = [
+        ...(options.time === undefined
+          ? []
+          : [createTimeRetrieveHook(options.time)]),
+        ...(options.memory === undefined
+          ? []
+          : [createMemoryRetrieveHook(options.memory)]),
+      ]
       const retrieve =
-        options.memory === undefined
+        retrieveHooks.length === 0
           ? undefined
-          : createMemoryRetrieveHook(options.memory)
+          : {
+              async retrieve(
+                input: Parameters<AgentLoopRetrieveHook['retrieve']>[0],
+              ): Promise<
+                Awaited<ReturnType<AgentLoopRetrieveHook['retrieve']>>
+              > {
+                const messages: LlmMessage[] = []
+                for (const hook of retrieveHooks) {
+                  messages.push(...(await hook.retrieve(input)))
+                }
+                return messages
+              },
+            }
       const plan =
         options.goalPlanStore === undefined
           ? undefined

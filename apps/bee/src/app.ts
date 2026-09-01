@@ -31,7 +31,11 @@ import type {
   StructureConfigController,
   ConfigSource,
 } from '@bee-agent/runtime'
-import { AgentScheduler } from '@bee-agent/runtime'
+import {
+  AgentScheduler,
+  TimeService,
+  createTimeNowTool,
+} from '@bee-agent/runtime'
 import {
   ChronicleProposalStore,
   DriftMonitor,
@@ -124,6 +128,7 @@ function defaultBeeSystemPrompt(): string {
     'A tool error is information, not a failure: it returns to you as a tool result you can react to, for example by correcting arguments or choosing another route.',
     'Use the kanban board for work that spans multiple steps: create a task with acceptance criteria, work it, and complete it, so progress survives restarts.',
     'Answer plainly and precisely. Say what you did, what you could not do, and why.',
+    'Every model request carries the current accurate date-time as a system message (network-calibrated when available), and the time_now tool re-checks it on demand. Use that time — never your training cutoff — whenever the answer depends on today’s date, weekday, recency, or deadlines, and mention the date when timing matters to the user.',
   ].join('\n\n')
 }
 
@@ -148,6 +153,8 @@ export interface BeeServerOptions {
   readonly pluginCatalog?: PluginCatalog | undefined
   readonly configSource?: ConfigSource | undefined
   /** Personal memory provider; enables recall, derivation, and governance routes. */
+  /** Accurate clock service; defaults to a network-calibrating UTC+8 service. */
+  readonly time?: TimeService | undefined
   readonly memory?: MemoryProvider | undefined
   /** Disable near-line derivation while keeping recall. */
   readonly deriveMemory?: boolean | undefined
@@ -355,7 +362,15 @@ export async function buildBeeServer(
   options: BeeServerOptions,
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
-  const toolAdapters = options.toolAdapters ?? []
+  // Accurate time is built in: every model request carries it, the time_now
+  // tool exposes it to the model, and the service calibrates against HTTP
+  // Date headers in the background.
+  const time = options.time ?? new TimeService()
+  time.start()
+  const toolAdapters = [
+    ...(options.toolAdapters ?? []),
+    createTimeNowTool(time),
+  ]
   const toolExecutor = compositeToolExecutor(
     options.kanban,
     toolAdapters,
@@ -394,6 +409,7 @@ export async function buildBeeServer(
     toolAuthorization,
     toolSpecs,
     memory: options.memory,
+    time,
     deriveMemory: options.deriveMemory,
     goalPlanStore: options.goalPlanStore,
     systemPrompt: options.systemPrompt ?? defaultBeeSystemPrompt(),
@@ -575,6 +591,7 @@ export async function buildBeeServer(
   await app.register(importRoutes)
   await app.register(structureRoutes)
   app.addHook('onClose', async () => {
+    time.stop()
     if (learningTimer !== undefined) clearInterval(learningTimer)
     schedulerUnsubscribe?.()
     scheduler?.stop()

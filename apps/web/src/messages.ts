@@ -2,8 +2,12 @@ import type { ThreadEvent } from '@bee-agent/thread/protocol'
 
 /** A rendered conversation entry, reduced from the thread's wire events. */
 export type ChatEntry =
-  | { readonly kind: 'user'; readonly content: string }
-  | { readonly kind: 'assistant'; readonly content: string }
+  | { readonly kind: 'user'; readonly content: string; readonly at?: string }
+  | {
+      readonly kind: 'assistant'
+      readonly content: string
+      readonly at?: string
+    }
   | { readonly kind: 'tool'; readonly toolId: string }
   | {
       readonly kind: 'approval'
@@ -31,6 +35,8 @@ export function deriveEntries(
     assistantOpen = false
   }
 
+  const atOf = (item: { createdAt?: string }): string | undefined =>
+    item.createdAt
   for (const event of events) {
     switch (event.event) {
       case 'item.started':
@@ -50,10 +56,20 @@ export function deriveEntries(
         if (item.type === 'message') {
           if (item.payload.role === 'user') {
             flushAssistant()
-            entries.push({ kind: 'user', content: item.payload.content })
+            const at = atOf(item)
+            entries.push({
+              kind: 'user',
+              content: item.payload.content,
+              ...(at === undefined ? {} : { at }),
+            })
           } else if (item.payload.role === 'assistant') {
             assistantOpen = false
-            entries.push({ kind: 'assistant', content: item.payload.content })
+            const at = atOf(item)
+            entries.push({
+              kind: 'assistant',
+              content: item.payload.content,
+              ...(at === undefined ? {} : { at }),
+            })
             assistant = ''
           }
         } else if (item.type === 'tool_call') {

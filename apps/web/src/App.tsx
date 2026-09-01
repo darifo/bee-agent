@@ -320,18 +320,32 @@ function approvalLabel(status: string): string {
   return '待审批'
 }
 
+function entryTime(at: string | undefined): string {
+  if (at === undefined) return ''
+  const date = new Date(at)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (value: number): string => String(value).padStart(2, '0')
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
 function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
   switch (entry.kind) {
     case 'user':
       return (
         <p className="msg msg-user">
           <strong>我</strong> {entry.content}
+          {entry.at !== undefined ? (
+            <time className="msg-time">{entryTime(entry.at)}</time>
+          ) : null}
         </p>
       )
     case 'assistant':
       return (
         <div className="msg msg-assistant">
           <strong>Bee</strong>
+          {entry.at !== undefined ? (
+            <time className="msg-time">{entryTime(entry.at)}</time>
+          ) : null}
           <div className="msg-md">
             <Markdown
               remarkPlugins={[remarkGfm]}

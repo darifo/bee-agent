@@ -33,6 +33,7 @@ function assistantMessage(content: string): ThreadEvent {
     event: 'item.completed',
     item: {
       id: '44444444-4444-4444-8444-444444444444',
+      createdAt: '2026-08-31T12:34:56.000Z',
       type: 'message',
       payload: { role: 'assistant', content },
     },
@@ -199,5 +200,7 @@ describe('thread history strip', () => {
     expect(screen.getByText('要点').tagName).toBe('STRONG')
     expect(screen.getByText('第一项').tagName).toBe('LI')
     expect(screen.getByText(/code_run/).tagName).toBe('CODE')
+    // Replies carry the accurate date-time next to the speaker.
+    expect(screen.getByText('08-31 20:34')).toBeDefined()
   })
 })

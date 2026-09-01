@@ -37,8 +37,16 @@ describe('deriveEntries', () => {
       },
     ]
     expect(deriveEntries(events)).toEqual([
-      { kind: 'user', content: 'hi' },
-      { kind: 'assistant', content: 'hello there' },
+      {
+        kind: 'user',
+        content: 'hi',
+        at: '2026-08-25T10:00:00.000Z',
+      },
+      {
+        kind: 'assistant',
+        content: 'hello there',
+        at: '2026-08-25T10:00:00.000Z',
+      },
     ])
   })
 
