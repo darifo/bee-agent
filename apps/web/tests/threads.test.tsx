@@ -75,6 +75,52 @@ describe('thread history strip', () => {
     expect(screen.getByRole('button', { name: /开启新对话/ })).toBeDefined()
   })
 
+  it('hides zero-turn threads except the active one', async () => {
+    const newThreadId = '66666666-6666-4666-8666-666666666666'
+    let listed = [
+      summary({ title: '空会话 A', turns: 0 }),
+      summary({ title: '有内容的会话', turns: 2 }),
+      summary({ title: '空会话 B', turns: 0 }),
+    ]
+    const listThreads = vi.fn(async () => listed)
+    const client = {
+      listThreads,
+      createThread: vi.fn().mockResolvedValue({
+        id: newThreadId,
+        title: 'Web conversation',
+      }),
+      streamItems: async function* (): AsyncGenerator<
+        ThreadEvent,
+        void,
+        unknown
+      > {
+        yield* []
+      },
+    } as unknown as BeeAgentClient
+    render(<App client={client} />)
+
+    await waitFor(() => {
+      expect(screen.getByText('有内容的会话')).toBeDefined()
+    })
+    expect(screen.queryByText('空会话 A')).toBeNull()
+    expect(screen.queryByText('空会话 B')).toBeNull()
+    expect(screen.getByText(/已隐藏 2 个空会话/)).toBeDefined()
+
+    // The active thread stays pinned even before its first turn.
+    listed = [
+      summary({ id: newThreadId, title: '新建的会话', turns: 0 }),
+      ...listed,
+    ]
+    fireEvent.click(screen.getByRole('button', { name: /开启新对话/ }))
+    await waitFor(() => {
+      expect(screen.getByText('新建的会话')).toBeDefined()
+    })
+    expect(screen.getByText('新建的会话').closest('button')?.className).toBe(
+      'history-item active',
+    )
+    expect(screen.queryByText('空会话 A')).toBeNull()
+  })
+
   it('paginates the thread list and reopens a thread on click', async () => {
     const opened: string[] = []
     const threads = Array.from({ length: 7 }, (_, index) =>

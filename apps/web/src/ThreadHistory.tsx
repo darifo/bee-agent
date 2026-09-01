@@ -69,11 +69,19 @@ export function ThreadHistory({
     setPage(0)
   }, [refreshKey])
 
-  if (threads.length === 0 && error === undefined) return null
+  // Zero-turn threads are clutter (abandoned 新建对话 clicks), so they are
+  // filtered from the list — except the active one, which stays pinned
+  // between creation and the first sent message.
+  const visible = threads.filter(
+    (thread) => thread.turns > 0 || thread.id === activeThreadId,
+  )
+  const hiddenEmptyCount = threads.length - visible.length
 
-  const pageCount = Math.max(1, Math.ceil(threads.length / PAGE_SIZE))
+  if (visible.length === 0 && error === undefined) return null
+
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount - 1)
-  const items = threads.slice(
+  const items = visible.slice(
     safePage * PAGE_SIZE,
     safePage * PAGE_SIZE + PAGE_SIZE,
   )
@@ -88,7 +96,11 @@ export function ThreadHistory({
         <>
           <div className="history-bar">
             <span className="history-label">
-              📚 历史会话（{threads.length}）
+              📚 历史会话（{visible.length}
+              {hiddenEmptyCount > 0
+                ? `，已隐藏 ${hiddenEmptyCount} 个空会话`
+                : ''}
+              ）
             </span>
             <div className="history-pager">
               <button
