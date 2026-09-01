@@ -101,7 +101,9 @@ describe('FetchWebTransport', () => {
       async () =>
         new Response(
           '<html><head><title>  World  News </title><style>.x{}</style></head><body><script>bad()</script>' +
-            '<h1>World News</h1><p>Paragraph one.</p><p>Paragraph two.</p>' +
+            '<h1>World News</h1>' +
+            '<h2><a href="/news/articles/a1">Nepal floods death toll passes 1,000</a></h2>' +
+            '<p>Paragraph one. <a href="javascript:void(0)">skip</a></p><p>Paragraph two.</p>' +
             '</body></html>',
           { status: 200, headers: { 'content-type': 'text/html' } },
         ),
@@ -118,6 +120,12 @@ describe('FetchWebTransport', () => {
       result.content.startsWith('原文链接: https://example.com/news'),
     ).toBe(true)
     expect(result.content).toContain('标题: World News')
+    // Per-article links survive as absolute Markdown links.
+    expect(result.content).toContain(
+      '[Nepal floods death toll passes 1,000](https://example.com/news/articles/a1)',
+    )
+    // Non-navigational anchors lose the link but keep the page text.
+    expect(result.content).not.toContain('javascript:')
     expect(result.content).toContain('World News')
     expect(result.content).toContain('Paragraph one.')
     expect(result.content).not.toContain('bad()')
@@ -262,5 +270,22 @@ describe('htmlToText', () => {
       '<style>a{}</style><script>var x=1;</script><p>One</p><div>Two</div><br>Three',
     )
     expect(text).toBe('One\nTwo\nThree')
+  })
+
+  it('keeps anchors as Markdown links resolved against the base URL', () => {
+    const text = htmlToText(
+      '<p><a href="/news/articles/xyz">尼泊尔洪灾</a>死亡人数破千。</p>' +
+        '<p><a href="#section">跳转</a></p>' +
+        '<p><a href="https://other.example/a">绝对链接</a></p>',
+      'https://www.bbc.com/news/world',
+    )
+    expect(text).toContain(
+      '[尼泊尔洪灾](https://www.bbc.com/news/articles/xyz)',
+    )
+    expect(text).toContain('死亡人数破千。')
+    // Fragment-only hrefs keep the label, drop the link.
+    expect(text).toContain('跳转')
+    expect(text).not.toContain('](#')
+    expect(text).toContain('[绝对链接](https://other.example/a)')
   })
 })

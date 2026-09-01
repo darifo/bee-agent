@@ -74,7 +74,7 @@ export class WebFetchToolAdapter implements ToolAdapter {
     this.spec = {
       id: WEB_FETCH_TOOL_ID,
       description:
-        'Fetch one web page from the allowed origins and return its readable text (HTML is stripped, output is size-capped).',
+        'Fetch one web page from the allowed origins and return its readable text (size-capped). The text keeps article links as Markdown [label](url) and leads with the page-level source link — when you summarize items from the page, cite each item with its own 原文链接 from those Markdown links.',
       inputSchema: {
         type: 'object',
         additionalProperties: false,
@@ -252,14 +252,51 @@ export interface WebSearchResult {
   readonly snippet: string
 }
 
-/** Minimal, dependency-free HTML → readable text conversion. */
-export function htmlToText(html: string): string {
+/**
+ * Resolves an href against the page URL; non-navigational schemes stay
+ * link-less. Returns undefined when the href carries no usable address.
+ */
+function resolveHref(
+  href: string,
+  baseUrl: string | undefined,
+): string | undefined {
+  const trimmed = href.trim()
+  if (trimmed === '' || trimmed.startsWith('#')) return undefined
+  if (/^(javascript|mailto|tel|data):/i.test(trimmed)) return undefined
+  try {
+    return new URL(trimmed, baseUrl).toString()
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Minimal, dependency-free HTML → readable text conversion. Anchors become
+ * Markdown links — `[label](absolute URL)` — so per-article source links
+ * survive the tag stripping and the model can cite each item it read.
+ * Relative hrefs resolve against `baseUrl` (the fetched page's URL).
+ */
+export function htmlToText(html: string, baseUrl?: string | undefined): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
     .replace(/<style[\s\S]*?<\/style>/gi, ' ')
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
     .replace(/<\/(p|div|li|h[1-6]|tr|section|article|blockquote|pre)>/gi, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
+    .replace(
+      /<a\s[^>]*href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi,
+      (_match, _quote: string, href: string, inner: string) => {
+        const url = resolveHref(href, baseUrl)
+        const label =
+          inner
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/\s+/g, ' ')
+            .trim() || url
+        if (label === undefined) return ' '
+        return url === undefined ? label : `[${label}](${url})`
+      },
+    )
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
@@ -374,7 +411,10 @@ export class FetchWebTransport implements NetworkTransport {
           : DEFAULT_MAX_BYTES
       const isHtml =
         contentType.includes('html') || /^\s*<(!doctype|html)/i.test(raw)
-      const body = (isHtml ? htmlToText(raw) : raw).slice(0, wanted)
+      const body = (isHtml ? htmlToText(raw, response.url || url) : raw).slice(
+        0,
+        wanted,
+      )
       // Source attribution travels with the content itself: the model
       // quotes what it read, so the original link (post-redirect final URL)
       // and title lead every fetch result.
