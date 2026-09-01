@@ -100,7 +100,7 @@ describe('FetchWebTransport', () => {
     const fetchImpl = vi.fn(
       async () =>
         new Response(
-          '<html><head><style>.x{}</style></head><body><script>bad()</script>' +
+          '<html><head><title>  World  News </title><style>.x{}</style></head><body><script>bad()</script>' +
             '<h1>World News</h1><p>Paragraph one.</p><p>Paragraph two.</p>' +
             '</body></html>',
           { status: 200, headers: { 'content-type': 'text/html' } },
@@ -113,6 +113,11 @@ describe('FetchWebTransport', () => {
       secrets: new Map(),
     })
     expect(result.isError).toBeUndefined()
+    // The source link leads the content so the model can always cite it.
+    expect(
+      result.content.startsWith('原文链接: https://example.com/news'),
+    ).toBe(true)
+    expect(result.content).toContain('标题: World News')
     expect(result.content).toContain('World News')
     expect(result.content).toContain('Paragraph one.')
     expect(result.content).not.toContain('bad()')

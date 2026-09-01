@@ -1609,3 +1609,14 @@ button.history-item.active {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
+
+/* Tool rows: the first line of the tool result (for web_fetch, the source link). */
+.tool-preview {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

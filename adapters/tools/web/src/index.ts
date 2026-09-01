@@ -276,6 +276,13 @@ export function htmlToText(html: string): string {
     .trim()
 }
 
+/** Best-effort <title> extraction for source attribution. */
+function extractTitle(html: string): string {
+  const match = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)
+  if (match === null) return ''
+  return match[1]!.replace(/\s+/g, ' ').trim().slice(0, 200)
+}
+
 function errorResult(message: string): ActionResult {
   return { output: {}, content: message, isError: true, verification: [] }
 }
@@ -368,23 +375,34 @@ export class FetchWebTransport implements NetworkTransport {
       const isHtml =
         contentType.includes('html') || /^\s*<(!doctype|html)/i.test(raw)
       const body = (isHtml ? htmlToText(raw) : raw).slice(0, wanted)
+      // Source attribution travels with the content itself: the model
+      // quotes what it read, so the original link (post-redirect final URL)
+      // and title lead every fetch result.
+      const finalUrl = response.url || url
+      const title = isHtml ? extractTitle(raw) : ''
+      const header = [
+        `原文链接: ${finalUrl}`,
+        ...(title === '' ? [] : [`标题: ${title}`]),
+      ].join('\n')
       if (!response.ok) {
         return {
           output: { url, status: response.status, contentType },
-          content: `HTTP ${response.status} from ${url}\n\n${body}`,
+          content: `HTTP ${response.status} from ${finalUrl}\n\n${body}`,
           isError: response.status >= 400,
           verification: [],
         }
       }
       return {
         output: {
-          url: response.url || url,
+          url: finalUrl,
           status: response.status,
           contentType,
           returnedBytes: body.length,
         },
-        content: body,
-        verification: [`Fetched ${url} as ${contentType || 'unknown type'}`],
+        content: `${header}\n\n${body}`,
+        verification: [
+          `Fetched ${finalUrl} as ${contentType || 'unknown type'} with source link attached`,
+        ],
       }
     } catch (error) {
       if (signal?.aborted) {

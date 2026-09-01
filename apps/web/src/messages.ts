@@ -8,7 +8,12 @@ export type ChatEntry =
       readonly content: string
       readonly at?: string
     }
-  | { readonly kind: 'tool'; readonly toolId: string }
+  | {
+      readonly kind: 'tool'
+      readonly toolId: string
+      /** First line of the tool result — for web_fetch this is the source link. */
+      readonly preview?: string
+    }
   | {
       readonly kind: 'approval'
       readonly title: string
@@ -73,7 +78,17 @@ export function deriveEntries(
             assistant = ''
           }
         } else if (item.type === 'tool_call') {
-          entries.push({ kind: 'tool', toolId: item.payload.toolId })
+          const firstLine = (item.payload.content ?? '')
+            .split('\n')
+            .map((line) => line.trim())
+            .find((line) => line !== '')
+          entries.push({
+            kind: 'tool',
+            toolId: item.payload.toolId,
+            ...(firstLine === undefined || firstLine === ''
+              ? {}
+              : { preview: firstLine.slice(0, 110) }),
+          })
         } else if (item.type === 'approval') {
           entries.push({
             kind: 'approval',

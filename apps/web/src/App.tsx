@@ -364,6 +364,9 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
       return (
         <p className="msg msg-tool">
           <em>调用工具 {entry.toolId}</em>
+          {entry.preview !== undefined ? (
+            <span className="tool-preview">{entry.preview}</span>
+          ) : null}
         </p>
       )
     case 'approval':
