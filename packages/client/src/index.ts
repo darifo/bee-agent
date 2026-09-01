@@ -21,6 +21,7 @@ export type {
   LearningTransitionInput,
   MemoryClaimDto,
   ModelReplayDto,
+  ThreadSummaryDto,
   TrajectoryCategory,
   TrajectoryEntryDto,
   TrajectoryLoop,

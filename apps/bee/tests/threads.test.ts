@@ -239,6 +239,68 @@ describe('apps/bee /threads API', () => {
     )
   })
 
+  it('lists threads with turn counts and newest exchange previews', async () => {
+    await withServer(
+      [{ type: 'respond', deltas: ['Hello!'] }],
+      scriptedTools({}),
+      async (_server, baseUrl) => {
+        for (const title of ['旧会话', '新会话']) {
+          const created = await fetch(`${baseUrl}/threads`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ title }),
+          })
+          expect(created.status).toBe(201)
+        }
+
+        const listed = await fetch(`${baseUrl}/threads`)
+        expect(listed.status).toBe(200)
+        const { threads } = (await listed.json()) as {
+          threads: {
+            id: string
+            title: string
+            updatedAt: string
+            turns: number
+            lastInput?: string
+            lastOutput?: string
+          }[]
+        }
+        expect(threads).toHaveLength(2)
+        expect(new Set(threads.map((thread) => thread.title))).toEqual(
+          new Set(['旧会话', '新会话']),
+        )
+        // The list is ordered by newest activity.
+        const times = threads.map((thread) => thread.updatedAt)
+        expect([...times].sort((a, b) => (a < b ? 1 : -1))).toEqual(times)
+
+        const [latest, other] = threads
+        const turned = latest!.turns === 1 ? latest! : other!
+        const untouched = turned === latest! ? other! : latest!
+        expect(untouched.turns).toBe(0)
+
+        const run = await fetch(`${baseUrl}/threads/${turned.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: '你好' }),
+        })
+        expect(((await run.json()) as { status: string }).status).toBe(
+          'completed',
+        )
+
+        const relisted = (
+          (await (await fetch(`${baseUrl}/threads`)).json()) as {
+            threads: typeof threads
+          }
+        ).threads
+        const summary = relisted.find((thread) => thread.id === turned.id)
+        expect(summary?.turns).toBe(1)
+        expect(summary?.lastInput).toBe('你好')
+        expect(summary?.lastOutput).toBe('Hello!')
+        expect(relisted[0]!.id).toBe(turned.id)
+      },
+    )
+  })
+
   it('suspends and resumes a turn on approval', async () => {
     await withServer(
       [

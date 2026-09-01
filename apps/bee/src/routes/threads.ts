@@ -5,6 +5,7 @@ import type { CorsOriginPolicy } from '../app.ts'
 import { loopbackOrigins } from '../app.ts'
 import {
   appendThreadEvents,
+  listThreadSummaries,
   newThread,
   readThreadEvents,
   threadCreatedEvent,
@@ -73,6 +74,12 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
     })
     await appendThreadEvents(store, thread.id, [threadCreatedEvent(thread)])
     return reply.code(201).send(thread)
+  })
+
+  // The conversation list: a projection over the durable thread streams,
+  // newest activity first. Read-only like every projection.
+  app.get('/threads', async () => {
+    return { threads: await listThreadSummaries(store) }
   })
 
   app.post('/threads/:threadId/turns', async (request, reply) => {

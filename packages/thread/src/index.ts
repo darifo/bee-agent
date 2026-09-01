@@ -478,3 +478,93 @@ export async function readThreadEvents(
   }
   return { events, hasMore }
 }
+
+// ---------------------------------------------------------------------------
+// Thread list projection
+// ---------------------------------------------------------------------------
+
+/** One thread as the conversation list shows it (architecture §9.1). */
+export interface ThreadSummary {
+  readonly id: ThreadId
+  readonly title: string
+  readonly createdAt: string
+  /** Event time of the newest event in the thread's stream. */
+  readonly updatedAt: string
+  /** Number of turns started on the thread. */
+  readonly turns: number
+  /** Input of the most recent turn, clipped for list previews. */
+  readonly lastInput: string | undefined
+  /** Content of the most recent assistant message, clipped for previews. */
+  readonly lastOutput: string | undefined
+}
+
+function clipPreview(text: string, max = 160): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length <= max ? flat : `${flat.slice(0, max)}…`
+}
+
+/**
+ * Projects every stored thread into a list summary: title from the
+ * `thread.created` fact, turn count from `turn.started`, and the newest
+ * exchange plus last event time for ordering. The projection reads the
+ * durable streams directly — nothing is cached, so the list is always the
+ * truth, at personal-host scan cost.
+ */
+export async function listThreadSummaries(
+  store: ChronicleStore,
+): Promise<readonly ThreadSummary[]> {
+  const summaries: ThreadSummary[] = []
+  for (const streamId of await store.listStreams()) {
+    if (!streamId.startsWith('thread:')) continue
+    const threadId = streamId.slice('thread:'.length) as ThreadId
+    let title = 'New thread'
+    let createdAt = ''
+    let updatedAt = ''
+    let turns = 0
+    let lastInput: string | undefined
+    let lastOutput: string | undefined
+    for await (const stored of store.readStream(streamId)) {
+      updatedAt = stored.eventTime
+      if (stored.eventType === 'thread.created') {
+        const thread = (stored.payload as { thread?: Thread }).thread
+        if (thread !== undefined) {
+          title = thread.title
+          createdAt = thread.createdAt
+        }
+      } else if (stored.eventType === 'turn.started') {
+        turns += 1
+        const turn = (stored.payload as { turn?: { input?: string } }).turn
+        const input = turn?.input
+        if (input !== undefined && input.trim() !== '') {
+          lastInput = clipPreview(input)
+        }
+      } else if (stored.eventType === 'item.completed') {
+        const item = (
+          stored.payload as {
+            item?: {
+              type?: string
+              payload?: { role?: string; content?: string }
+            }
+          }
+        ).item
+        if (
+          item?.type === 'message' &&
+          item.payload?.role === 'assistant' &&
+          (item.payload.content ?? '').trim() !== ''
+        ) {
+          lastOutput = clipPreview(item.payload.content ?? '')
+        }
+      }
+    }
+    summaries.push({
+      id: threadId,
+      title,
+      createdAt,
+      updatedAt,
+      turns,
+      lastInput,
+      lastOutput,
+    })
+  }
+  return summaries.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+}

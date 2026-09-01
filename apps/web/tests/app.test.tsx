@@ -44,6 +44,7 @@ function fakeClient(script: ClientScript = {}) {
       created.push(input)
       return threadFixture()
     },
+    listThreads: async () => [] as const,
     createTurn: async (_threadId: string, input: { input: string }) => {
       turns.push(input)
       const next = resultQueue.shift()

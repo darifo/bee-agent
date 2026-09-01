@@ -38,6 +38,17 @@ export interface CreateTurnInput {
   readonly structureVersion?: string | undefined
 }
 
+/** One thread as the conversation list shows it (`GET /threads`). */
+export interface ThreadSummaryDto {
+  readonly id: string
+  readonly title: string
+  readonly createdAt: string
+  readonly updatedAt: string
+  readonly turns: number
+  readonly lastInput?: string | undefined
+  readonly lastOutput?: string | undefined
+}
+
 /** A kanban task as returned by the host's `/kanban/tasks` endpoints. */
 export interface KanbanTaskDto {
   readonly id: string
@@ -300,6 +311,14 @@ export class BeeAgentClient {
       },
     })
     return ThreadSchema.parse(payload)
+  }
+
+  /** Lists every stored thread, newest activity first. */
+  listThreads(): Promise<readonly ThreadSummaryDto[]> {
+    return this.#request<{ threads: readonly ThreadSummaryDto[] }>(
+      'GET',
+      'threads',
+    ).then((body) => body.threads)
   }
 
   /** Starts a turn on a thread; the server keeps running it to completion. */

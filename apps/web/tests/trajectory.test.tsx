@@ -79,6 +79,7 @@ const REPLAY: ModelReplayDto = {
 
 function fakeClient(): BeeAgentClient {
   return {
+    listThreads: vi.fn().mockResolvedValue([]),
     listTrajectory: vi.fn(async (query: TrajectoryQuery = {}) => {
       const entries = ENTRIES.filter(
         (entry) =>

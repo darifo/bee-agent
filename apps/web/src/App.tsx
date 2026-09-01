@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { BeeAgentClient, Diagnostics, TurnResult } from '@bee-agent/client'
 import { useThreadStream } from './hooks/useThreadStream.ts'
 import { deriveEntries } from './messages.ts'
@@ -6,6 +8,7 @@ import { KanbanBoard } from './KanbanBoard.tsx'
 import { MemoryPanel } from './MemoryPanel.tsx'
 import { LearningPanel } from './LearningPanel.tsx'
 import { TrajectoryPanel } from './TrajectoryPanel.tsx'
+import { ThreadSidebar } from './ThreadSidebar.tsx'
 
 export interface AppProps {
   client: BeeAgentClient
@@ -40,6 +43,7 @@ export function App({ client }: AppProps) {
   const [pending, setPending] = useState<PendingApproval | undefined>()
 
   const [health, setHealth] = useState<Diagnostics | undefined>()
+  const [threadsKey, setThreadsKey] = useState(0)
   const transcriptRef = useRef<HTMLElement | null>(null)
 
   const { events, live } = useThreadStream(client, threadId)
@@ -79,6 +83,7 @@ export function App({ client }: AppProps) {
     try {
       const thread = await client.createThread({ title: 'Web conversation' })
       setThreadId(thread.id)
+      setThreadsKey((key) => key + 1)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -102,6 +107,7 @@ export function App({ client }: AppProps) {
         setPending(undefined)
       }
       void outputOf(result)
+      setThreadsKey((key) => key + 1)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -197,104 +203,114 @@ export function App({ client }: AppProps) {
       ) : view === 'trajectory' ? (
         <TrajectoryPanel client={client} />
       ) : (
-        <>
-          {error !== undefined ? (
-            <p className="console-error">{error}</p>
-          ) : null}
-          {threadId === null ? (
-            <section className="welcome">
-              <div className="welcome-bee" aria-hidden="true">
-                🐝
-              </div>
-              <h2>开始一段对话</h2>
-              <p>Bee 记得你的偏好、能安全地执行命令、会在看板上管理任务。</p>
-              <ul className="welcome-hints">
-                <li>「从现在起用中文写周报」— 它会记住这个偏好</li>
-                <li>「用 command_run 列出 /tmp」— 会先征求你的审批</li>
-                <li>「建个看板任务：整理文档」— 交给后台慢慢做</li>
-              </ul>
-              <button
-                type="button"
-                className="cta"
-                onClick={() => void start()}
-                disabled={busy}
-              >
-                ✏️ 新建对话
-              </button>
-            </section>
-          ) : (
-            <>
-              <section
-                className="transcript"
-                aria-label="对话记录"
-                ref={transcriptRef}
-              >
-                {entries.map((entry, index) => (
-                  <Entry key={`${index}-${entry.kind}`} entry={entry} />
-                ))}
-                {busy ? (
-                  <div className="typing" aria-label="Bee 正在输入">
-                    <span className="dot" />
-                    <span className="dot" />
-                    <span className="dot" />
-                    <em>Bee 正在思考…</em>
-                  </div>
-                ) : null}
-              </section>
-              <div className="thread-meta">
-                {live ? (
-                  <span className="stream-live" aria-hidden="true">
-                    ● 实时连接
-                  </span>
-                ) : null}
+        <div className="chat-layout">
+          <ThreadSidebar
+            client={client}
+            activeThreadId={threadId}
+            busy={busy}
+            refreshKey={threadsKey}
+            onOpen={setThreadId}
+            onNew={() => void start()}
+          />
+          <div className="chat-main">
+            {error !== undefined ? (
+              <p className="console-error">{error}</p>
+            ) : null}
+            {threadId === null ? (
+              <section className="welcome">
+                <div className="welcome-bee" aria-hidden="true">
+                  🐝
+                </div>
+                <h2>开始一段对话</h2>
+                <p>Bee 记得你的偏好、能安全地执行命令、会在看板上管理任务。</p>
+                <ul className="welcome-hints">
+                  <li>「从现在起用中文写周报」— 它会记住这个偏好</li>
+                  <li>「用 command_run 列出 /tmp」— 会先征求你的审批</li>
+                  <li>「建个看板任务：整理文档」— 交给后台慢慢做</li>
+                </ul>
                 <button
                   type="button"
-                  className="ghost"
-                  onClick={() => setThreadId(null)}
+                  className="cta"
+                  onClick={() => void start()}
+                  disabled={busy}
                 >
-                  结束对话
+                  ✏️ 新建对话
                 </button>
-              </div>
-              {pending !== undefined ? (
-                <div className="approval" role="alert">
-                  <span>需要审批：{pending.title}</span>
+              </section>
+            ) : (
+              <>
+                <section
+                  className="transcript"
+                  aria-label="对话记录"
+                  ref={transcriptRef}
+                >
+                  {entries.map((entry, index) => (
+                    <Entry key={`${index}-${entry.kind}`} entry={entry} />
+                  ))}
+                  {busy ? (
+                    <div className="typing" aria-label="Bee 正在输入">
+                      <span className="dot" />
+                      <span className="dot" />
+                      <span className="dot" />
+                      <em>Bee 正在思考…</em>
+                    </div>
+                  ) : null}
+                </section>
+                <div className="thread-meta">
+                  {live ? (
+                    <span className="stream-live" aria-hidden="true">
+                      ● 实时连接
+                    </span>
+                  ) : null}
                   <button
                     type="button"
-                    onClick={() => void decide('approved')}
-                    disabled={busy}
+                    className="ghost"
+                    onClick={() => setThreadId(null)}
                   >
-                    批准
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void decide('rejected')}
-                    disabled={busy}
-                  >
-                    拒绝
+                    结束对话
                   </button>
                 </div>
-              ) : null}
-              <form
-                className="composer"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  void send()
-                }}
-              >
-                <input
-                  value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="给 Bee 发消息…"
-                  disabled={busy}
-                  aria-label="消息输入框"
-                />
-                <button type="submit" disabled={busy || input.trim() === ''}>
-                  发送
-                </button>
-              </form>
-            </>
-          )}
-        </>
+                {pending !== undefined ? (
+                  <div className="approval" role="alert">
+                    <span>需要审批：{pending.title}</span>
+                    <button
+                      type="button"
+                      onClick={() => void decide('approved')}
+                      disabled={busy}
+                    >
+                      批准
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void decide('rejected')}
+                      disabled={busy}
+                    >
+                      拒绝
+                    </button>
+                  </div>
+                ) : null}
+                <form
+                  className="composer"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    void send()
+                  }}
+                >
+                  <input
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    placeholder="给 Bee 发消息…"
+                    disabled={busy}
+                    aria-label="消息输入框"
+                  />
+                  <button type="submit" disabled={busy || input.trim() === ''}>
+                    发送
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </main>
   )
@@ -316,9 +332,21 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
       )
     case 'assistant':
       return (
-        <p className="msg msg-assistant">
-          <strong>Bee</strong> {entry.content}
-        </p>
+        <div className="msg msg-assistant">
+          <strong>Bee</strong>
+          <div className="msg-md">
+            <Markdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                a: (props) => (
+                  <a {...props} target="_blank" rel="noreferrer noopener" />
+                ),
+              }}
+            >
+              {entry.content}
+            </Markdown>
+          </div>
+        </div>
       )
     case 'tool':
       return (
