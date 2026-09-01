@@ -16,6 +16,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
   learning: ['kernel', 'knowledge', 'thread'],
   'model-providers': ['runtime'],
   'tool-command': ['knowledge', 'runtime'],
+  'tool-web': ['execution', 'runtime'],
   'tool-mcp': ['knowledge', 'runtime'],
   'tool-python': ['knowledge', 'runtime'],
   client: ['thread'],
@@ -36,6 +37,7 @@ export const V1_PACKAGE_DEPENDENCIES = {
     'tool-command',
     'tool-mcp',
     'tool-python',
+    'tool-web',
   ],
 }
 

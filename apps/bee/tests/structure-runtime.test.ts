@@ -310,4 +310,46 @@ describe('Bee Host structure runtime', () => {
     })
     await server.app.close()
   })
+  it('grants newly configured tools across restarts (stale grants superseded)', async () => {
+    const store = chronicle()
+    const board = kanban()
+    const base = {
+      store,
+      kanban: board,
+      llm: createFakeLlmRuntime({ script: [] }),
+      toolExecutor: tools,
+      toolAuthorization: [
+        { toolId: 'tool_a', decision: 'allow' as const, reason: 'test' },
+        { toolId: 'tool_b', decision: 'allow' as const, reason: 'test' },
+      ],
+    }
+    const first = await createBeeKernelRuntime({
+      ...base,
+      toolSpecs: [
+        { id: 'tool_a', description: 'A', inputSchema: { type: 'object' } },
+      ],
+    })
+    const firstGrants = (
+      first.structures.activeStructure?.permissions ?? []
+    ).map((permission) => permission.name)
+    expect(firstGrants).toContain('tool:tool_a')
+    expect(firstGrants).not.toContain('tool:tool_b')
+    await first.stop()
+
+    // tool_b joined the host configuration between runs: the restored
+    // structure's stale grant list must not keep denying it.
+    const second = await createBeeKernelRuntime({
+      ...base,
+      toolSpecs: [
+        { id: 'tool_a', description: 'A', inputSchema: { type: 'object' } },
+        { id: 'tool_b', description: 'B', inputSchema: { type: 'object' } },
+      ],
+    })
+    const grants = (second.structures.activeStructure?.permissions ?? []).map(
+      (permission) => permission.name,
+    )
+    expect(grants).toContain('tool:tool_a')
+    expect(grants).toContain('tool:tool_b')
+    await second.stop()
+  })
 })

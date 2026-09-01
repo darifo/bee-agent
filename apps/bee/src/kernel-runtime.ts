@@ -213,6 +213,15 @@ export async function createDefaultBeeStructure(
   )
 }
 
+function sameGrants(
+  restored: EffectiveStructure,
+  desired: EffectiveStructure,
+): boolean {
+  const a = restored.permissions.map((permission) => permission.name).sort()
+  const b = desired.permissions.map((permission) => permission.name).sort()
+  return a.length === b.length && a.every((value, i) => value === b[i])
+}
+
 function createHostPluginFactories(
   options: BeeKernelRuntimeOptions,
 ): PluginFactoryRegistry {
@@ -385,15 +394,31 @@ export async function createBeeKernelRuntime(
     catalog: options.pluginCatalog,
   })
   const kernel = structures.kernel
-  const result =
-    options.effectiveStructure !== undefined
-      ? await structures.reconcile(options.effectiveStructure)
-      : options.restoreActiveStructure !== false
-        ? ((await structures.restore()) ??
-          (await structures.reconcile(
-            await createDefaultBeeStructure(options),
-          )))
-        : await structures.reconcile(await createDefaultBeeStructure(options))
+  let result: Awaited<ReturnType<typeof structures.reconcile>>
+  if (options.effectiveStructure !== undefined) {
+    result = await structures.reconcile(options.effectiveStructure)
+  } else {
+    // Restoring the last activated structure keeps generations stable across
+    // restarts — model slots reconciled at runtime stay restored. But the
+    // tool list is host-owned configuration: when the restored structure's
+    // granted capabilities no longer match the configured tools (a tool was
+    // added or removed), the desired structure supersedes it, otherwise the
+    // structure-grant layer would keep denying capabilities the host just
+    // configured.
+    const desired = await createDefaultBeeStructure(options)
+    const restored =
+      options.restoreActiveStructure === false
+        ? undefined
+        : await structures.restore()
+    const grantsMatch =
+      restored !== undefined &&
+      structures.activeStructure !== undefined &&
+      sameGrants(structures.activeStructure, desired)
+    result =
+      restored === undefined || !grantsMatch
+        ? await structures.reconcile(desired)
+        : restored
+  }
   if (result.kind === 'restart-required') {
     throw new Error('Initial Bee Host generation unexpectedly requires restart')
   }

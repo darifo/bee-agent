@@ -24,6 +24,11 @@ import {
   createMcpToolAdapters,
 } from '@bee-agent/tool-mcp'
 import { PythonToolAdapter } from '@bee-agent/tool-python'
+import {
+  FetchWebTransport,
+  WebFetchToolAdapter,
+  WebSearchToolAdapter,
+} from '@bee-agent/tool-web'
 import { EmbeddedMemoryProvider } from '@bee-agent/memory-bee'
 import {
   FetchMemoryTransport,
@@ -36,6 +41,8 @@ import {
   MacOSKeychainSecretBroker,
   LinuxSecretServiceBroker,
   PlatformCommandSandbox,
+  AllowlistedNetworkSandbox,
+  RoutingSandboxProvider,
 } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 import { resolveBeeDataDir } from './data-dir.ts'
@@ -129,6 +136,66 @@ const mcpTools =
         .parse(JSON.parse(mcpManifestInput))
         .flatMap(createMcpToolAdapters)
 
+// Web retrieval (ADR 0023 network actions): the host reviews the origins,
+// the model never picks one. fetch origins come from the allowlist env; the
+// search engine origin comes from the configured backend. Both run through
+// the AllowlistedNetworkSandbox via one host-injected transport.
+const webFetchOrigins = (process.env.BEE_AGENT_WEB_ALLOWED_ORIGINS ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value !== '')
+const searxngUrl = process.env.BEE_AGENT_SEARCH_SEARXNG_URL?.trim()
+const tavilyUrl = process.env.BEE_AGENT_SEARCH_TAVILY_URL?.trim()
+const tavilyKey = process.env.BEE_AGENT_SEARCH_TAVILY_API_KEY?.trim()
+const searchBackend =
+  searxngUrl !== undefined && searxngUrl !== ''
+    ? ({ kind: 'searxng' } as const)
+    : tavilyUrl !== undefined && tavilyUrl !== '' && tavilyKey !== undefined
+      ? ({ kind: 'tavily', apiKey: tavilyKey } as const)
+      : undefined
+if (
+  (searxngUrl !== undefined && searxngUrl !== '') ||
+  (tavilyUrl !== undefined && tavilyUrl !== '')
+) {
+  if (searchBackend === undefined) {
+    console.error(
+      'BEE_AGENT_SEARCH_TAVILY_URL also needs BEE_AGENT_SEARCH_TAVILY_API_KEY',
+    )
+    process.exit(1)
+  }
+}
+const webFetchTool =
+  webFetchOrigins.length === 0
+    ? undefined
+    : new WebFetchToolAdapter({ allowedOrigins: webFetchOrigins })
+const webSearchTool =
+  searchBackend === undefined
+    ? undefined
+    : new WebSearchToolAdapter({
+        engineOrigin:
+          searchBackend.kind === 'searxng' ? searxngUrl! : tavilyUrl!,
+      })
+const webNetworkTargets = [
+  ...(webFetchTool?.allowedOrigins ?? []),
+  ...(webSearchTool ? [webSearchTool.engineOrigin] : []),
+]
+const commandSandbox = new PlatformCommandSandbox()
+// One stable network sandbox instance: RoutingSandboxProvider pairs
+// snapshot/diff calls by provider identity, so the selector must never
+// hand out fresh instances per action.
+const networkSandbox = new AllowlistedNetworkSandbox(
+  webNetworkTargets,
+  new FetchWebTransport({ searchBackend }),
+)
+const sandboxProvider =
+  webNetworkTargets.length === 0
+    ? commandSandbox
+    : new RoutingSandboxProvider((request) =>
+        request.requirements.networkTargets.length > 0
+          ? networkSandbox
+          : commandSandbox,
+      )
+
 const registry = new ChronicleSchemaRegistry()
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
@@ -196,13 +263,12 @@ const server = await buildBeeServer({
   learning: true,
   ...(configSource === undefined ? {} : { configSource }),
   toolAdapters: [
-    ...[commandTool, pythonTool].filter(
-      (adapter): adapter is CommandToolAdapter | PythonToolAdapter =>
-        adapter !== undefined,
+    ...[commandTool, pythonTool, webFetchTool, webSearchTool].filter(
+      (adapter) => adapter !== undefined,
     ),
     ...mcpTools,
   ],
-  sandboxProvider: new PlatformCommandSandbox(),
+  sandboxProvider,
   ...(process.platform === 'darwin'
     ? { secretBroker: new MacOSKeychainSecretBroker() }
     : process.platform === 'linux'
