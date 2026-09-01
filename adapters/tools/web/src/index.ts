@@ -74,7 +74,9 @@ export class WebFetchToolAdapter implements ToolAdapter {
     this.spec = {
       id: WEB_FETCH_TOOL_ID,
       description:
-        'Fetch one web page from the allowed origins and return its readable text (size-capped). The text keeps article links as Markdown [label](url) and leads with the page-level source link — when you summarize items from the page, cite each item with its own 原文链接 from those Markdown links.',
+        `Fetch one web page and return its readable text (size-capped). ` +
+        `The text keeps article links as Markdown [label](url) and leads with the page-level source link — when you summarize items from the page, cite each item with its own 原文链接 from those Markdown links. ` +
+        `Allowed origins (research channels configured by the host): ${[...this.#origins].join(', ')}. Any other origin fails closed.`,
       inputSchema: {
         type: 'object',
         additionalProperties: false,

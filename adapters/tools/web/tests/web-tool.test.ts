@@ -39,6 +39,11 @@ describe('web tool adapters', () => {
       allowedOrigins: ['https://example.com'],
     })
     expect(adapter.spec.id).toBe(WEB_FETCH_TOOL_ID)
+    // The description enumerates the channels so the model knows where it
+    // may fetch without trial and error.
+    expect(adapter.spec.description).toContain(
+      'Allowed origins (research channels configured by the host): https://example.com',
+    )
     expect(adapter.authorization.decision).toBe('allow')
     expect(
       adapter.concurrency?.(
