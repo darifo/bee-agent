@@ -1047,3 +1047,330 @@ button.ghost:hover:not(:disabled),
     grid-template-columns: 1fr;
   }
 }
+
+/* === 轨迹 Trajectory ====================================================== */
+
+.trajectory header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.trajectory-sub {
+  color: var(--text-faint);
+  font-size: 13px;
+  flex: 1;
+}
+
+/* Loop switch: fast vs slow, the two rhythms of the agent. */
+.loop-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 14px 0 12px;
+}
+
+.loop-switch button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  padding: 12px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.loop-switch button span {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.loop-switch button em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 4px;
+}
+
+.loop-switch button.active {
+  background: var(--bee-amber-soft);
+  border-color: var(--bee-primary-strong);
+  box-shadow: var(--shadow);
+}
+
+.loop-switch button.active strong {
+  color: var(--text);
+}
+
+/* Category chips. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+button.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+button.chip em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+button.chip:hover {
+  border-color: var(--border-strong);
+}
+
+button.chip-active,
+button.chip-active em {
+  background: var(--bee-amber-soft);
+  border-color: var(--bee-primary-strong);
+  color: var(--text);
+}
+
+/* Timeline list: a rail on the left, entries as rows. */
+.trajectory-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trajectory-entry {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+  border-left: 3px solid var(--text-faint);
+  animation: rise 0.25s ease both;
+}
+
+.trajectory-entry.cat-input {
+  border-left-color: var(--bee-primary-strong);
+}
+
+.trajectory-entry.cat-llm {
+  border-left-color: var(--info);
+}
+
+.trajectory-entry.cat-tool {
+  border-left-color: var(--warn);
+}
+
+.trajectory-entry.cat-memory {
+  border-left-color: #8b5cf6;
+}
+
+.trajectory-entry.cat-reasoning {
+  border-left-color: #0ea5a4;
+}
+
+.trajectory-entry.cat-proposal {
+  border-left-color: var(--ok);
+}
+
+button.entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+
+button.entry-head:hover {
+  background: var(--surface-2);
+}
+
+.entry-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.entry-cat {
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.entry-type {
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.entry-summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-soft);
+}
+
+/* Expanded detail: durable position + replay + raw payload. */
+.entry-detail {
+  border-top: 1px dashed var(--border);
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.entry-pos {
+  margin: 0;
+  font-size: 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+.entry-payload summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+
+.entry-payload pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 11.5px;
+  line-height: 1.5;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Model-input replay. */
+.entry-replay {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.replay-title {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.replay-sections {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.replay-sections li {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-soft);
+  background: var(--surface-2);
+}
+
+.replay-sections li em {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.replay-sections li.replay-memory {
+  background: var(--bee-amber-soft);
+  border-color: var(--bee-primary-strong);
+  color: var(--text);
+}
+
+.replay-omissions {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.replay-messages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.replay-messages li {
+  display: flex;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.replay-messages strong {
+  flex: 0 0 42px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.replay-messages span {
+  color: var(--text-soft);
+  word-break: break-word;
+}
+
+.trajectory-loading {
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+  margin: 8px 0 0;
+}
+
+@media (max-width: 640px) {
+  .loop-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .entry-summary {
+    white-space: normal;
+  }
+}

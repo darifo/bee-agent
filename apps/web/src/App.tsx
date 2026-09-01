@@ -5,6 +5,7 @@ import { deriveEntries } from './messages.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
 import { MemoryPanel } from './MemoryPanel.tsx'
 import { LearningPanel } from './LearningPanel.tsx'
+import { TrajectoryPanel } from './TrajectoryPanel.tsx'
 
 export interface AppProps {
   client: BeeAgentClient
@@ -16,7 +17,7 @@ interface PendingApproval {
   readonly title: string
 }
 
-type View = 'chat' | 'board' | 'memory' | 'learning'
+type View = 'chat' | 'board' | 'memory' | 'learning' | 'trajectory'
 
 function outputOf(result: TurnResult): string {
   if (result.status === 'completed') return result.output
@@ -167,6 +168,13 @@ export function App({ client }: AppProps) {
           >
             学习
           </button>
+          <button
+            type="button"
+            className={view === 'trajectory' ? 'active' : ''}
+            onClick={() => setView('trajectory')}
+          >
+            轨迹
+          </button>
         </nav>
         <span
           className={`status-dot ${health === undefined ? 'status-down' : health.status === 'ok' ? 'status-ok' : 'status-warn'}`}
@@ -186,6 +194,8 @@ export function App({ client }: AppProps) {
         <MemoryPanel client={client} />
       ) : view === 'learning' ? (
         <LearningPanel client={client} />
+      ) : view === 'trajectory' ? (
+        <TrajectoryPanel client={client} />
       ) : (
         <>
           {error !== undefined ? (

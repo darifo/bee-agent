@@ -188,6 +188,79 @@ export interface LearningTransitionInput {
   readonly reason?: string
 }
 
+// ---------------------------------------------------------------------------
+// Trajectory observability (fast/slow loop timeline)
+// ---------------------------------------------------------------------------
+
+/** Foreground fast loop (user-facing turns) vs background slow loop. */
+export type TrajectoryLoop = 'fast' | 'slow'
+
+export type TrajectoryCategory =
+  'input' | 'llm' | 'tool' | 'memory' | 'reasoning' | 'proposal' | 'system'
+
+export interface TrajectoryEntryDto {
+  readonly eventId: string
+  readonly streamId: string
+  readonly sequence: number
+  readonly eventTime: string
+  readonly eventType: string
+  readonly loop: TrajectoryLoop
+  readonly category: TrajectoryCategory
+  readonly summary: string
+  readonly threadId?: string | undefined
+  readonly turnId?: string | undefined
+  readonly detail?: Record<string, unknown> | undefined
+}
+
+export interface TrajectoryQuery {
+  readonly loop?: TrajectoryLoop | undefined
+  readonly category?: TrajectoryCategory | undefined
+  readonly streamId?: string | undefined
+  /** Newest-first page size; default 100, capped at 500. */
+  readonly limit?: number | undefined
+}
+
+export interface TrajectoryPageDto {
+  readonly entries: readonly TrajectoryEntryDto[]
+  readonly counts: {
+    readonly fast: number
+    readonly slow: number
+    readonly byCategory: Readonly<Record<TrajectoryCategory, number>>
+  }
+  readonly scannedStreams: number
+}
+
+/** The digest-verified replay of what one model call actually saw. */
+export interface ModelReplayDto {
+  readonly requestId: string
+  readonly manifest: {
+    readonly id: string
+    readonly promptVersion: string
+    readonly structureVersion: string
+    readonly tokenBudget: number
+    readonly sections: readonly {
+      readonly kind: string
+      readonly sourceIds: readonly string[]
+      readonly rendererVersion: string
+      readonly priority: number
+      readonly tokens: number
+      readonly digest: string
+    }[]
+    readonly omissions: readonly {
+      readonly sourceId: string
+      readonly reason: string
+    }[]
+  }
+  readonly bundle: {
+    readonly messages: readonly {
+      readonly role: string
+      readonly content: string
+    }[]
+    readonly tools?: readonly unknown[] | undefined
+    readonly decisionSchema?: Record<string, unknown> | undefined
+  }
+}
+
 export class BeeAgentClient {
   readonly #baseUrl: URL
   readonly #fetch: typeof fetch
@@ -523,6 +596,28 @@ export class BeeAgentClient {
 
   monitorLearningDrift(): Promise<unknown> {
     return this.#request<unknown>('POST', 'learning/monitor', { body: {} })
+  }
+
+  // --- trajectory observability ----------------------------------------
+
+  /** Reads the global fast/slow-loop timeline, newest first. */
+  listTrajectory(query: TrajectoryQuery = {}): Promise<TrajectoryPageDto> {
+    const params: Record<string, string> = {}
+    if (query.loop !== undefined) params.loop = query.loop
+    if (query.category !== undefined) params.category = query.category
+    if (query.streamId !== undefined) params.streamId = query.streamId
+    if (query.limit !== undefined) params.limit = String(query.limit)
+    return this.#request<TrajectoryPageDto>('GET', 'trajectory', {
+      query: params,
+    })
+  }
+
+  /** Replays the digest-verified model-visible context of one request. */
+  replayModelRequest(requestId: string): Promise<ModelReplayDto> {
+    return this.#request<ModelReplayDto>(
+      'GET',
+      `model-requests/${encodeURIComponent(requestId)}/replay`,
+    )
   }
 
   /** Imports a v0 SQLite event store; `path` must be Host-local absolute. */

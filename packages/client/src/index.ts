@@ -20,4 +20,10 @@ export type {
   LearningProposalDto,
   LearningTransitionInput,
   MemoryClaimDto,
+  ModelReplayDto,
+  TrajectoryCategory,
+  TrajectoryEntryDto,
+  TrajectoryLoop,
+  TrajectoryPageDto,
+  TrajectoryQuery,
 } from './client.ts'

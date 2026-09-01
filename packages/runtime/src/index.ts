@@ -90,10 +90,19 @@ export * from './planner.ts'
 export * from './memory-hook.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
-export { buildTurnTrajectory, replayGeneration } from './trajectory.ts'
+export {
+  buildGlobalTrajectory,
+  buildTurnTrajectory,
+  replayGeneration,
+} from './trajectory.ts'
 export type {
+  GlobalTrajectory,
+  GlobalTrajectoryQuery,
+  TrajectoryCategory,
   TrajectoryCheckpoint,
+  TrajectoryEntry,
   TrajectoryGeneration,
+  TrajectoryLoop,
   TrajectoryTool,
   TurnTrajectory,
 } from './trajectory.ts'
