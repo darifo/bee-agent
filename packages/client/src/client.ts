@@ -360,6 +360,15 @@ export class BeeAgentClient {
     ).then((body) => body.threads)
   }
 
+  /** A durable title change; the latest rename wins everywhere. */
+  renameThread(threadId: string, title: string): Promise<void> {
+    return this.#request<void>(
+      'PATCH',
+      `threads/${encodeURIComponent(threadId)}/title`,
+      { body: { title } },
+    )
+  }
+
   /** Stops the thread's in-flight turns; awaiting calls settle cancelled. */
   cancelTurns(threadId: string): Promise<{ cancelled: number }> {
     return this.#request<{ cancelled: number }>(

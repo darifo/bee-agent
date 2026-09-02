@@ -2264,3 +2264,31 @@ button.history-item.active {
     flex-wrap: wrap;
   }
 }
+
+.history-bar {
+  align-items: center;
+}
+
+.history-rename {
+  padding: 1px 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.history-item:hover .history-rename,
+.history-rename:focus-visible {
+  opacity: 1;
+}
+
+.history-rename:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}

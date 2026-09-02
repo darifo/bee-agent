@@ -55,6 +55,7 @@ export function threadStreamId(threadId: ThreadId): string {
 
 export const THREAD_EVENT_TYPES = [
   'thread.created',
+  'thread.renamed',
   'turn.started',
   'turn.completed',
   'turn.failed',
@@ -126,8 +127,13 @@ const ContextCompactedPayloadSchema = ContextCompactedEventSchema.omit({
   event: true,
 })
 
+const ThreadRenamedPayloadSchema = z.object({
+  title: z.string().min(1).max(200),
+})
+
 const THREAD_EVENT_PAYLOADS: Record<ThreadEventType, z.ZodType<unknown>> = {
   'thread.created': ThreadCreatedPayloadSchema,
+  'thread.renamed': ThreadRenamedPayloadSchema,
   'turn.started': TurnPayloadSchema,
   'turn.completed': TurnPayloadSchema,
   'turn.failed': TurnFailedPayloadSchema,
@@ -425,6 +431,15 @@ export async function appendThreadEvents(
   return store.append(threadStreamId(threadId), events, { expectedSequence })
 }
 
+/** A durable title change: the latest one wins in every projection. */
+export function threadRenamedEvent(
+  ids: { threadId: ThreadId },
+  title: string,
+  options: ThreadEventBuildOptions = {},
+): NewChronicleEvent {
+  return baseEvent('thread.renamed', ids, { title }, options)
+}
+
 function toThreadEvent(stored: ChronicleEvent): ThreadEvent {
   if (!(THREAD_EVENT_TYPES as readonly string[]).includes(stored.eventType)) {
     throw new UnknownThreadEventTypeError(stored.eventType)
@@ -434,8 +449,9 @@ function toThreadEvent(stored: ChronicleEvent): ThreadEvent {
   // The Chronicle event type maps one-to-one onto the wire discriminator;
   // `thread.created` carries no turn scope, everything else does.
   const candidate =
-    stored.eventType === 'thread.created'
-      ? { sequence, threadId, event: 'thread.created', ...payload }
+    stored.eventType === 'thread.created' ||
+    stored.eventType === 'thread.renamed'
+      ? { sequence, threadId, event: stored.eventType, ...payload }
       : { sequence, threadId, turnId, event: stored.eventType, ...payload }
   // The assembled wire event is the protocol contract boundary: parsing
   // here fails loud on malformed stream content instead of leaking
@@ -531,6 +547,9 @@ export async function listThreadSummaries(
           title = thread.title
           createdAt = thread.createdAt
         }
+      } else if (stored.eventType === 'thread.renamed') {
+        const renamed = (stored.payload as { title?: string }).title
+        if (renamed !== undefined && renamed !== '') title = renamed
       } else if (stored.eventType === 'turn.started') {
         turns += 1
         const turn = (stored.payload as { turn?: { input?: string } }).turn
@@ -555,6 +574,14 @@ export async function listThreadSummaries(
           lastOutput = clipPreview(item.payload.content ?? '')
         }
       }
+    }
+    // Conversations created without a meaningful title get named from
+    // their first exchange — display-level only, the durable facts stay.
+    if (
+      (title === 'New thread' || title === 'Web conversation') &&
+      lastInput !== undefined
+    ) {
+      title = clipPreview(lastInput, 24)
     }
     summaries.push({
       id: threadId,

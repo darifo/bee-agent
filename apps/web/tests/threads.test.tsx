@@ -168,7 +168,9 @@ describe('thread history strip', () => {
         .disabled,
     ).toBe(true)
 
-    fireEvent.click(screen.getByRole('button', { name: /会话 7/ }))
+    fireEvent.click(
+      screen.getAllByRole('button', { name: /会话 7/ })[0] as HTMLElement,
+    )
     await waitFor(() => {
       expect(opened).toEqual([threads[6]!.id])
     })

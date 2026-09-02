@@ -243,6 +243,51 @@ describe('apps/bee /threads API', () => {
     )
   })
 
+  it('renames a thread durably and auto-names default-titled conversations', async () => {
+    await withServer(
+      [{ type: 'respond', deltas: ['Understood.'] }],
+      scriptedTools({}),
+      async (_server, baseUrl) => {
+        const created = await fetch(`${baseUrl}/threads`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: 'Web conversation' }),
+        })
+        const thread = (await created.json()) as { id: string }
+        const run = await fetch(`${baseUrl}/threads/${thread.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: '帮我研究最近的国际局势' }),
+        })
+        expect(((await run.json()) as { status: string }).status).toBe(
+          'completed',
+        )
+
+        // Default-titled threads get named from their first exchange.
+        const first = (
+          (await (await fetch(`${baseUrl}/threads`)).json()) as {
+            threads: { id: string; title: string }[]
+          }
+        ).threads.find((entry) => entry.id === thread.id)
+        expect(first?.title).toContain('帮我研究最近的国际局势')
+
+        // An explicit rename is durable and beats the auto name.
+        const renamed = await fetch(`${baseUrl}/threads/${thread.id}/title`, {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: '国际局势研究' }),
+        })
+        expect(renamed.status).toBe(200)
+        const second = (
+          (await (await fetch(`${baseUrl}/threads`)).json()) as {
+            threads: { id: string; title: string }[]
+          }
+        ).threads.find((entry) => entry.id === thread.id)
+        expect(second?.title).toBe('国际局势研究')
+      },
+    )
+  })
+
   it('lists threads with turn counts and newest exchange previews', async () => {
     await withServer(
       [{ type: 'respond', deltas: ['Hello!'] }],

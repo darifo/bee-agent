@@ -60,6 +60,22 @@ export function ThreadHistory({
     }
   }, [client])
 
+  const rename = useCallback(
+    async (threadId: string, current: string) => {
+      const next = window.prompt('重命名会话', current)
+      if (next === null || next.trim() === '' || next.trim() === current) {
+        return
+      }
+      try {
+        await client.renameThread(threadId, next.trim())
+        await refresh()
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      }
+    },
+    [client, refresh],
+  )
+
   useEffect(() => {
     void refresh()
   }, [refresh, refreshKey])
@@ -146,6 +162,20 @@ export function ThreadHistory({
                   }
                 >
                   <span className="history-item-title">{thread.title}</span>
+                  {(thread.turns > 0 || thread.lastInput !== undefined) && (
+                    <button
+                      type="button"
+                      className="history-rename"
+                      aria-label={`重命名 ${thread.title}`}
+                      title="重命名会话"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        void rename(thread.id, thread.title)
+                      }}
+                    >
+                      ✎
+                    </button>
+                  )}
                   <span className="history-item-meta">
                     {relativeTime(thread.updatedAt)} · {thread.turns} 轮
                   </span>

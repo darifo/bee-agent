@@ -10,6 +10,7 @@ import {
   readThreadEvents,
   threadCreatedEvent,
   threadEventFromChronicle,
+  threadRenamedEvent,
   threadStreamId,
 } from '@bee-agent/thread'
 import type { ThreadEvent, ThreadId, TurnId } from '@bee-agent/thread'
@@ -110,6 +111,21 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
   // newest activity first. Read-only like every projection.
   app.get('/threads', async () => {
     return { threads: await listThreadSummaries(store) }
+  })
+
+  // A durable title change: the latest thread.renamed fact wins in every
+  // projection (list, exports, future replays).
+  app.patch('/threads/:threadId/title', async (request) => {
+    const { threadId } = ThreadIdParamsSchema.parse(request.params)
+    const body = z
+      .object({ title: z.string().min(1).max(200) })
+      .parse(request.body)
+    await appendThreadEvents(store, threadId, [
+      threadRenamedEvent({ threadId: threadId as ThreadId }, body.title, {
+        actor: { type: 'user', id: 'web' },
+      }),
+    ])
+    return { threadId, title: body.title }
   })
 
   app.post('/threads/:threadId/turns', async (request, reply) => {

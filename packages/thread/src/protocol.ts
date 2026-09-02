@@ -352,8 +352,15 @@ export const ContextCompactedEventSchema = TurnEventPositionSchema.extend({
 })
 export type ContextCompactedEvent = z.infer<typeof ContextCompactedEventSchema>
 
+export const ThreadRenamedEventSchema = EventPositionSchema.extend({
+  event: z.literal('thread.renamed'),
+  title: z.string().min(1).max(200),
+})
+export type ThreadRenamedEvent = z.infer<typeof ThreadRenamedEventSchema>
+
 export const ThreadEventSchema = z.discriminatedUnion('event', [
   ThreadCreatedEventSchema,
+  ThreadRenamedEventSchema,
   TurnStartedEventSchema,
   TurnCompletedEventSchema,
   TurnFailedEventSchema,
