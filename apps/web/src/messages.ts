@@ -7,6 +7,8 @@ export type ChatEntry =
       readonly kind: 'assistant'
       readonly content: string
       readonly at?: string
+      /** Still streaming: deltas are arriving for this message. */
+      readonly streaming?: boolean
     }
   | {
       readonly kind: 'tool'
@@ -120,7 +122,12 @@ export function deriveEntries(
         break
     }
   }
-  flushAssistant()
+  // An in-flight assistant message renders live — the deltas accumulate
+  // into a streaming entry until its completion replaces it. (The old
+  // final flush would have emitted it as a completed message instead.)
+  if (assistantOpen && assistant.length > 0) {
+    entries.push({ kind: 'assistant', content: assistant, streaming: true })
+  }
   return entries
 }
 

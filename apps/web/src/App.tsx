@@ -82,12 +82,18 @@ export function App({ client }: AppProps) {
 
   // Keep the newest message in view while Bee streams (jsdom has no
   // scrollTo — the optional call keeps tests honest).
+  const lastEntry = entries[entries.length - 1]
+  const lastContentLength =
+    lastEntry !== undefined &&
+    (lastEntry.kind === 'user' || lastEntry.kind === 'assistant')
+      ? lastEntry.content.length
+      : 0
   useEffect(() => {
     transcriptRef.current?.scrollTo?.({
       top: transcriptRef.current.scrollHeight,
       behavior: 'smooth',
     })
-  }, [entries.length, busy])
+  }, [entries.length, lastContentLength, busy])
 
   const start = useCallback(async () => {
     setBusy(true)
@@ -333,7 +339,10 @@ export function App({ client }: AppProps) {
                     onOpenTrajectory={setTrajectoryLink}
                   />
                 ))}
-                {busy ? (
+                {busy &&
+                !entries.some(
+                  (entry) => entry.kind === 'assistant' && entry.streaming,
+                ) ? (
                   <div className="typing" aria-label="Bee 正在输入">
                     <span className="dot" />
                     <span className="dot" />
@@ -552,7 +561,13 @@ function Entry({
       )
     case 'assistant':
       return (
-        <div className="msg msg-assistant">
+        <div
+          className={
+            entry.streaming === true
+              ? 'msg msg-assistant msg-streaming'
+              : 'msg msg-assistant'
+          }
+        >
           <MessageHead
             who="🐝"
             at={entry.at}
@@ -570,6 +585,9 @@ function Entry({
             >
               {entry.content}
             </Markdown>
+            {entry.streaming === true ? (
+              <span className="stream-cursor" aria-hidden="true" />
+            ) : null}
           </div>
         </div>
       )

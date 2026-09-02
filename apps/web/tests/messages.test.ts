@@ -50,6 +50,52 @@ describe('deriveEntries', () => {
     ])
   })
 
+  it('streams in-flight assistant deltas and finalizes on completion', () => {
+    const started = {
+      sequence: 1,
+      threadId,
+      turnId,
+      event: 'item.started',
+      item: messageItem('assistant', ''),
+    } as never
+    const delta = (text: string, sequence: number) =>
+      ({
+        sequence,
+        threadId,
+        turnId,
+        event: 'item.delta',
+        delta: text,
+      }) as never
+    const streaming = deriveEntries([
+      started,
+      delta('你好', 2),
+      delta('，世界', 3),
+    ])
+    expect(streaming).toEqual([
+      { kind: 'assistant', content: '你好，世界', streaming: true },
+    ])
+
+    const finalized = deriveEntries([
+      started,
+      delta('你好', 2),
+      delta('，世界', 3),
+      {
+        sequence: 4,
+        threadId,
+        turnId,
+        event: 'item.completed',
+        item: messageItem('assistant', '你好，世界！'),
+      } as never,
+    ])
+    expect(finalized).toEqual([
+      {
+        kind: 'assistant',
+        content: '你好，世界！',
+        at: '2026-08-25T10:00:00.000Z',
+      },
+    ])
+  })
+
   it('accumulates assistant deltas and finalizes on completion', () => {
     const events: ThreadEvent[] = [
       {
@@ -77,7 +123,7 @@ describe('deriveEntries', () => {
       },
     ]
     expect(deriveEntries(events)).toEqual([
-      { kind: 'assistant', content: 'Hello' },
+      { kind: 'assistant', content: 'Hello', streaming: true },
     ])
   })
 
