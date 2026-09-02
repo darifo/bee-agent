@@ -2200,3 +2200,67 @@ button.history-item.active {
   color: var(--text);
   cursor: pointer;
 }
+
+/* Mobile refinement: six tabs scroll instead of squeezing, dense rows
+   wrap, and touch targets keep their size. */
+@media (max-width: 640px) {
+  .view-toggle {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start;
+  }
+
+  .view-toggle::-webkit-scrollbar {
+    display: none;
+  }
+
+  .view-toggle button {
+    flex: none;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  button.entry-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .entry-summary {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+
+  .tool-card summary {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+
+  .tool-preview {
+    flex-basis: 100%;
+    white-space: normal;
+  }
+
+  .history-bar {
+    gap: 8px;
+  }
+
+  .history-pager {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .diag-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .drawer {
+    width: 100vw;
+    border-left: none;
+  }
+
+  .msg-head {
+    flex-wrap: wrap;
+  }
+}

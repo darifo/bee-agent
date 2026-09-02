@@ -91,6 +91,7 @@ export const diagnosticsRoutes: FastifyPluginAsync = async (app) => {
             },
       world: bee.world
         ? {
+            enabled: true,
             version: world?.version ?? 0,
             entities: world?.entities.length ?? 0,
             relations: world?.relations.length ?? 0,
