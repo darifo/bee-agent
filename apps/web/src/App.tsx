@@ -328,24 +328,58 @@ function entryTime(at: string | undefined): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+const TOOL_LABELS: Record<string, { icon: string; name: string }> = {
+  web_fetch: { icon: '🌐', name: '抓取网页' },
+  web_search: { icon: '🔎', name: '网络检索' },
+  command_run: { icon: '⌨️', name: '执行命令' },
+  python_run: { icon: '🐍', name: '运行 Python' },
+  time_now: { icon: '🕒', name: '查询时间' },
+  kanban_create: { icon: '📋', name: '新建看板任务' },
+  kanban_list: { icon: '📋', name: '查看看板' },
+  kanban_show: { icon: '📋', name: '查看任务' },
+  kanban_update: { icon: '📋', name: '更新任务' },
+  kanban_block: { icon: '📋', name: '阻塞任务' },
+  kanban_comment: { icon: '📋', name: '任务评论' },
+  kanban_complete: { icon: '📋', name: '完成任务' },
+  kanban_cancel: { icon: '📋', name: '取消任务' },
+}
+
+function toolLabel(toolId: string): { icon: string; name: string } {
+  return TOOL_LABELS[toolId] ?? { icon: '🧩', name: toolId }
+}
+
+function MessageHead({
+  who,
+  at,
+  tone,
+}: {
+  who: string
+  at: string | undefined
+  tone: 'user' | 'bee'
+}) {
+  return (
+    <div className="msg-head">
+      <span className={`msg-avatar msg-avatar-${tone}`}>{who}</span>
+      {at !== undefined ? (
+        <time className="msg-time">{entryTime(at)}</time>
+      ) : null}
+    </div>
+  )
+}
+
 function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
   switch (entry.kind) {
     case 'user':
       return (
-        <p className="msg msg-user">
-          <strong>我</strong> {entry.content}
-          {entry.at !== undefined ? (
-            <time className="msg-time">{entryTime(entry.at)}</time>
-          ) : null}
-        </p>
+        <div className="msg msg-user">
+          <MessageHead who="我" at={entry.at} tone="user" />
+          <div className="msg-body">{entry.content}</div>
+        </div>
       )
     case 'assistant':
       return (
         <div className="msg msg-assistant">
-          <strong>Bee</strong>
-          {entry.at !== undefined ? (
-            <time className="msg-time">{entryTime(entry.at)}</time>
-          ) : null}
+          <MessageHead who="🐝" at={entry.at} tone="bee" />
           <div className="msg-md">
             <Markdown
               remarkPlugins={[remarkGfm]}
@@ -361,21 +395,52 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
         </div>
       )
     case 'tool':
-      return (
-        <p className="msg msg-tool">
-          <em>调用工具 {entry.toolId}</em>
-          {entry.preview !== undefined ? (
-            <span className="tool-preview">{entry.preview}</span>
-          ) : null}
-        </p>
-      )
+      return <ToolCard entry={entry} />
     case 'approval':
       return (
-        <p className="msg msg-approval">
-          <em>
-            审批「{entry.title}」（{approvalLabel(entry.status)}）
-          </em>
-        </p>
+        <div className="msg msg-approval">
+          <span className="approval-icon">
+            {entry.status === 'approved'
+              ? '✅'
+              : entry.status === 'rejected'
+                ? '🚫'
+                : '⏳'}
+          </span>
+          审批「{entry.title}」
+          <span className={`badge badge-${entry.status}`}>
+            {approvalLabel(entry.status)}
+          </span>
+        </div>
       )
   }
+}
+
+function ToolCard({
+  entry,
+}: {
+  entry: Extract<ReturnType<typeof deriveEntries>[number], { kind: 'tool' }>
+}) {
+  const { icon, name } = toolLabel(entry.toolId)
+  return (
+    <details className="msg msg-tool tool-card">
+      <summary>
+        <span className="tool-icon" aria-hidden="true">
+          {icon}
+        </span>
+        <span className="tool-name">{name}</span>
+        {entry.preview !== undefined ? (
+          <span className="tool-preview">{entry.preview}</span>
+        ) : null}
+        {entry.isError === true ? (
+          <span className="tool-error">失败</span>
+        ) : null}
+        <span className="tool-chevron" aria-hidden="true">
+          ▾
+        </span>
+      </summary>
+      {entry.result !== undefined ? (
+        <pre className="tool-result">{entry.result}</pre>
+      ) : null}
+    </details>
+  )
 }

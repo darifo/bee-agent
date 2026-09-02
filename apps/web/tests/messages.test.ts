@@ -115,7 +115,7 @@ describe('deriveEntries', () => {
       },
     ]
     expect(deriveEntries(events)).toEqual([
-      { kind: 'tool', toolId: 'calculator' },
+      { kind: 'tool', toolId: 'calculator', preview: '3', result: '3' },
       { kind: 'approval', title: 'Deploy?', status: 'approved' },
     ])
   })
