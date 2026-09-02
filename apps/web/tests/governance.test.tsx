@@ -138,6 +138,7 @@ describe('governance views', () => {
   it('diagnostics tab renders the health overview cards', async () => {
     const client = {
       listThreads: vi.fn().mockResolvedValue([]),
+      listGrants: vi.fn().mockResolvedValue([]),
       diagnostics: vi.fn().mockResolvedValue({
         status: 'ok',
         structure: {

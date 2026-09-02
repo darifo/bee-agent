@@ -34,6 +34,7 @@ import type {
 import {
   AgentScheduler,
   TimeService,
+  UserGrantStore,
   createTimeNowTool,
 } from '@bee-agent/runtime'
 import {
@@ -155,6 +156,8 @@ export interface BeeServerOptions {
   /** Personal memory provider; enables recall, derivation, and governance routes. */
   /** Accurate clock service; defaults to a network-calibrating UTC+8 service. */
   readonly time?: TimeService | undefined
+  /** Durable user grants; defaults to a store over the shared Chronicle. */
+  readonly grantStore?: UserGrantStore | undefined
   readonly memory?: MemoryProvider | undefined
   /** Disable near-line derivation while keeping recall. */
   readonly deriveMemory?: boolean | undefined
@@ -362,6 +365,7 @@ export async function buildBeeServer(
   options: BeeServerOptions,
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
+  const grantStore = options.grantStore ?? new UserGrantStore(store)
   // Accurate time is built in: every model request carries it, the time_now
   // tool exposes it to the model, and the service calibrates against HTTP
   // Date headers in the background.
@@ -410,6 +414,7 @@ export async function buildBeeServer(
     toolSpecs,
     memory: options.memory,
     time,
+    grantStore,
     deriveMemory: options.deriveMemory,
     goalPlanStore: options.goalPlanStore,
     systemPrompt: options.systemPrompt ?? defaultBeeSystemPrompt(),
@@ -544,6 +549,7 @@ export async function buildBeeServer(
     world,
     scheduler,
     learning,
+    grantStore,
   })
 
   if (options.sessionToken !== undefined) {

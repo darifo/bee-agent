@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
-import type { ChronicleEvent } from '@bee-agent/knowledge'
+import type { ChronicleEvent, ChronicleStore } from '@bee-agent/knowledge'
 import type { CorsOriginPolicy } from '../app.ts'
 import { loopbackOrigins } from '../app.ts'
 import {
@@ -37,6 +37,8 @@ const CreateTurnBodySchema = z.object({
 
 const DecideApprovalBodySchema = z.object({
   decision: z.enum(['approved', 'rejected']),
+  /** Remember the approval: the capability stops asking until revoked. */
+  persist: z.boolean().optional(),
 })
 
 const HEARTBEAT_MS = 15_000
@@ -161,6 +163,21 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
         request.params,
       )
       const body = DecideApprovalBodySchema.parse(request.body)
+      // 批准并记住: the approved capability becomes a durable grant.
+      if (body.persist === true && body.decision === 'approved') {
+        const capability = await capabilityOfApproval(
+          store,
+          threadId,
+          approvalId,
+        )
+        if (capability !== undefined) {
+          await app.bee.grantStore.record(
+            capability,
+            `审批「${approvalId}」时选择记住`,
+            'web',
+          )
+        }
+      }
       const controller = new AbortController()
       turnCancels.add(threadId, controller)
       try {
@@ -285,4 +302,41 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
       }
     },
   )
+}
+
+/**
+ * Finds the capability behind a pending approval: the approval item on the
+ * thread stream carries the toolId awaiting the decision.
+ */
+async function capabilityOfApproval(
+  store: ChronicleStore,
+  threadId: string,
+  approvalId: string,
+): Promise<string | undefined> {
+  const page = await readThreadEvents(store, threadId as ThreadId)
+  for (const event of page.events) {
+    // The approval item starts (and may stay) at item.started while the
+    // turn is suspended; its payload already carries the full decision
+    // context either way.
+    if (event.event !== 'item.completed' && event.event !== 'item.started') {
+      continue
+    }
+    const item = event.item as {
+      type?: string
+      id?: string
+      payload?: { toolId?: string; approvalId?: string }
+    }
+    if (item.type !== 'approval') continue
+    if (item.payload?.approvalId !== undefined) {
+      if (
+        item.payload.approvalId === approvalId &&
+        item.payload.toolId !== undefined
+      ) {
+        return `tool:${item.payload.toolId}`
+      }
+    } else if (item.id === approvalId && item.payload?.toolId !== undefined) {
+      return `tool:${item.payload.toolId}`
+    }
+  }
+  return undefined
 }

@@ -39,6 +39,7 @@ import {
   createMemoryRetrieveHook,
   createTimeRetrieveHook,
   type TimeService,
+  type UserGrantStore,
   createModelRequestPlugin,
   createToolExecutionPlugin,
 } from '@bee-agent/runtime'
@@ -65,6 +66,8 @@ export interface BeeKernelRuntimeOptions {
   readonly memory?: MemoryProvider | undefined
   /** Accurate clock: per-request time injection + the built-in time_now tool. */
   readonly time?: TimeService | undefined
+  /** Durable user grants; remembered approvals relax ask to allow. */
+  readonly grantStore?: UserGrantStore | undefined
   /** Disable near-line derivation while keeping recall (default: enabled). */
   readonly deriveMemory?: boolean | undefined
   /** Optional Goal/Plan store; complex turns surface a plan via the plan hook. */
@@ -323,6 +326,9 @@ function createHostPluginFactories(
         ),
         sandbox: options.sandboxProvider,
         secrets: options.secretBroker,
+        ...(options.grantStore === undefined
+          ? {}
+          : { persistedGrants: options.grantStore.granted }),
       })
     },
   })
@@ -418,6 +424,7 @@ export function modelBindingKey(id: string, version: string): string {
 export async function createBeeKernelRuntime(
   options: BeeKernelRuntimeOptions,
 ): Promise<BeeKernelRuntime> {
+  await options.grantStore?.rebuild()
   const structures = new StructureReconciler({
     store: options.store,
     factories: createHostPluginFactories(options),

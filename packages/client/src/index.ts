@@ -17,6 +17,7 @@ export { parseSseStream } from './sse.ts'
 export type { SseFrame } from './sse.ts'
 export type {
   Diagnostics,
+  GrantDto,
   LearningProposalDto,
   LearningTransitionInput,
   MemoryClaimDto,

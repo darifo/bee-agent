@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BeeAgentClient, Diagnostics } from '@bee-agent/client'
+import type { BeeAgentClient, Diagnostics, GrantDto } from '@bee-agent/client'
 
 export interface DiagnosticsPanelProps {
   client: BeeAgentClient
@@ -24,11 +24,17 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
   const [data, setData] = useState<Diagnostics | undefined>()
   const [error, setError] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
+  const [grants, setGrants] = useState<readonly GrantDto[]>([])
 
   const refresh = useCallback(async () => {
     setBusy(true)
     try {
-      setData(await client.diagnostics())
+      const [diagnostics, grantList] = await Promise.all([
+        client.diagnostics(),
+        client.listGrants().catch(() => [] as readonly GrantDto[]),
+      ])
+      setData(diagnostics)
+      setGrants(grantList)
       setError(undefined)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -36,6 +42,20 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
       setBusy(false)
     }
   }, [client])
+
+  const revoke = useCallback(
+    async (capability: string) => {
+      setBusy(true)
+      try {
+        setGrants(await client.revokeGrant(capability))
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [client],
+  )
 
   useEffect(() => {
     void refresh()
@@ -169,6 +189,26 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
           </article>
         </div>
       )}
+      {grants.length > 0 ? (
+        <section className="diag-grants">
+          <h4>持久授权（{grants.length}）——同类操作免审批，可随时撤销</h4>
+          <ul>
+            {grants.map((grant) => (
+              <li key={grant.capability}>
+                <code>{grant.capability}</code>
+                <span className="diag-meta">{grant.at.slice(0, 16)}</span>
+                <button
+                  type="button"
+                  onClick={() => void revoke(grant.capability)}
+                  disabled={busy}
+                >
+                  撤销
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {data !== undefined ? (
         <details className="entry-payload">
           <summary>原始诊断数据</summary>

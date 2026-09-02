@@ -7,6 +7,7 @@ import type {
   StructureReconciler,
 } from '@bee-agent/runtime'
 import type { BeeLearningRuntime } from './routes/learning.ts'
+import type { UserGrantStore } from '@bee-agent/runtime'
 import type { BroadcastingChronicleStore } from './broadcasting-store.ts'
 import type { AgentLoopService } from './kernel-runtime.ts'
 
@@ -24,6 +25,7 @@ declare module 'fastify' {
       readonly world: WorldModelStore | undefined
       readonly scheduler: AgentScheduler | undefined
       readonly learning: BeeLearningRuntime | undefined
+      readonly grantStore: UserGrantStore
     }
   }
 }

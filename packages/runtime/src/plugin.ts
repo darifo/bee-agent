@@ -9,6 +9,7 @@ import {
   RoutingSandboxProvider,
   type SandboxProvider,
   type SecretBroker,
+  PersistedGrantPolicy,
 } from '@bee-agent/execution'
 import {
   MODEL_REQUEST_SERVICE,
@@ -67,6 +68,13 @@ export function createAgentLoopPlugin(
 }
 
 export interface ToolExecutionPluginOptions {
+  /**
+   * Durable user grants: remembered approvals relax this plugin's `ask`
+   * decisions to `allow` for the granted capabilities. `deny` is never
+   * overridden. The set is live — grants recorded at runtime take effect
+   * on the next action without a structure rebuild.
+   */
+  readonly persistedGrants?: ReadonlySet<string> | undefined
   readonly rules: readonly ToolAuthorizationRule[]
   readonly structureGrants?: readonly string[] | undefined
   readonly hardDenies?: readonly string[] | undefined
@@ -117,55 +125,59 @@ export function createToolExecutionPlugin(
                 Object.keys(requirements.secretEnv).length > 0
               return requiresOsBoundary ? osSandbox : logical
             })
+      const intersection = new IntersectionAuthorizationPolicy([
+        {
+          id: 'hard-safety',
+          rules: [
+            ...(options.hardDenies ?? []).map((capability) => ({
+              capability,
+              decision: 'deny' as const,
+              reason: 'Capability is blocked by immutable hard safety',
+            })),
+            {
+              capability: '*',
+              decision: 'allow',
+              reason: 'No immutable hard deny matched',
+            },
+          ],
+        },
+        {
+          id: 'structure-grant',
+          rules: (options.structureGrants ?? []).map((capability) => ({
+            capability,
+            decision: 'allow' as const,
+            reason: 'Capability is granted by the active Structure',
+          })),
+        },
+        ...[
+          ['user-grant', options.userGrants],
+          ['plugin-declaration', options.pluginDeclarations],
+          ['task-scope', options.taskScope],
+        ].map(([id, configured]) => ({
+          id: id as string,
+          rules: (
+            (configured as readonly string[] | undefined) ??
+            options.rules.map(({ toolId }) => `tool:${toolId}`)
+          ).map((capability) => ({
+            capability,
+            decision: 'allow' as const,
+            reason: `${id} includes the enabled tool`,
+          })),
+        })),
+        {
+          id: 'bee-policy',
+          rules: options.rules.map(({ toolId, ...decision }) => ({
+            capability: `tool:${toolId}`,
+            ...decision,
+          })),
+        },
+      ])
       const world = new ExecutionWorld({
         store: services.chronicle,
-        policy: new IntersectionAuthorizationPolicy([
-          {
-            id: 'hard-safety',
-            rules: [
-              ...(options.hardDenies ?? []).map((capability) => ({
-                capability,
-                decision: 'deny' as const,
-                reason: 'Capability is blocked by immutable hard safety',
-              })),
-              {
-                capability: '*',
-                decision: 'allow',
-                reason: 'No immutable hard deny matched',
-              },
-            ],
-          },
-          {
-            id: 'structure-grant',
-            rules: (options.structureGrants ?? []).map((capability) => ({
-              capability,
-              decision: 'allow' as const,
-              reason: 'Capability is granted by the active Structure',
-            })),
-          },
-          ...[
-            ['user-grant', options.userGrants],
-            ['plugin-declaration', options.pluginDeclarations],
-            ['task-scope', options.taskScope],
-          ].map(([id, configured]) => ({
-            id: id as string,
-            rules: (
-              (configured as readonly string[] | undefined) ??
-              options.rules.map(({ toolId }) => `tool:${toolId}`)
-            ).map((capability) => ({
-              capability,
-              decision: 'allow' as const,
-              reason: `${id} includes the enabled tool`,
-            })),
-          })),
-          {
-            id: 'bee-policy',
-            rules: options.rules.map(({ toolId, ...decision }) => ({
-              capability: `tool:${toolId}`,
-              ...decision,
-            })),
-          },
-        ]),
+        policy:
+          options.persistedGrants === undefined
+            ? intersection
+            : new PersistedGrantPolicy(intersection, options.persistedGrants),
         sandbox,
         secrets: options.secrets,
       })

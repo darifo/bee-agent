@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
 import type { ProposalStatus } from '@bee-agent/learning'
 
@@ -8,6 +9,22 @@ import type { ProposalStatus } from '@bee-agent/learning'
  * no side effects.
  */
 export const diagnosticsRoutes: FastifyPluginAsync = async (app) => {
+  // Durable user grants: list and revoke the approvals the user chose to
+  // remember. Revoking restores the tool's ask behavior immediately.
+  app.get('/grants', async () => {
+    return { grants: app.bee.grantStore.list() }
+  })
+
+  app.post('/grants/:capability/revoke', async (request) => {
+    const { capability } = z
+      .object({ capability: z.string().min(1) })
+      .parse(request.params)
+    await app.bee.grantStore.revoke(
+      decodeURIComponent(capability),
+      'revoked from the web console',
+    )
+    return { grants: app.bee.grantStore.list() }
+  })
   app.get('/diagnostics', async () => {
     const bee = app.bee
     const kernel = bee.kernel

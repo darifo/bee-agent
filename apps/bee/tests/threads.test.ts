@@ -410,6 +410,120 @@ describe('apps/bee /threads API', () => {
 })
 
 describe('apps/bee item stream', () => {
+  it('a persisted approval stops the same tool from asking again', async () => {
+    const askRule = [
+      {
+        toolId: 'deploy',
+        decision: 'ask' as const,
+        reason: 'Production deployment requires user approval',
+      },
+    ]
+    // Three turns: each consumes a tool-call step plus a closing step.
+    const deployScript: readonly FakeLlmStep[] = [
+      {
+        type: 'respond',
+        deltas: ['first'],
+        toolCalls: [{ callId: 'd1', toolId: 'deploy', input: {} }],
+      },
+      { type: 'respond', deltas: ['done one'] },
+      {
+        type: 'respond',
+        deltas: ['second'],
+        toolCalls: [{ callId: 'd2', toolId: 'deploy', input: {} }],
+      },
+      { type: 'respond', deltas: ['done two'] },
+      {
+        type: 'respond',
+        deltas: ['third'],
+        toolCalls: [{ callId: 'd3', toolId: 'deploy', input: {} }],
+      },
+      { type: 'respond', deltas: ['done three'] },
+    ]
+    await withServer(
+      deployScript,
+      scriptedTools({
+        deploy: () => ({
+          output: { ok: true },
+          content: 'deployed',
+          verification: ['Deployment executor completed'],
+        }),
+      }),
+      async (_server, baseUrl) => {
+        const created = await fetch(`${baseUrl}/threads`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        })
+        const thread = (await created.json()) as { id: string }
+
+        // Turn 1 suspends on ask; approve and remember.
+        const run = await fetch(`${baseUrl}/threads/${thread.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: 'Deploy one' }),
+        })
+        const suspended = (await run.json()) as {
+          status: string
+          approval: { approvalId: string }
+          turn: { id: string }
+        }
+        expect(suspended.status).toBe('suspended')
+        const grantsBefore = (
+          (await (await fetch(`${baseUrl}/grants`)).json()) as {
+            grants: unknown[]
+          }
+        ).grants
+        expect(grantsBefore).toHaveLength(0)
+
+        const resume = await fetch(
+          `${baseUrl}/threads/${thread.id}/turns/${suspended.turn.id}/approvals/${suspended.approval.approvalId}`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ decision: 'approved', persist: true }),
+          },
+        )
+        expect(((await resume.json()) as { status: string }).status).toBe(
+          'completed',
+        )
+
+        const grants = (
+          (await (await fetch(`${baseUrl}/grants`)).json()) as {
+            grants: { capability: string }[]
+          }
+        ).grants
+        expect(grants).toEqual([
+          expect.objectContaining({ capability: 'tool:deploy' }),
+        ])
+
+        // Same server, next turn: the remembered grant means no ask.
+        const second = await fetch(`${baseUrl}/threads/${thread.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: 'Deploy two' }),
+        })
+        expect(((await second.json()) as { status: string }).status).toBe(
+          'completed',
+        )
+
+        // Revoking restores the ask behavior on the following turn.
+        await fetch(
+          `${baseUrl}/grants/${encodeURIComponent('tool:deploy')}/revoke`,
+          { method: 'POST' },
+        )
+        const third = await fetch(`${baseUrl}/threads/${thread.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: 'Deploy three' }),
+        })
+        expect(((await third.json()) as { status: string }).status).toBe(
+          'suspended',
+        )
+      },
+      askRule,
+    )
+  })
+
   it('cancels an in-flight turn on request', async () => {
     await withServer(
       // A slow multi-delta stream keeps the turn in flight long enough

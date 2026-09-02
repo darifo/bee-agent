@@ -1,8 +1,11 @@
 import type {
   ActionRequest,
   ActionResult,
+  AuthorizationDecision,
+  PermissionSnapshot,
   SandboxCapabilityReport,
   SandboxProvider,
+  SnapshotAuthorizationPolicy,
   WorldSnapshot,
 } from './execution-world.ts'
 
@@ -89,5 +92,51 @@ export class AllowlistedNetworkSandbox implements SandboxProvider {
       networkIsolation: true,
       processIsolation: false,
     })
+  }
+}
+
+/**
+ * Decorator policy for durable user grants: a remembered approval relaxes
+ * the wrapped policy's `ask` to `allow` for that capability. `deny` is
+ * never overridden — a grant cannot outrank a refusal from any layer.
+ */
+export class PersistedGrantPolicy implements SnapshotAuthorizationPolicy {
+  readonly #inner: SnapshotAuthorizationPolicy
+  readonly #grants: ReadonlySet<string>
+
+  constructor(inner: SnapshotAuthorizationPolicy, grants: ReadonlySet<string>) {
+    this.#inner = inner
+    this.#grants = grants
+  }
+
+  authorize(request: ActionRequest): AuthorizationDecision {
+    if (!this.#grants.has(request.capability)) {
+      return this.#inner.authorize(request)
+    }
+    const inner = this.#inner.authorize(request)
+    if (inner.decision === 'deny') return inner
+    return {
+      decision: 'allow',
+      reason: `用户已持久授权 '${request.capability}'（内层决定 ${inner.decision}）`,
+    }
+  }
+
+  snapshot(request: ActionRequest): PermissionSnapshot {
+    const inner = this.#inner.snapshot(request)
+    if (!this.#grants.has(request.capability)) return inner
+    if (inner.decision === 'deny') return inner
+    return {
+      ...inner,
+      decision: 'allow',
+      reason: `用户已持久授权 '${request.capability}'`,
+      layers: [
+        ...inner.layers,
+        {
+          id: 'persisted-grant',
+          decision: 'allow' as const,
+          reason: `用户记忆授权覆盖了 ${inner.decision}`,
+        },
+      ],
+    }
   }
 }

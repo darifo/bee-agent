@@ -77,6 +77,14 @@ export interface TurnTrajectoryDto {
   }[]
 }
 
+/** A remembered approval; relaxes ask to allow until revoked. */
+export interface GrantDto {
+  readonly capability: string
+  readonly reason?: string | undefined
+  readonly by: string
+  readonly at: string
+}
+
 /** One thread as the conversation list shows it (`GET /threads`). */
 export interface ThreadSummaryDto {
   readonly id: string
@@ -414,12 +422,34 @@ export class BeeAgentClient {
     turnId: TurnId,
     approvalId: string,
     decision: ApprovalDecision,
+    options: { readonly persist?: boolean | undefined } = {},
   ): Promise<TurnResult> {
     return this.#request<TurnResult>(
       'POST',
       `threads/${encodeURIComponent(threadId)}/turns/${encodeURIComponent(turnId)}/approvals/${encodeURIComponent(approvalId)}`,
-      { body: { decision } },
+      {
+        body: {
+          decision,
+          ...(options.persist === true ? { persist: true } : {}),
+        },
+      },
     )
+  }
+
+  /** Lists the remembered approvals. */
+  listGrants(): Promise<readonly GrantDto[]> {
+    return this.#request<{ grants: readonly GrantDto[] }>('GET', 'grants').then(
+      (body) => body.grants,
+    )
+  }
+
+  /** Revokes a remembered approval; the tool asks again afterwards. */
+  revokeGrant(capability: string): Promise<readonly GrantDto[]> {
+    return this.#request<{ grants: readonly GrantDto[] }>(
+      'POST',
+      `grants/${encodeURIComponent(capability)}/revoke`,
+      { body: {} },
+    ).then((body) => body.grants)
   }
 
   // -------------------------------------------------------------------------

@@ -171,7 +171,10 @@ export function App({ client }: AppProps) {
   }, [client, threadId])
 
   const decide = useCallback(
-    async (decision: 'approved' | 'rejected') => {
+    async (
+      decision: 'approved' | 'rejected',
+      options: { persist?: boolean } = {},
+    ) => {
       if (threadId === null || pending === undefined) return
       setBusy(true)
       setError(undefined)
@@ -181,6 +184,7 @@ export function App({ client }: AppProps) {
           pending.turnId,
           pending.approvalId,
           decision,
+          options,
         )
         setPending(undefined)
       } catch (reason) {
@@ -369,6 +373,14 @@ export function App({ client }: AppProps) {
                     disabled={busy}
                   >
                     批准
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void decide('approved', { persist: true })}
+                    disabled={busy}
+                    title="记住此授权：同类操作不再逐次询问，可随时在诊断页撤销"
+                  >
+                    批准并记住
                   </button>
                   <button
                     type="button"

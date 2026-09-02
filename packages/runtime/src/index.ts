@@ -89,6 +89,7 @@ export * from './goal-plan-store.ts'
 export * from './planner.ts'
 export * from './memory-hook.ts'
 export * from './time.ts'
+export * from './grant-store.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
 export {
