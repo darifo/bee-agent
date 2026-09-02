@@ -39,6 +39,11 @@ export type WebFetchToolInput = z.infer<typeof FetchInputSchema>
 export interface WebFetchToolOptions {
   /** Origins the host has reviewed; anything else fails closed. */
   readonly allowedOrigins: readonly string[]
+  /**
+   * Delegated review: origins surfaced by the reviewed search backend stay
+   * fetchable for their grant window even though they are not static.
+   */
+  readonly searchGrants?: SearchOriginGrants | undefined
   readonly maxTimeoutMs?: number | undefined
   readonly maxBytes?: number | undefined
 }
@@ -53,6 +58,7 @@ function originOf(url: string): string {
 
 export class WebFetchToolAdapter implements ToolAdapter {
   readonly #origins: ReadonlySet<string>
+  readonly #searchGrants: SearchOriginGrants | undefined
   readonly #maxTimeoutMs: number
   readonly #maxBytes: number
   readonly spec: LlmToolSpec
@@ -64,6 +70,7 @@ export class WebFetchToolAdapter implements ToolAdapter {
   }
 
   constructor(options: WebFetchToolOptions) {
+    this.#searchGrants = options.searchGrants
     const origins = options.allowedOrigins.map((origin) => originOf(origin))
     if (origins.length === 0) {
       throw new Error('web_fetch requires at least one allowed origin')
@@ -77,7 +84,7 @@ export class WebFetchToolAdapter implements ToolAdapter {
         `Fetch one web page and return its readable text (size-capped, trimmed at paragraph boundaries). ` +
         `Pages are readability-extracted (navigation removed, main/article content kept) and charset-aware (GBK/Big5 etc.); article links stay as Markdown [label](url) and the result leads with 原文链接/标题/摘要 — cite each item with its own 原文链接. ` +
         `RSS/Atom URLs return a parsed item list (title, link, date, summary) — prefer feeds for large or JS-rendered pages; repeated fetches within ~10 minutes are served from cache. ` +
-        `Allowed origins (research channels configured by the host): ${[...this.#origins].join(', ')}. Any other origin fails closed.`,
+        `Allowed origins (research channels configured by the host): ${[...this.#origins].join(', ')}; additionally, any origin returned by a recent web_search stays fetchable for a short window (delegated review). Other origins fail closed.`,
       inputSchema: {
         type: 'object',
         additionalProperties: false,
@@ -108,9 +115,9 @@ export class WebFetchToolAdapter implements ToolAdapter {
     }
     const input = FetchInputSchema.parse(call.input)
     const origin = originOf(input.url)
-    if (!this.#origins.has(origin)) {
+    if (!this.#origins.has(origin) && !this.#searchGrants?.has(origin)) {
       throw new Error(
-        `web_fetch origin '${origin}' is not allowlisted; allowed: ${[...this.#origins].join(', ')}`,
+        `web_fetch origin '${origin}' is not allowlisted; allowed: ${[...this.#origins].join(', ')} (or any origin returned by a recent web_search)`,
       )
     }
     return {
@@ -258,12 +265,58 @@ export interface FetchWebTransportOptions {
    * chain, not just the first request). Absent → redirects follow freely.
    */
   readonly allowedOrigins?: readonly string[] | undefined
+  /** Successful searches grant their result origins to the fetch tool. */
+  readonly searchGrants?: SearchOriginGrants | undefined
 }
 
 export interface WebSearchResult {
   readonly title: string
   readonly url: string
   readonly snippet: string
+}
+
+/**
+ * Host-delegated review (ADR 0023): the operator reviewed the search
+ * backend, so origins that backend surfaces become fetchable for a short
+ * window. Read-only predicate consumed by the fetch adapter and the
+ * network sandbox; grants carry a TTL and never outlive the process.
+ */
+export class SearchOriginGrants {
+  readonly #expiryByOrigin = new Map<string, number>()
+  readonly #ttlMs: number
+
+  constructor(ttlMs = 15 * 60_000) {
+    this.#ttlMs = ttlMs
+  }
+
+  grant(urls: readonly string[]): void {
+    const until = Date.now() + this.#ttlMs
+    for (const url of urls) {
+      try {
+        const parsed = new URL(url)
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+          continue
+        }
+        this.#expiryByOrigin.set(parsed.origin, until)
+      } catch {
+        // not a URL worth granting
+      }
+    }
+  }
+
+  has(origin: string): boolean {
+    const until = this.#expiryByOrigin.get(origin)
+    if (until === undefined) return false
+    if (Date.now() > until) {
+      this.#expiryByOrigin.delete(origin)
+      return false
+    }
+    return true
+  }
+
+  get size(): number {
+    return this.#expiryByOrigin.size
+  }
 }
 
 /**
@@ -641,6 +694,7 @@ export class FetchWebTransport implements NetworkTransport {
   readonly #cacheTtlMs: number
   readonly #cacheMaxEntries: number
   readonly #allowedOrigins: ReadonlySet<string> | undefined
+  readonly #searchGrants: SearchOriginGrants | undefined
   readonly #cache = new Map<
     string,
     {
@@ -662,6 +716,7 @@ export class FetchWebTransport implements NetworkTransport {
       options.allowedOrigins === undefined
         ? undefined
         : new Set(options.allowedOrigins.map((origin) => originOf(origin)))
+    this.#searchGrants = options.searchGrants
   }
 
   /**
@@ -975,6 +1030,9 @@ export class FetchWebTransport implements NetworkTransport {
         backend.kind === 'searxng'
           ? await this.#searxng(backend, query, maxResults, target, signal)
           : await this.#tavily(backend, query, maxResults, target, signal)
+      // Delegated review: the reviewed engine surfaced these origins, so
+      // they become fetchable for the grant window.
+      this.#searchGrants?.grant(results.map((result) => result.url))
       if (results.length === 0) {
         return {
           output: { query, results: 0 },

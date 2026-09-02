@@ -26,6 +26,7 @@ import {
 import { PythonToolAdapter } from '@bee-agent/tool-python'
 import {
   FetchWebTransport,
+  SearchOriginGrants,
   WebFetchToolAdapter,
   WebSearchToolAdapter,
 } from '@bee-agent/tool-web'
@@ -165,10 +166,16 @@ if (
     process.exit(1)
   }
 }
+// Delegated review: origins the reviewed engine surfaces stay fetchable
+// for a short window, shared by the adapter, transport, and sandbox.
+const searchGrants = new SearchOriginGrants()
 const webFetchTool =
   webFetchOrigins.length === 0
     ? undefined
-    : new WebFetchToolAdapter({ allowedOrigins: webFetchOrigins })
+    : new WebFetchToolAdapter({
+        allowedOrigins: webFetchOrigins,
+        searchGrants,
+      })
 const webSearchTool =
   searchBackend === undefined
     ? undefined
@@ -190,10 +197,12 @@ const networkSandbox = new AllowlistedNetworkSandbox(
   // origin list, so a 301 cannot quietly leave the allowlisted set.
   new FetchWebTransport({
     searchBackend,
+    searchGrants,
     ...(webFetchOrigins.length === 0
       ? {}
       : { allowedOrigins: webFetchOrigins }),
   }),
+  searchGrants,
 )
 const sandboxProvider =
   webNetworkTargets.length === 0

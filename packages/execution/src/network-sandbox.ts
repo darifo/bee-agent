@@ -19,14 +19,25 @@ export interface NetworkTransport {
  * Enforcing network provider: the transport receives only a predeclared,
  * exact target. It cannot select a URL from model-controlled payload data.
  */
+export interface DynamicOriginSource {
+  /** Consulted alongside the static list; short-lived, host-delegated. */
+  has(origin: string): boolean
+}
+
 export class AllowlistedNetworkSandbox implements SandboxProvider {
   readonly #targets: ReadonlySet<string>
+  readonly #dynamic: DynamicOriginSource | undefined
   readonly #transport: NetworkTransport
 
-  constructor(targets: readonly string[], transport: NetworkTransport) {
+  constructor(
+    targets: readonly string[],
+    transport: NetworkTransport,
+    dynamicOrigins?: DynamicOriginSource,
+  ) {
     if (targets.length === 0)
       throw new Error('At least one network target is required')
     this.#targets = new Set(targets.map((target) => new URL(target).origin))
+    this.#dynamic = dynamicOrigins
     this.#transport = transport
   }
 
@@ -49,7 +60,7 @@ export class AllowlistedNetworkSandbox implements SandboxProvider {
       )
     const target = new URL(request.requirements.networkTargets[0] as string)
       .origin
-    if (!this.#targets.has(target))
+    if (!this.#targets.has(target) && !(this.#dynamic?.has(target) ?? false))
       throw new Error(`Network target '${target}' is not allowlisted`)
     return this.#transport.request({
       target,

@@ -3,6 +3,7 @@ import {
   FetchWebTransport,
   WEB_FETCH_TOOL_ID,
   WEB_SEARCH_TOOL_ID,
+  SearchOriginGrants,
   WebFetchToolAdapter,
   WebSearchToolAdapter,
   htmlToText,
@@ -583,5 +584,58 @@ describe('htmlToText', () => {
     expect(text).toContain('跳转')
     expect(text).not.toContain('](#')
     expect(text).toContain('[绝对链接](https://other.example/a)')
+  })
+})
+
+describe('search origin grants (delegated review)', () => {
+  it('searches grant their result origins to the fetch adapter', async () => {
+    const grants = new SearchOriginGrants()
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({
+        results: [
+          { title: 'A', url: 'https://news.example.org/story/a', content: 'S' },
+          { title: 'B', url: 'javascript:alert(1)', content: 'skip' },
+        ],
+      }),
+    )
+    const transport = new FetchWebTransport({
+      fetch: fetchImpl as unknown as typeof fetch,
+      searchBackend: { kind: 'searxng' },
+      searchGrants: grants,
+    })
+    const search = await transport.request({
+      target: 'http://127.0.0.1:8888',
+      payload: { query: 'q' },
+      secrets: new Map(),
+    })
+    expect(search.isError).toBeUndefined()
+
+    const adapter = new WebFetchToolAdapter({
+      allowedOrigins: ['https://static.example.com'],
+      searchGrants: grants,
+    })
+    // The searched origin passes describe; an unknown one still fails.
+    expect(() =>
+      adapter.describe({
+        callId: 'c1',
+        toolId: 'web_fetch',
+        input: { url: 'https://news.example.org/story/a' },
+      }),
+    ).not.toThrow()
+    expect(() =>
+      adapter.describe({
+        callId: 'c2',
+        toolId: 'web_fetch',
+        input: { url: 'https://evil.example.com/x' },
+      }),
+    ).toThrow(/not allowlisted/)
+  })
+
+  it('grants expire after their TTL', async () => {
+    const grants = new SearchOriginGrants(20)
+    grants.grant(['https://temp.example.com/a'])
+    expect(grants.has('https://temp.example.com')).toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(grants.has('https://temp.example.com')).toBe(false)
   })
 })
