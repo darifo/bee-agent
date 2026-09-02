@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm'
 import type {
   BeeAgentClient,
   Diagnostics,
+  ModelReplayDto,
   TurnResult,
   TurnTrajectoryDto,
 } from '@bee-agent/client'
@@ -127,6 +128,36 @@ export function App({ client }: AppProps) {
       }
     }
   }, [client, threadId, input])
+
+  const exportMarkdown = useCallback(() => {
+    const now = new Date()
+    const pad = (value: number): string => String(value).padStart(2, '0')
+    const lines: string[] = [
+      `# Bee 对话 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+      '',
+    ]
+    for (const entry of entries) {
+      if (entry.kind === 'user') {
+        lines.push('## 我', '', entry.content, '')
+      } else if (entry.kind === 'assistant') {
+        lines.push('## Bee', '', entry.content, '')
+      } else if (entry.kind === 'tool') {
+        lines.push(
+          `> 🧩 调用工具 ${entry.toolId}${entry.preview !== undefined ? ` — ${entry.preview}` : ''}`,
+          '',
+        )
+      }
+    }
+    const blob = new Blob([lines.join('\n')], {
+      type: 'text/markdown;charset=utf-8',
+    })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `bee-对话-${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.md`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }, [entries])
 
   const stop = useCallback(async () => {
     if (threadId === null) return
@@ -279,6 +310,14 @@ export function App({ client }: AppProps) {
                     ● 实时连接
                   </span>
                 ) : null}
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={exportMarkdown}
+                  title="导出本次对话为 Markdown"
+                >
+                  ⬇ 导出
+                </button>
                 <button
                   type="button"
                   className="ghost"
@@ -579,6 +618,16 @@ const TRAJECTORY_OUTCOME_LABELS: Record<string, string> = {
  * usage and latency, tool actions with their authorization decisions, and
  * checkpoints — the deep link from any tool card in the transcript.
  */
+const REPLAY_SECTION_LABELS: Record<string, string> = {
+  instruction: '系统指令',
+  goal: '目标',
+  world: '世界模型',
+  trajectory: '历史轨迹',
+  memory: '记忆召回',
+  skill: '技能',
+  tool: '工具声明',
+}
+
 function TrajectoryDrawer({
   client,
   link,
@@ -590,6 +639,10 @@ function TrajectoryDrawer({
 }) {
   const [data, setData] = useState<TurnTrajectoryDto | undefined>()
   const [error, setError] = useState<string | undefined>()
+  const [replay, setReplay] = useState<
+    | { requestId: string; state: ModelReplayDto | 'loading' | string }
+    | undefined
+  >()
 
   useEffect(() => {
     if (link === undefined) {
@@ -644,7 +697,7 @@ function TrajectoryDrawer({
               ) : (
                 <ul className="trace-list">
                   {data.generations.map((generation, index) => (
-                    <li key={index}>
+                    <li key={index} className="trace-item">
                       <span className="trace-step">
                         步 {generation.stepIndex}
                       </span>
@@ -660,6 +713,36 @@ function TrajectoryDrawer({
                           {generation.latencyMs ?? 0}ms
                         </span>
                       ) : null}
+                      <button
+                        type="button"
+                        className="tool-trace"
+                        onClick={() => {
+                          setReplay({
+                            requestId: generation.requestId,
+                            state: 'loading',
+                          })
+                          void client
+                            .replayModelRequest(generation.requestId)
+                            .then((dto) =>
+                              setReplay({
+                                requestId: generation.requestId,
+                                state: dto,
+                              }),
+                            )
+                            .catch((reason: unknown) =>
+                              setReplay({
+                                requestId: generation.requestId,
+                                state:
+                                  reason instanceof Error
+                                    ? reason.message
+                                    : String(reason),
+                              }),
+                            )
+                        }}
+                        title="重放该次模型实际看到的上下文"
+                      >
+                        重放
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -691,6 +774,53 @@ function TrajectoryDrawer({
                 </ul>
               )}
             </section>
+            {replay !== undefined ? (
+              <section className="replay-panel">
+                <h4>
+                  模型输入重放
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => setReplay(undefined)}
+                  >
+                    ✕
+                  </button>
+                </h4>
+                {replay.state === 'loading' ? (
+                  <p className="drawer-loading">重放中…</p>
+                ) : typeof replay.state === 'string' ? (
+                  <p className="console-error">{replay.state}</p>
+                ) : (
+                  <>
+                    <p className="drawer-meta">
+                      摘要已验证 ✓ · 预算 {replay.state.manifest.tokenBudget}{' '}
+                      tokens · 消息 {replay.state.bundle.messages.length} 条
+                    </p>
+                    <ul className="replay-sections">
+                      {replay.state.manifest.sections.map((section, i) => (
+                        <li
+                          key={i}
+                          className={
+                            section.kind === 'memory' ? 'replay-memory' : ''
+                          }
+                        >
+                          {REPLAY_SECTION_LABELS[section.kind] ?? section.kind}
+                          <em>{section.tokens} tokens</em>
+                        </li>
+                      ))}
+                    </ul>
+                    <ul className="replay-messages">
+                      {replay.state.bundle.messages.map((message, i) => (
+                        <li key={i}>
+                          <strong>{message.role}</strong>
+                          <span>{message.content.slice(0, 200)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </section>
+            ) : null}
             <section>
               <h4>检查点</h4>
               {data.checkpoints.length === 0 ? (

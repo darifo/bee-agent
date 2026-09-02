@@ -61,13 +61,26 @@ const LANES: readonly {
   id: string
   title: string
   statuses: readonly string[]
+  /** Drop target status — the transition endpoint walks the legal chain. */
+  anchor: string
 }[] = [
-  { id: 'todo', title: '待办', statuses: ['inbox', 'triaged', 'ready'] },
-  { id: 'doing', title: '进行中', statuses: ['running', 'blocked', 'review'] },
+  {
+    id: 'todo',
+    title: '待办',
+    statuses: ['inbox', 'triaged', 'ready'],
+    anchor: 'ready',
+  },
+  {
+    id: 'doing',
+    title: '进行中',
+    statuses: ['running', 'blocked', 'review'],
+    anchor: 'running',
+  },
   {
     id: 'done',
     title: '已完成',
     statuses: ['done', 'cancelled', 'archived', 'failed'],
+    anchor: 'done',
   },
 ]
 
@@ -119,6 +132,22 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
       setError(undefined)
       try {
         await client.completeTask(id)
+        await refresh()
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [client, refresh],
+  )
+
+  const moveTo = useCallback(
+    async (id: string, to: string) => {
+      setBusy(true)
+      setError(undefined)
+      try {
+        await client.transitionTask(id, to, '拖拽移动')
         await refresh()
       } catch (reason) {
         setError(reason instanceof Error ? reason.message : String(reason))
@@ -196,9 +225,27 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
               {laneTasks.length === 0 ? (
                 <p className="lane-empty">暂无任务</p>
               ) : (
-                <ul className="lane-list">
+                <ul
+                  className="lane-list"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault()
+                    const id = event.dataTransfer.getData('text/task-id')
+                    if (id !== '' && lane.anchor !== undefined) {
+                      void moveTo(id, lane.anchor)
+                    }
+                  }}
+                >
                   {laneTasks.map((task) => (
-                    <li key={task.id} className="task-card">
+                    <li
+                      key={task.id}
+                      className="task-card"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData('text/task-id', task.id)
+                        event.dataTransfer.effectAllowed = 'move'
+                      }}
+                    >
                       <div className="task-card-top">
                         <span className={priorityClass(task.priority)}>
                           {priorityLabel(task.priority)}

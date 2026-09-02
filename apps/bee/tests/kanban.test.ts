@@ -161,6 +161,40 @@ describe('apps/bee /kanban API', () => {
     }
   })
 
+  it('transitions across multiple legal hops in one call (drag-and-drop)', async () => {
+    const kanban = new ChronicleKanbanStore(
+      new MemoryChronicleStore(createRegistry()),
+    )
+    const { server, baseUrl } = await startServer(kanban)
+    try {
+      const created = await postJson(`${baseUrl}/kanban/tasks`, {
+        title: '拖拽任务',
+      })
+      const task = created.json as KanbanTask
+
+      const moved = (
+        await postJson(`${baseUrl}/kanban/tasks/${task.id}/transition`, {
+          to: 'running',
+          reason: '拖拽到进行中',
+        })
+      ).json as KanbanTask
+      expect(moved.status).toBe('running')
+      // inbox → triaged → ready → running: three durable hops after create.
+      expect(moved.version).toBe(task.version + 3)
+
+      const illegal = await postJson(
+        `${baseUrl}/kanban/tasks/${task.id}/transition`,
+        { to: 'inbox' },
+      )
+      expect(illegal.status).toBeGreaterThanOrEqual(400)
+      expect(illegal.json).toMatchObject({
+        message: expect.stringMatching(/legal targets from 'running'/),
+      })
+    } finally {
+      await server.app.close()
+    }
+  })
+
   it('returns 404 for a missing task', async () => {
     const kanban = new ChronicleKanbanStore(
       new MemoryChronicleStore(createRegistry()),

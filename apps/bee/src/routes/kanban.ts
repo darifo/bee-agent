@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { FastifyPluginAsync } from 'fastify'
-import { KanbanTaskNotFoundError } from '@bee-agent/kanban'
+import { KanbanTaskNotFoundError, transitionAlongPath } from '@bee-agent/kanban'
 import type {
   KanbanStore,
   KanbanTaskId,
@@ -75,8 +75,9 @@ async function transitionTo(
   to: KanbanTaskStatus,
   reason?: string | undefined,
 ) {
-  const task = await requireTask(store, taskId)
-  return store.transition(taskId, { to, expectedVersion: task.version, reason })
+  // Same semantics as the agent tool: one call walks the shortest legal
+  // chain, every hop a durable event; illegal targets name their legal ones.
+  return transitionAlongPath(store, taskId, to, reason)
 }
 
 /**
@@ -153,5 +154,29 @@ export const kanbanRoutes: FastifyPluginAsync = async (app) => {
   app.post('/kanban/tasks/:taskId/cancel', async (request) => {
     const { taskId } = TaskIdParamsSchema.parse(request.params)
     return transitionTo(kanban, taskId as KanbanTaskId, 'cancelled')
+  })
+
+  // Explicit status transition (drag-and-drop, CLI): one legal hop —
+  // the error names the legal targets when the request is illegal.
+  app.post('/kanban/tasks/:taskId/transition', async (request) => {
+    const { taskId } = TaskIdParamsSchema.parse(request.params)
+    const body = z
+      .object({
+        to: z.enum([
+          'inbox',
+          'triaged',
+          'ready',
+          'running',
+          'blocked',
+          'review',
+          'done',
+          'failed',
+          'cancelled',
+          'archived',
+        ]),
+        reason: z.string().min(1).optional(),
+      })
+      .parse(request.body)
+    return transitionTo(kanban, taskId as KanbanTaskId, body.to, body.reason)
   })
 }

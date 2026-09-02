@@ -219,15 +219,16 @@ async function requireTask(
   return task
 }
 
-async function transitionTo(
+export async function transitionAlongPath(
   store: KanbanStore,
   id: KanbanTaskId,
   to: KanbanTaskStatus,
   reason?: string | undefined,
 ): Promise<KanbanTask> {
-  const task = await requireTask(store, id)
+  const task = await store.get(id)
+  if (task === undefined) throw new KanbanTaskNotFoundError(id)
   // Targeted transitions walk the shortest legal chain — every hop is its
-  // own durable event, so the audit trail stays honest while the agent
+  // own durable event, so the audit trail stays honest while the caller
   // gets a one-call path from `inbox` to `done`.
   const path = shortestTransitionPath(task.status, to)
   if (path === undefined) {
@@ -243,6 +244,16 @@ async function transitionTo(
     })
   }
   return current
+}
+
+async function transitionTo(
+  store: KanbanStore,
+  id: KanbanTaskId,
+  to: KanbanTaskStatus,
+  reason?: string | undefined,
+): Promise<KanbanTask> {
+  await requireTask(store, id)
+  return transitionAlongPath(store, id, to, reason)
 }
 
 /**

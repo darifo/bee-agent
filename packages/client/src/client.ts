@@ -488,6 +488,19 @@ export class BeeAgentClient {
     )
   }
 
+  /** One legal status hop; illegal targets report the legal ones. */
+  transitionTask(
+    taskId: string,
+    to: string,
+    reason?: string,
+  ): Promise<KanbanTaskDto> {
+    return this.#request<KanbanTaskDto>(
+      'POST',
+      `kanban/tasks/${encodeURIComponent(taskId)}/transition`,
+      { body: { to, ...(reason === undefined ? {} : { reason }) } },
+    )
+  }
+
   /**
    * Streams a thread's wire events over SSE. Recorded events after `after`
    * are replayed first, then live events follow; the generator finishes when
