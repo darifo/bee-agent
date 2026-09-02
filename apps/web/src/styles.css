@@ -2104,3 +2104,99 @@ button.history-item.active {
 .lane-list {
   min-height: 48px;
 }
+
+/* Diagnostics cards. */
+.diag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.diag-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+
+.diag-card.diag-ok {
+  border-left: 3px solid var(--ok);
+}
+
+.diag-card.diag-warn {
+  border-left: 3px solid var(--warn);
+}
+
+.diag-card h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diag-value {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.diag-meta {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-soft);
+}
+
+.diag-alert {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.diag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.diag-chips .chip em {
+  font-style: normal;
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* Clickable welcome hints. */
+.welcome-hints button {
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  transition:
+    text-decoration-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.welcome-hints button:hover {
+  color: var(--text);
+  text-decoration-color: var(--bee-primary-strong);
+}
+
+/* Priority select inside the task drawer. */
+.drawer-meta select {
+  padding: 1px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}

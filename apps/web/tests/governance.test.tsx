@@ -135,4 +135,44 @@ describe('governance views', () => {
       ),
     )
   })
+  it('diagnostics tab renders the health overview cards', async () => {
+    const client = {
+      listThreads: vi.fn().mockResolvedValue([]),
+      diagnostics: vi.fn().mockResolvedValue({
+        status: 'ok',
+        structure: {
+          activeVersion: 'sha256:abcdef1234567890',
+          restartRequired: false,
+          restartRequiredPlugins: [],
+          doctor: {},
+          configSource: {},
+        },
+        memory: {
+          enabled: true,
+          health: { status: 'healthy' },
+          claims: { total: 9, active: 7, retracted: 2 },
+        },
+        world: { enabled: true, version: 37, entities: 12, relations: 20 },
+        scheduler: { enabled: true, triggers: 3 },
+        learning: {
+          enabled: true,
+          byStatus: { trial: 1, promoted: 2 },
+          loopBudget: {},
+          driftBudget: {},
+        },
+        threads: { streams: 40 },
+      }),
+    } as unknown as BeeAgentClient
+    render(<App client={client} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '诊断' }))
+    await waitFor(() => {
+      expect(screen.getByText('运行正常')).toBeDefined()
+    })
+    expect(screen.getByText(/声明 9 · 生效 7/)).toBeDefined()
+    expect(screen.getByText(/实体 12 · 关系 20/)).toBeDefined()
+    expect(screen.getByText(/触发器 3 个/)).toBeDefined()
+    expect(screen.getByText('试用中')).toBeDefined()
+    expect(screen.getByText(/40 条事件流/)).toBeDefined()
+  })
 })

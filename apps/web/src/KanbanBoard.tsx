@@ -174,6 +174,21 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
     [client, refresh],
   )
 
+  const setPriority = useCallback(
+    async (id: string, priority: string) => {
+      setBusy(true)
+      try {
+        await client.updateTask(id, { priority })
+        await refresh()
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [client, refresh],
+  )
+
   const addComment = useCallback(async () => {
     if (detailId === undefined || comment.trim() === '') return
     setBusy(true)
@@ -333,7 +348,21 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
                   </span>{' '}
                   <span className={priorityClass(detail.priority)}>
                     {priorityLabel(detail.priority)}
-                  </span>{' '}
+                  </span>
+                  <select
+                    value={detail.priority}
+                    onChange={(event) =>
+                      void setPriority(detail.id, event.target.value)
+                    }
+                    disabled={busy}
+                    aria-label="调整优先级"
+                  >
+                    {['urgent', 'high', 'medium', 'low'].map((priority) => (
+                      <option key={priority} value={priority}>
+                        {priorityLabel(priority)}
+                      </option>
+                    ))}
+                  </select>
                   · v{detail.version} · 创建于{' '}
                   {detail.createdAt.slice(5, 16).replace('T', ' ')}
                 </p>

@@ -15,6 +15,7 @@ import { MemoryPanel } from './MemoryPanel.tsx'
 import { LearningPanel } from './LearningPanel.tsx'
 import { TrajectoryPanel } from './TrajectoryPanel.tsx'
 import { ThreadHistory } from './ThreadHistory.tsx'
+import { DiagnosticsPanel } from './DiagnosticsPanel.tsx'
 
 export interface AppProps {
   client: BeeAgentClient
@@ -26,7 +27,8 @@ interface PendingApproval {
   readonly title: string
 }
 
-type View = 'chat' | 'board' | 'memory' | 'learning' | 'trajectory'
+type View =
+  'chat' | 'board' | 'memory' | 'learning' | 'trajectory' | 'diagnostics'
 
 function outputOf(result: TurnResult): string {
   if (result.status === 'completed') return result.output
@@ -233,6 +235,13 @@ export function App({ client }: AppProps) {
           >
             轨迹
           </button>
+          <button
+            type="button"
+            className={view === 'diagnostics' ? 'active' : ''}
+            onClick={() => setView('diagnostics')}
+          >
+            诊断
+          </button>
         </nav>
         <span
           className={`status-dot ${health === undefined ? 'status-down' : health.status === 'ok' ? 'status-ok' : 'status-warn'}`}
@@ -254,6 +263,8 @@ export function App({ client }: AppProps) {
         <LearningPanel client={client} />
       ) : view === 'trajectory' ? (
         <TrajectoryPanel client={client} />
+      ) : view === 'diagnostics' ? (
+        <DiagnosticsPanel client={client} />
       ) : (
         <>
           {error !== undefined ? (
@@ -267,9 +278,32 @@ export function App({ client }: AppProps) {
               <h2>开始一段对话</h2>
               <p>Bee 记得你的偏好、能安全地执行命令、会在看板上管理任务。</p>
               <ul className="welcome-hints">
-                <li>「从现在起用中文写周报」— 它会记住这个偏好</li>
-                <li>「用 command_run 列出 /tmp」— 会先征求你的审批</li>
-                <li>「建个看板任务：整理文档」— 交给后台慢慢做</li>
+                {[
+                  {
+                    hint: '「从现在起用中文写周报」— 它会记住这个偏好',
+                    fill: '从现在起用中文写周报',
+                  },
+                  {
+                    hint: '「用 web_fetch 看看 BBC 头条」— 立刻试试网络研究',
+                    fill: '用 web_fetch 抓取 BBC 世界新闻头条，总结 3 条并附原文链接',
+                  },
+                  {
+                    hint: '「建个看板任务：整理文档」— 交给后台慢慢做',
+                    fill: '建一个看板任务：整理文档并归档',
+                  },
+                ].map((item) => (
+                  <li key={item.fill}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInput(item.fill)
+                        if (threadId === null) void start()
+                      }}
+                    >
+                      {item.hint}
+                    </button>
+                  </li>
+                ))}
               </ul>
               <button
                 type="button"
