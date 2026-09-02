@@ -38,6 +38,45 @@ export interface CreateTurnInput {
   readonly structureVersion?: string | undefined
 }
 
+/** One turn's causal trajectory (generations, tools, checkpoints). */
+export interface TurnTrajectoryDto {
+  readonly threadId: string
+  readonly turnId: string
+  readonly status: string | undefined
+  readonly trigger: string | undefined
+  readonly input: string | undefined
+  readonly generations: readonly {
+    readonly stepIndex: number
+    readonly attempt: number
+    readonly requestId: string
+    readonly model: string
+    readonly stopReason: string | undefined
+    readonly usage:
+      | {
+          readonly inputTokens: number
+          readonly outputTokens: number
+          readonly totalTokens: number
+        }
+      | undefined
+    readonly latencyMs: number | undefined
+    readonly error: string | undefined
+  }[]
+  readonly tools: readonly {
+    readonly callId: string
+    readonly toolId: string
+    readonly capability: string | undefined
+    readonly decision: 'allow' | 'ask' | 'deny' | undefined
+    readonly decisionReason: string | undefined
+    readonly outcome: string
+    readonly isError: boolean | undefined
+  }[]
+  readonly checkpoints: readonly {
+    readonly sequence: number
+    readonly stepIndex: number
+    readonly stateDigest: string
+  }[]
+}
+
 /** One thread as the conversation list shows it (`GET /threads`). */
 export interface ThreadSummaryDto {
   readonly id: string
@@ -319,6 +358,26 @@ export class BeeAgentClient {
       'GET',
       'threads',
     ).then((body) => body.threads)
+  }
+
+  /** Stops the thread's in-flight turns; awaiting calls settle cancelled. */
+  cancelTurns(threadId: string): Promise<{ cancelled: number }> {
+    return this.#request<{ cancelled: number }>(
+      'POST',
+      `threads/${encodeURIComponent(threadId)}/cancel`,
+      { body: {} },
+    )
+  }
+
+  /** Reads one turn's causal trajectory (WF4-E view). */
+  getTurnTrajectory(
+    threadId: string,
+    turnId: string,
+  ): Promise<TurnTrajectoryDto> {
+    return this.#request<TurnTrajectoryDto>(
+      'GET',
+      `threads/${encodeURIComponent(threadId)}/turns/${encodeURIComponent(turnId)}/trajectory`,
+    )
   }
 
   /** Starts a turn on a thread; the server keeps running it to completion. */

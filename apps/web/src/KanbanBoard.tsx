@@ -82,6 +82,8 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
   const [title, setTitle] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
+  const [detailId, setDetailId] = useState<string | undefined>()
+  const [comment, setComment] = useState('')
 
   const refresh = useCallback(async () => {
     try {
@@ -143,6 +145,20 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
     [client, refresh],
   )
 
+  const addComment = useCallback(async () => {
+    if (detailId === undefined || comment.trim() === '') return
+    setBusy(true)
+    try {
+      await client.commentTask(detailId, comment.trim(), '我')
+      setComment('')
+      await refresh()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setBusy(false)
+    }
+  }, [client, detailId, comment, refresh])
+
   return (
     <section className="board" aria-label="任务看板">
       <form
@@ -191,7 +207,14 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
                           {statusLabel(task.status)}
                         </span>
                       </div>
-                      <p className="task-card-title">{task.title}</p>
+                      <button
+                        type="button"
+                        className="task-card-title"
+                        onClick={() => setDetailId(task.id)}
+                        title="查看任务详情"
+                      >
+                        {task.title}
+                      </button>
                       {!TERMINAL.has(task.status) ? (
                         <div className="task-card-actions">
                           <button
@@ -230,6 +253,105 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
           ↻ 刷新
         </button>
       </div>
+
+      {(() => {
+        const detail = tasks.find((task) => task.id === detailId)
+        if (detail === undefined) return null
+        return (
+          <div
+            className="drawer-backdrop"
+            role="presentation"
+            onClick={() => setDetailId(undefined)}
+          >
+            <aside
+              className="drawer"
+              role="dialog"
+              aria-label="任务详情"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <header className="drawer-head">
+                <h3>{detail.title}</h3>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setDetailId(undefined)}
+                >
+                  ✕ 关闭
+                </button>
+              </header>
+              <div className="drawer-body">
+                <p className="drawer-meta">
+                  <span className={badgeClass(detail.status)}>
+                    {statusLabel(detail.status)}
+                  </span>{' '}
+                  <span className={priorityClass(detail.priority)}>
+                    {priorityLabel(detail.priority)}
+                  </span>{' '}
+                  · v{detail.version} · 创建于{' '}
+                  {detail.createdAt.slice(5, 16).replace('T', ' ')}
+                </p>
+                {detail.goal !== undefined && detail.goal !== '' ? (
+                  <section>
+                    <h4>目标</h4>
+                    <p>{detail.goal}</p>
+                  </section>
+                ) : null}
+                {detail.labels.length > 0 ? (
+                  <section>
+                    <h4>标签</h4>
+                    <p className="drawer-chips">
+                      {detail.labels.map((label) => (
+                        <span key={label} className="chip">
+                          {label}
+                        </span>
+                      ))}
+                    </p>
+                  </section>
+                ) : null}
+                <section>
+                  <h4>评论（{detail.comments.length}）</h4>
+                  {detail.comments.length === 0 ? (
+                    <p className="empty">还没有评论。</p>
+                  ) : (
+                    <ul className="comment-list">
+                      {detail.comments.map((entry) => (
+                        <li key={entry.id}>
+                          <span className="comment-author">{entry.author}</span>
+                          <span className="comment-time">
+                            {entry.at.slice(5, 16).replace('T', ' ')}
+                          </span>
+                          <p>{entry.body}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <form
+                    className="comment-form"
+                    onSubmit={(event) => {
+                      event.preventDefault()
+                      void addComment()
+                    }}
+                  >
+                    <input
+                      value={comment}
+                      onChange={(event) => setComment(event.target.value)}
+                      placeholder="添加评论…"
+                      disabled={busy}
+                      aria-label="评论内容"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || comment.trim() === ''}
+                    >
+                      发表
+                    </button>
+                  </form>
+                </section>
+              </div>
+            </aside>
+          </div>
+        )
+      })()}
     </section>
   )
 }

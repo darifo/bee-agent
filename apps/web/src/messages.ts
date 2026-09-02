@@ -11,6 +11,8 @@ export type ChatEntry =
   | {
       readonly kind: 'tool'
       readonly toolId: string
+      /** Turn scope for the trajectory deep-link. */
+      readonly turnId?: string
       /** One-line human summary of the result (never raw JSON). */
       readonly preview?: string
       /** Full tool result text, shown in the collapsible detail. */
@@ -96,6 +98,7 @@ export function deriveEntries(
             entries.push({
               kind: 'tool',
               toolId: item.payload.toolId,
+              turnId: event.turnId,
               ...(preview === undefined ? {} : { preview }),
               result:
                 content.length > 4000 ? `${content.slice(0, 4000)}…` : content,

@@ -42,6 +42,35 @@ const HEARTBEAT_MS = 15_000
 
 export interface ThreadRoutesOptions {
   readonly corsOrigin?: CorsOriginPolicy | undefined
+  /** Registry the routes use to make in-flight turns abortable. */
+  readonly turnCancels?: TurnCancellationRegistry | undefined
+}
+
+/**
+ * Tracks the abort controllers of turns currently running per thread, so
+ * `POST /threads/:threadId/cancel` can stop them; the original request
+ * still settles normally with a `cancelled` result.
+ */
+export class TurnCancellationRegistry {
+  readonly #byThread = new Map<string, Set<AbortController>>()
+
+  add(threadId: string, controller: AbortController): void {
+    const set = this.#byThread.get(threadId) ?? new Set<AbortController>()
+    set.add(controller)
+    this.#byThread.set(threadId, set)
+  }
+
+  remove(threadId: string, controller: AbortController): void {
+    this.#byThread.get(threadId)?.delete(controller)
+  }
+
+  abortAll(threadId: string): number {
+    const set = this.#byThread.get(threadId)
+    if (set === undefined) return 0
+    const count = set.size
+    for (const controller of set) controller.abort()
+    return count
+  }
 }
 
 function allowOrigin(
@@ -64,6 +93,7 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
   options,
 ) => {
   const { store, loop } = app.bee
+  const turnCancels = options.turnCancels ?? new TurnCancellationRegistry()
 
   app.post('/threads', async (request, reply) => {
     const body = CreateThreadBodySchema.parse(request.body)
@@ -85,12 +115,27 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
   app.post('/threads/:threadId/turns', async (request, reply) => {
     const { threadId } = ThreadIdParamsSchema.parse(request.params)
     const body = CreateTurnBodySchema.parse(request.body)
-    const result = await loop.runTurn({
-      threadId: threadId as ThreadId,
-      input: body.input,
-      structureVersion: body.structureVersion,
-    })
-    return reply.send(result)
+    const controller = new AbortController()
+    turnCancels.add(threadId, controller)
+    try {
+      const result = await loop.runTurn({
+        threadId: threadId as ThreadId,
+        input: body.input,
+        structureVersion: body.structureVersion,
+        signal: controller.signal,
+      })
+      return reply.send(result)
+    } finally {
+      turnCancels.remove(threadId, controller)
+    }
+  })
+
+  // Stops the thread's in-flight turns; the awaiting POST /turns call
+  // settles with a `cancelled` result and the transcript records the
+  // turn.cancelled fact.
+  app.post('/threads/:threadId/cancel', async (request) => {
+    const { threadId } = ThreadIdParamsSchema.parse(request.params)
+    return { cancelled: turnCancels.abortAll(threadId) }
   })
 
   app.post(
@@ -100,13 +145,20 @@ export const threadRoutes: FastifyPluginAsync<ThreadRoutesOptions> = async (
         request.params,
       )
       const body = DecideApprovalBodySchema.parse(request.body)
-      const result = await loop.resumeTurn({
-        threadId: threadId as ThreadId,
-        turnId: turnId as TurnId,
-        approvalId,
-        decision: body.decision,
-      })
-      return reply.send(result)
+      const controller = new AbortController()
+      turnCancels.add(threadId, controller)
+      try {
+        const result = await loop.resumeTurn({
+          threadId: threadId as ThreadId,
+          turnId: turnId as TurnId,
+          approvalId,
+          decision: body.decision,
+          signal: controller.signal,
+        })
+        return reply.send(result)
+      } finally {
+        turnCancels.remove(threadId, controller)
+      }
     },
   )
 

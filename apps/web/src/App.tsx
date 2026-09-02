@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { BeeAgentClient, Diagnostics, TurnResult } from '@bee-agent/client'
+import type {
+  BeeAgentClient,
+  Diagnostics,
+  TurnResult,
+  TurnTrajectoryDto,
+} from '@bee-agent/client'
 import { useThreadStream } from './hooks/useThreadStream.ts'
 import { deriveEntries } from './messages.ts'
 import { KanbanBoard } from './KanbanBoard.tsx'
@@ -41,6 +46,9 @@ export function App({ client }: AppProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
   const [pending, setPending] = useState<PendingApproval | undefined>()
+  const [trajectoryLink, setTrajectoryLink] = useState<
+    { threadId: string; turnId: string } | undefined
+  >()
 
   const [health, setHealth] = useState<Diagnostics | undefined>()
   const [threadsKey, setThreadsKey] = useState(0)
@@ -119,6 +127,15 @@ export function App({ client }: AppProps) {
       }
     }
   }, [client, threadId, input])
+
+  const stop = useCallback(async () => {
+    if (threadId === null) return
+    try {
+      await client.cancelTurns(threadId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }, [client, threadId])
 
   const decide = useCallback(
     async (decision: 'approved' | 'rejected') => {
@@ -240,7 +257,12 @@ export function App({ client }: AppProps) {
                 ref={transcriptRef}
               >
                 {entries.map((entry, index) => (
-                  <Entry key={`${index}-${entry.kind}`} entry={entry} />
+                  <Entry
+                    key={`${index}-${entry.kind}`}
+                    entry={entry}
+                    threadId={threadId}
+                    onOpenTrajectory={setTrajectoryLink}
+                  />
                 ))}
                 {busy ? (
                   <div className="typing" aria-label="Bee 正在输入">
@@ -312,6 +334,16 @@ export function App({ client }: AppProps) {
                 <button type="submit" disabled={busy || input.trim() === ''}>
                   发送
                 </button>
+                {busy ? (
+                  <button
+                    type="button"
+                    className="ghost"
+                    onClick={() => void stop()}
+                    title="停止当前回合"
+                  >
+                    ⏹ 停止
+                  </button>
+                ) : null}
               </form>
             </>
           )}
@@ -322,6 +354,11 @@ export function App({ client }: AppProps) {
             refreshKey={threadsKey}
             onOpen={setThreadId}
             onNew={() => void start()}
+          />
+          <TrajectoryDrawer
+            client={client}
+            link={trajectoryLink}
+            onClose={() => setTrajectoryLink(undefined)}
           />
         </>
       )}
@@ -411,7 +448,15 @@ function MessageHead({
   )
 }
 
-function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
+function Entry({
+  entry,
+  threadId,
+  onOpenTrajectory,
+}: {
+  entry: ReturnType<typeof deriveEntries>[number]
+  threadId: string | null
+  onOpenTrajectory: (link: { threadId: string; turnId: string }) => void
+}) {
   switch (entry.kind) {
     case 'user':
       return (
@@ -444,7 +489,13 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
         </div>
       )
     case 'tool':
-      return <ToolCard entry={entry} />
+      return (
+        <ToolCard
+          entry={entry}
+          threadId={threadId}
+          onOpenTrajectory={onOpenTrajectory}
+        />
+      )
     case 'approval':
       return (
         <div className="msg msg-approval">
@@ -466,8 +517,12 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
 
 function ToolCard({
   entry,
+  threadId,
+  onOpenTrajectory,
 }: {
   entry: Extract<ReturnType<typeof deriveEntries>[number], { kind: 'tool' }>
+  threadId: string | null
+  onOpenTrajectory: (link: { threadId: string; turnId: string }) => void
 }) {
   const { icon, name } = toolLabel(entry.toolId)
   return (
@@ -483,6 +538,23 @@ function ToolCard({
         {entry.isError === true ? (
           <span className="tool-error">失败</span>
         ) : null}
+        {entry.turnId !== undefined && threadId !== null ? (
+          <button
+            type="button"
+            className="tool-trace"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onOpenTrajectory({
+                threadId,
+                turnId: entry.turnId as string,
+              })
+            }}
+            title="查看本轮因果轨迹"
+          >
+            轨迹
+          </button>
+        ) : null}
         <span className="tool-chevron" aria-hidden="true">
           ▾
         </span>
@@ -491,5 +563,156 @@ function ToolCard({
         <pre className="tool-result">{entry.result}</pre>
       ) : null}
     </details>
+  )
+}
+
+const TRAJECTORY_OUTCOME_LABELS: Record<string, string> = {
+  completed: '完成',
+  failed: '失败',
+  denied: '被拒',
+  started: '进行中',
+  unknown: '未知',
+}
+
+/**
+ * The per-turn causal view (architecture §7.4, WF4-E): generations with
+ * usage and latency, tool actions with their authorization decisions, and
+ * checkpoints — the deep link from any tool card in the transcript.
+ */
+function TrajectoryDrawer({
+  client,
+  link,
+  onClose,
+}: {
+  client: BeeAgentClient
+  link: { threadId: string; turnId: string } | undefined
+  onClose: () => void
+}) {
+  const [data, setData] = useState<TurnTrajectoryDto | undefined>()
+  const [error, setError] = useState<string | undefined>()
+
+  useEffect(() => {
+    if (link === undefined) {
+      setData(undefined)
+      return
+    }
+    setData(undefined)
+    setError(undefined)
+    void client
+      .getTurnTrajectory(link.threadId, link.turnId)
+      .then(setData)
+      .catch((reason: unknown) =>
+        setError(reason instanceof Error ? reason.message : String(reason)),
+      )
+  }, [client, link])
+
+  if (link === undefined) return null
+  return (
+    <div className="drawer-backdrop" role="presentation" onClick={onClose}>
+      <aside
+        className="drawer"
+        role="dialog"
+        aria-label="轮次轨迹"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="drawer-head">
+          <h3>轮次轨迹</h3>
+          <button type="button" className="ghost" onClick={onClose}>
+            ✕ 关闭
+          </button>
+        </header>
+        {error !== undefined ? (
+          <p className="console-error" role="alert">
+            {error}
+          </p>
+        ) : data === undefined ? (
+          <p className="drawer-loading">加载中…</p>
+        ) : (
+          <div className="drawer-body">
+            <p className="drawer-meta">
+              状态 {data.status ?? '—'} · 触发 {data.trigger ?? '—'} · 模型调用{' '}
+              {data.generations.length} 次 · 工具 {data.tools.length} 个 ·
+              检查点 {data.checkpoints.length} 个
+            </p>
+            {data.input !== undefined ? (
+              <p className="drawer-input">「{data.input}」</p>
+            ) : null}
+            <section>
+              <h4>模型调用</h4>
+              {data.generations.length === 0 ? (
+                <p className="empty">无</p>
+              ) : (
+                <ul className="trace-list">
+                  {data.generations.map((generation, index) => (
+                    <li key={index}>
+                      <span className="trace-step">
+                        步 {generation.stepIndex}
+                      </span>
+                      <span className="trace-main">
+                        {generation.model} ·{' '}
+                        {generation.error !== undefined
+                          ? `失败：${generation.error}`
+                          : generation.stopReason}
+                      </span>
+                      {generation.usage !== undefined ? (
+                        <span className="trace-meta">
+                          {generation.usage.totalTokens} tokens ·{' '}
+                          {generation.latencyMs ?? 0}ms
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section>
+              <h4>工具动作</h4>
+              {data.tools.length === 0 ? (
+                <p className="empty">无</p>
+              ) : (
+                <ul className="trace-list">
+                  {data.tools.map((tool) => (
+                    <li key={tool.callId}>
+                      <span className="trace-step">{tool.toolId}</span>
+                      <span className="trace-main">
+                        {TRAJECTORY_OUTCOME_LABELS[tool.outcome] ??
+                          tool.outcome}
+                        {tool.decision !== undefined
+                          ? ` · 授权 ${tool.decision}`
+                          : ''}
+                      </span>
+                      {tool.decisionReason !== undefined ? (
+                        <span className="trace-meta">
+                          {tool.decisionReason}
+                        </span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section>
+              <h4>检查点</h4>
+              {data.checkpoints.length === 0 ? (
+                <p className="empty">无</p>
+              ) : (
+                <ul className="trace-list">
+                  {data.checkpoints.map((checkpoint) => (
+                    <li key={checkpoint.sequence}>
+                      <span className="trace-step">
+                        步 {checkpoint.stepIndex}
+                      </span>
+                      <span className="trace-main">
+                        {checkpoint.stateDigest.slice(0, 20)}…
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
+      </aside>
+    </div>
   )
 }

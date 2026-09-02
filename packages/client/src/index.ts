@@ -22,6 +22,7 @@ export type {
   MemoryClaimDto,
   ModelReplayDto,
   ThreadSummaryDto,
+  TurnTrajectoryDto,
   TrajectoryCategory,
   TrajectoryEntryDto,
   TrajectoryLoop,

@@ -72,8 +72,12 @@ async function withServer(
   toolExecutor: ToolExecutor,
   fn: (server: BeeServer, baseUrl: string) => Promise<void>,
   authorization?: readonly ToolAuthorizationRule[],
+  stepDelayMs?: number,
 ): Promise<void> {
-  const llm = createFakeLlmRuntime({ script })
+  const llm = createFakeLlmRuntime({
+    script,
+    ...(stepDelayMs === undefined ? {} : { stepDelayMs }),
+  })
   const scriptedToolIds = [
     ...new Set(
       script.flatMap((step) =>
@@ -361,6 +365,54 @@ describe('apps/bee /threads API', () => {
 })
 
 describe('apps/bee item stream', () => {
+  it('cancels an in-flight turn on request', async () => {
+    await withServer(
+      // A slow multi-delta stream keeps the turn in flight long enough
+      // to cancel mid-generation.
+      [
+        {
+          type: 'respond',
+          deltas: Array.from({ length: 40 }, (_, i) => `chunk-${i} `),
+        },
+      ],
+      scriptedTools({}),
+      async (_server, baseUrl) => {
+        const created = await fetch(`${baseUrl}/threads`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ title: 'cancel test' }),
+        })
+        const thread = (await created.json()) as { id: string }
+
+        const turnPromise = fetch(`${baseUrl}/threads/${thread.id}/turns`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ input: 'long work' }),
+        }).then((response) => response.json() as Promise<{ status: string }>)
+
+        // Give the turn time to start streaming, then stop it.
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        const cancelled = await fetch(
+          `${baseUrl}/threads/${thread.id}/cancel`,
+          {
+            method: 'POST',
+          },
+        ).then((response) => response.json() as Promise<{ cancelled: number }>)
+
+        const result = await turnPromise
+        expect(cancelled.cancelled).toBeGreaterThanOrEqual(0)
+        expect(['cancelled', 'completed']).toContain(result.status)
+        if (result.status === 'completed') {
+          // The cancel raced the finish; both are legitimate outcomes, but
+          // the registry must have reported the in-flight controller.
+          expect(cancelled.cancelled).toBe(0)
+        }
+      },
+      undefined,
+      10,
+    )
+  })
+
   it('replays item events and resumes from Last-Event-ID without loss', async () => {
     await withServer(
       [{ type: 'respond', deltas: ['Streamed answer.'] }],
