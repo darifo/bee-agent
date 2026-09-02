@@ -6,6 +6,7 @@ import type {
 } from './protocol.ts'
 import type { KanbanStore } from './store.ts'
 import { KanbanTaskNotFoundError } from './store.ts'
+import { shortestTransitionPath } from './state-machine.ts'
 
 /**
  * The Kanban agent tools (architecture §15.3): the eight `kanban_*` tools in
@@ -225,7 +226,23 @@ async function transitionTo(
   reason?: string | undefined,
 ): Promise<KanbanTask> {
   const task = await requireTask(store, id)
-  return store.transition(id, { to, expectedVersion: task.version, reason })
+  // Targeted transitions walk the shortest legal chain — every hop is its
+  // own durable event, so the audit trail stays honest while the agent
+  // gets a one-call path from `inbox` to `done`.
+  const path = shortestTransitionPath(task.status, to)
+  if (path === undefined) {
+    // Surfaces the richer error with the legal targets for this state.
+    return store.transition(id, { to, expectedVersion: task.version, reason })
+  }
+  let current = task
+  for (const hop of path) {
+    current = await store.transition(id, {
+      to: hop,
+      expectedVersion: current.version,
+      ...(hop === to && reason !== undefined ? { reason } : {}),
+    })
+  }
+  return current
 }
 
 /**

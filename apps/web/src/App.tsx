@@ -45,6 +45,7 @@ export function App({ client }: AppProps) {
   const [health, setHealth] = useState<Diagnostics | undefined>()
   const [threadsKey, setThreadsKey] = useState(0)
   const transcriptRef = useRef<HTMLElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
 
   const { events, live } = useThreadStream(client, threadId)
   const entries = useMemo(() => deriveEntries(events), [events])
@@ -113,6 +114,9 @@ export function App({ client }: AppProps) {
     } finally {
       setBusy(false)
       setInput('')
+      if (composerRef.current !== null) {
+        composerRef.current.style.height = 'auto'
+      }
     }
   }, [client, threadId, input])
 
@@ -287,10 +291,21 @@ export function App({ client }: AppProps) {
                   void send()
                 }}
               >
-                <input
+                <textarea
+                  ref={composerRef}
                   value={input}
-                  onChange={(event) => setInput(event.target.value)}
-                  placeholder="给 Bee 发消息…"
+                  rows={1}
+                  onChange={(event) => {
+                    setInput(event.target.value)
+                    autosize(event.target)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                      event.preventDefault()
+                      if (input.trim() !== '' && !busy) void send()
+                    }
+                  }}
+                  placeholder="给 Bee 发消息…（Enter 发送，Shift+Enter 换行）"
                   disabled={busy}
                   aria-label="消息输入框"
                 />
@@ -348,18 +363,47 @@ function toolLabel(toolId: string): { icon: string; name: string } {
   return TOOL_LABELS[toolId] ?? { icon: '🧩', name: toolId }
 }
 
+/** Grows the composer with its content, capped at six lines. */
+function autosize(el: HTMLTextAreaElement): void {
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(el.scrollHeight, 144)}px`
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      type="button"
+      className="msg-copy"
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => {
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        })
+      }}
+      aria-label="复制回复"
+      title="复制 Markdown 原文"
+    >
+      {copied ? '✓ 已复制' : '⧉ 复制'}
+    </button>
+  )
+}
+
 function MessageHead({
   who,
   at,
   tone,
+  action,
 }: {
   who: string
   at: string | undefined
   tone: 'user' | 'bee'
+  action?: React.ReactNode
 }) {
   return (
     <div className="msg-head">
       <span className={`msg-avatar msg-avatar-${tone}`}>{who}</span>
+      {action}
       {at !== undefined ? (
         <time className="msg-time">{entryTime(at)}</time>
       ) : null}
@@ -379,7 +423,12 @@ function Entry({ entry }: { entry: ReturnType<typeof deriveEntries>[number] }) {
     case 'assistant':
       return (
         <div className="msg msg-assistant">
-          <MessageHead who="🐝" at={entry.at} tone="bee" />
+          <MessageHead
+            who="🐝"
+            at={entry.at}
+            tone="bee"
+            action={<CopyButton text={entry.content} />}
+          />
           <div className="msg-md">
             <Markdown
               remarkPlugins={[remarkGfm]}

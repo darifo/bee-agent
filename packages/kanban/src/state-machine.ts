@@ -70,9 +70,46 @@ export class KanbanInvalidTransitionError extends Error {
     readonly from: KanbanTaskStatus,
     readonly to: KanbanTaskStatus,
   ) {
-    super(`Illegal kanban transition '${from}' → '${to}'`)
+    super(
+      `Illegal kanban transition '${from}' → '${to}'; legal targets from '${from}': ${allowedTransitions(from).join(', ')}`,
+    )
     this.name = 'KanbanInvalidTransitionError'
   }
+}
+
+/**
+ * Shortest legal hop sequence (excluding `from`, including `to`) between
+ * two statuses, breadth-first over the transition table. Undefined when
+ * no legal path exists — terminal states only leave toward `archived`.
+ */
+export function shortestTransitionPath(
+  from: KanbanTaskStatus,
+  to: KanbanTaskStatus,
+): readonly KanbanTaskStatus[] | undefined {
+  if (from === to) return []
+  // Healthy hop order: among equal-length paths the walk prefers the
+  // normal lifecycle (triaged/ready/running/review) over failed/cancelled
+  // shortcuts — completing a task should not mark it failed on the way.
+  // Terminal-ish states never serve as intermediate hops — completing a
+  // task must not mark it failed on the way. They stay legal as the start
+  // (that is the task's real state) or as the destination.
+  const terminalish = (status: KanbanTaskStatus): boolean =>
+    status === 'failed' || status === 'cancelled' || status === 'archived'
+  const queue: KanbanTaskStatus[][] = [[from]]
+  const seen = new Set<KanbanTaskStatus>([from])
+  while (queue.length > 0) {
+    const path = queue.shift()!
+    const last = path[path.length - 1]!
+    for (const next of allowedTransitions(last)) {
+      if (seen.has(next)) continue
+      if (next !== to && next !== from && terminalish(next)) continue
+      const extended = [...path, next]
+      if (next === to) return extended.slice(1)
+      seen.add(next)
+      queue.push(extended)
+    }
+  }
+  return undefined
 }
 
 /**

@@ -102,3 +102,43 @@ describe('kanban tools', () => {
     })
   })
 })
+
+describe('kanban complete path', () => {
+  it('walks the shortest legal chain from inbox to done in one call', async () => {
+    const registry = new ChronicleSchemaRegistry()
+    registerKanbanChronicleEvents(registry)
+    const store = createMemoryKanbanStore(registry)
+    const executor = createKanbanToolExecutor(store)
+    const created = await executor.execute({
+      toolId: 'kanban_create',
+      input: { title: '一键完成' },
+    })
+    const task = created.output as KanbanTask
+
+    const completed = await executor.execute({
+      toolId: 'kanban_complete',
+      input: { id: task.id },
+    })
+    expect((completed.output as KanbanTask).status).toBe('done')
+
+    // Every hop bumps the version (create=1, then triaged/ready/running/
+    // done) — the durable walk happened step by step, not a teleport, and
+    // the healthy lifecycle won over any failed/cancelled shortcut.
+    const done = completed.output as KanbanTask
+    expect(done.version).toBe(5)
+    expect(await store.get(task.id)).toMatchObject({ status: 'done' })
+  })
+
+  it('still reports legal targets when the target is unreachable', async () => {
+    const executor = createExecutor()
+    const created = await executor.execute({
+      toolId: 'kanban_create',
+      input: { title: '已归档' },
+    })
+    const task = created.output as KanbanTask
+    await executor.execute({ toolId: 'kanban_cancel', input: { id: task.id } })
+    await expect(
+      executor.execute({ toolId: 'kanban_complete', input: { id: task.id } }),
+    ).rejects.toThrow(/legal targets from 'cancelled': archived/)
+  })
+})

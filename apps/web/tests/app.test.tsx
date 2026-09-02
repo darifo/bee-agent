@@ -93,7 +93,7 @@ describe('App', () => {
       expect(created).toEqual([{ title: 'Web conversation' }])
     })
 
-    const input = await screen.findByPlaceholderText('给 Bee 发消息…')
+    const input = await screen.findByLabelText('消息输入框')
     fireEvent.change(input, { target: { value: 'hello' } })
     fireEvent.click(screen.getByText('发送'))
     await waitFor(() => {
@@ -116,7 +116,7 @@ describe('App', () => {
     })
     render(<App client={client} />)
     fireEvent.click(screen.getByText(/新建对话/))
-    const input = await screen.findByPlaceholderText('给 Bee 发消息…')
+    const input = await screen.findByLabelText('消息输入框')
     fireEvent.change(input, { target: { value: 'deploy' } })
     fireEvent.click(screen.getByText('发送'))
 
