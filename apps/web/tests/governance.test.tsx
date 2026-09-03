@@ -140,6 +140,9 @@ describe('governance views', () => {
     const client = {
       listThreads: vi.fn().mockResolvedValue([]),
       listGrants: vi.fn().mockResolvedValue([]),
+      listStructureHistory: vi
+        .fn()
+        .mockResolvedValue({ activeDigest: null, generations: [] }),
       diagnostics: vi.fn().mockResolvedValue({
         status: 'ok',
         structure: {

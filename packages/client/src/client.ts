@@ -329,6 +329,13 @@ export interface ModelReplayDto {
   }
 }
 
+/** One resolved structure generation, rollback-ready. */
+export interface StructureGenerationDto {
+  readonly digest: string
+  readonly resolvedAt: string
+  readonly structure: Record<string, unknown>
+}
+
 export class BeeAgentClient {
   readonly #baseUrl: URL
   readonly #fetch: typeof fetch
@@ -444,6 +451,21 @@ export class BeeAgentClient {
         },
       },
     )
+  }
+
+  /** Structure lineage with full definitions for rollback. */
+  listStructureHistory(): Promise<{
+    activeDigest: string | null
+    generations: readonly StructureGenerationDto[]
+  }> {
+    return this.#request('GET', 'structure/history')
+  }
+
+  /** Reconciles a structure (rollback passes a past generation whole). */
+  reconcileStructure(
+    structure: Record<string, unknown>,
+  ): Promise<{ kind: string; structureVersion: string }> {
+    return this.#request('POST', 'structure/reconcile', { body: structure })
   }
 
   /** Lists the remembered approvals. */

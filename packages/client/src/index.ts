@@ -22,6 +22,7 @@ export type {
   LearningTransitionInput,
   MemoryClaimDto,
   MemoryObservationDto,
+  StructureGenerationDto,
   ModelReplayDto,
   ThreadSummaryDto,
   TurnTrajectoryDto,

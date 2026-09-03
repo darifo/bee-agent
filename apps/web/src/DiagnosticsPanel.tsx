@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BeeAgentClient, Diagnostics, GrantDto } from '@bee-agent/client'
+import type {
+  BeeAgentClient,
+  Diagnostics,
+  GrantDto,
+  StructureGenerationDto,
+} from '@bee-agent/client'
 
 export interface DiagnosticsPanelProps {
   client: BeeAgentClient
@@ -25,16 +30,30 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
   const [error, setError] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
   const [grants, setGrants] = useState<readonly GrantDto[]>([])
+  const [generations, setGenerations] = useState<
+    readonly StructureGenerationDto[]
+  >([])
+  const [activeDigest, setActiveDigest] = useState<string | null>(null)
+  const [showLineage, setShowLineage] = useState(false)
 
   const refresh = useCallback(async () => {
     setBusy(true)
     try {
-      const [diagnostics, grantList] = await Promise.all([
+      const [diagnostics, grantList, history] = await Promise.all([
         client.diagnostics(),
         client.listGrants().catch(() => [] as readonly GrantDto[]),
+        client.listStructureHistory().catch(
+          () =>
+            ({ activeDigest: null, generations: [] }) as {
+              activeDigest: string | null
+              generations: readonly StructureGenerationDto[]
+            },
+        ),
       ])
       setData(diagnostics)
       setGrants(grantList)
+      setGenerations(history.generations)
+      setActiveDigest(history.activeDigest)
       setError(undefined)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -42,6 +61,21 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
       setBusy(false)
     }
   }, [client])
+
+  const rollback = useCallback(
+    async (generation: StructureGenerationDto) => {
+      setBusy(true)
+      try {
+        await client.reconcileStructure(generation.structure)
+        await refresh()
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : String(reason))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [client, refresh],
+  )
 
   const revoke = useCallback(
     async (capability: string) => {
@@ -189,6 +223,46 @@ export function DiagnosticsPanel({ client }: DiagnosticsPanelProps) {
           </article>
         </div>
       )}
+      <section className="diag-grants">
+        <h4>
+          结构谱系（{generations.length} 代）
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => setShowLineage((value) => !value)}
+          >
+            {showLineage ? '收起' : '展开'}
+          </button>
+        </h4>
+        {showLineage ? (
+          generations.length === 0 ? (
+            <p className="empty">还没有已解析的结构代。</p>
+          ) : (
+            <ul>
+              {generations.map((generation) => (
+                <li key={generation.digest}>
+                  <code>{generation.digest.slice(0, 16)}…</code>
+                  <span className="diag-meta">
+                    {generation.resolvedAt.slice(0, 16).replace('T', ' ')}
+                  </span>
+                  {generation.digest === activeDigest ? (
+                    <span className="badge badge-active">当前</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void rollback(generation)}
+                      disabled={busy}
+                      title="重新激活这一代结构"
+                    >
+                      回滚
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
+      </section>
       {grants.length > 0 ? (
         <section className="diag-grants">
           <h4>持久授权（{grants.length}）——同类操作免审批，可随时撤销</h4>

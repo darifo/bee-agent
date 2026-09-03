@@ -30,6 +30,36 @@ export const structureRoutes: FastifyPluginAsync = async (app) => {
     }
   })
 
+  // Every resolved structure generation with its full definition — the
+  // rollback source. The latest resolved digest per generation wins.
+  app.get('/structure/history', async () => {
+    const byDigest = new Map<
+      string,
+      { digest: string; resolvedAt: string; structure: unknown }
+    >()
+    for await (const event of app.bee.store.readStream('structure')) {
+      if (event.eventType !== 'structure.resolved') continue
+      const payload = event.payload as {
+        digest?: string
+        structure?: unknown
+      }
+      if (typeof payload.digest !== 'string' || payload.structure === undefined)
+        continue
+      byDigest.set(payload.digest, {
+        digest: payload.digest,
+        resolvedAt: event.eventTime,
+        structure: payload.structure,
+      })
+    }
+    const activeDigest = app.bee.kernel.activeGeneration?.structureVersion
+    return {
+      activeDigest: activeDigest ?? null,
+      generations: [...byDigest.values()].sort((a, b) =>
+        b.resolvedAt.localeCompare(a.resolvedAt),
+      ),
+    }
+  })
+
   app.post('/structure/reconcile', async (request) => {
     const structure = EffectiveStructureSchema.parse(request.body)
     const result = await app.bee.structures.reconcile(structure)

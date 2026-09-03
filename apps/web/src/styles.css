@@ -2396,3 +2396,8 @@ button.history-item.active {
   font-size: 11px;
   color: var(--text-faint);
 }
+
+.diag-grants h4 .ghost {
+  float: right;
+  font-size: 11.5px;
+}
