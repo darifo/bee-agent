@@ -52,6 +52,7 @@ describe('governance views', () => {
     const forget = vi.fn().mockResolvedValue(claim({ status: 'retracted' }))
     const client = {
       listThreads: vi.fn().mockResolvedValue([]),
+      listMemoryObservations: vi.fn().mockResolvedValue([]),
       listMemoryClaims: list,
       forgetMemoryClaim: forget,
       consolidateMemory: vi.fn(),

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { BeeAgentClient, MemoryClaimDto } from '@bee-agent/client'
+import type {
+  BeeAgentClient,
+  MemoryClaimDto,
+  MemoryObservationDto,
+} from '@bee-agent/client'
 
 export interface MemoryPanelProps {
   client: BeeAgentClient
@@ -37,12 +41,23 @@ function claimKindIcon(kind: string): string {
 
 export function MemoryPanel({ client }: MemoryPanelProps) {
   const [claims, setClaims] = useState<MemoryClaimDto[]>([])
+  const [observations, setObservations] = useState<
+    readonly MemoryObservationDto[]
+  >([])
+  const [showObservations, setShowObservations] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
 
   const refresh = useCallback(async () => {
     try {
-      setClaims([...(await client.listMemoryClaims({}))])
+      const [claimList, observationList] = await Promise.all([
+        client.listMemoryClaims({}),
+        client
+          .listMemoryObservations({ limit: 100 })
+          .catch(() => [] as readonly MemoryObservationDto[]),
+      ])
+      setClaims([...claimList])
+      setObservations(observationList)
       setError(undefined)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))
@@ -126,6 +141,35 @@ export function MemoryPanel({ client }: MemoryPanelProps) {
           ))}
         </ul>
       )}
+
+      <div className="memory-observations-toggle">
+        <button
+          type="button"
+          className="ghost"
+          onClick={() => setShowObservations((value) => !value)}
+        >
+          {showObservations ? '收起观察' : `👁 观察（${observations.length}）`}
+        </button>
+      </div>
+      {showObservations ? (
+        observations.length === 0 ? (
+          <p className="empty">还没有观察到什么。</p>
+        ) : (
+          <ul className="observation-list">
+            {observations.map((observation) => (
+              <li key={observation.id} className="observation">
+                <span className="observation-content">
+                  {observation.content}
+                </span>
+                <span className="observation-meta">
+                  {observation.observedAt.slice(0, 16).replace('T', ' ')} · 置信{' '}
+                  {Math.round(observation.confidence * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
     </section>
   )
 }

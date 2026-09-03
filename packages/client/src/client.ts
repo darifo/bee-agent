@@ -213,6 +213,16 @@ export interface Diagnostics {
   readonly threads: { readonly streams: number }
 }
 
+/** One thing Bee noticed — the raw feed claims distill from. */
+export interface MemoryObservationDto {
+  readonly id: string
+  readonly content: string
+  readonly observedAt: string
+  readonly confidence: number
+  readonly provenance?: { readonly threadId?: string } | undefined
+  readonly recordedAt?: string | undefined
+}
+
 export interface MemoryClaimDto {
   readonly id: string
   readonly kind: string
@@ -663,6 +673,21 @@ export class BeeAgentClient {
       `memory/claims/${claimId}/retract`,
       { body: reason === undefined ? {} : { reason } },
     ).then((body) => body.claim)
+  }
+
+  /** What Bee noticed, newest first. */
+  listMemoryObservations(
+    query: {
+      limit?: number
+    } = {},
+  ): Promise<readonly MemoryObservationDto[]> {
+    const params: Record<string, string> = {}
+    if (query.limit !== undefined) params.limit = String(query.limit)
+    return this.#request<{ observations: readonly MemoryObservationDto[] }>(
+      'GET',
+      'memory/observations',
+      { query: params },
+    ).then((body) => body.observations)
   }
 
   consolidateMemory(): Promise<unknown> {

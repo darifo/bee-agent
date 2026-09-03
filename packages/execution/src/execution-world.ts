@@ -579,7 +579,7 @@ export class ExecutionWorld {
     if (decision.decision === 'deny' || options.approval === 'rejected') {
       const reason =
         options.approval === 'rejected'
-          ? 'The user rejected this action'
+          ? '用户拒绝了此操作。不要重试同一操作；如无需工具即可完成，请直接作答，否则换一条路径或向用户说明需要什么。'
           : decision.reason
       await this.#append(streamId, [
         event('execution.denied', request, {

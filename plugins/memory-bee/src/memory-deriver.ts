@@ -3,6 +3,7 @@ import type {
   MemoryDerivationMessage,
   MemoryDerivationResult,
   NewMemoryClaimInput,
+  NewMemoryObservationInput,
 } from '@bee-agent/knowledge'
 
 /**
@@ -23,6 +24,14 @@ const PREFERENCE_MARKERS =
 /** Leading correction markers: the sentence revises an earlier statement. */
 const CORRECTION_MARKERS =
   /^(actually|correction:|i meant|on second thought|scratch that|不对|更正|我说错了)/iu
+
+/**
+ * Softer attention markers: worth noticing, not confident enough to become
+ * a claim. These sentences land as observations — the raw feed the slow
+ * loop and the user can review — instead of silently evaporating.
+ */
+const OBSERVATION_MARKERS =
+  /\b(i noticed|i need|i'm using|we use|switched to|started (?:using|working)|today i|recently)\b|我注意到|我需要|我在用|换成了|开始用|最近在/u
 
 function sentences(content: string): string[] {
   return content
@@ -60,6 +69,7 @@ export function deriveClaimCandidates(
   options: DeriveClaimOptions,
 ): MemoryDerivationResult {
   const candidates: NewMemoryClaimInput[] = []
+  const observations: NewMemoryObservationInput[] = []
   const seen = new Set<string>()
   const latestPreference = options.activeClaims
     .filter((claim) => claim.status === 'active' && claim.kind === 'preference')
@@ -73,7 +83,20 @@ export function deriveClaimCandidates(
     if (message.role === 'tool') continue
     for (const sentence of sentences(message.content)) {
       const isCorrection = CORRECTION_MARKERS.test(sentence)
-      if (!isCorrection && !PREFERENCE_MARKERS.test(sentence)) continue
+      const isPreference = PREFERENCE_MARKERS.test(sentence)
+
+      if (!isCorrection && !isPreference) {
+        // Not claim-worthy, but softly attention-marked: record it as an
+        // observation so it stays reviewable instead of evaporating.
+        if (OBSERVATION_MARKERS.test(sentence)) {
+          observations.push({
+            content: capStatement(sentence),
+            provenance: message.provenance,
+            confidence: 0.3,
+          })
+        }
+        continue
+      }
 
       const statement = capStatement(sentence)
       const normalized = normalizeStatement(statement)
@@ -95,7 +118,7 @@ export function deriveClaimCandidates(
       })
     }
   }
-  return { claims: candidates, observations: [] }
+  return { claims: candidates, observations }
 }
 
 export { normalizeStatement }
