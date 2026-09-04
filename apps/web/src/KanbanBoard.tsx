@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
+import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { BeeAgentClient, KanbanTaskDto } from '@bee-agent/client'
 
 export interface KanbanBoardProps {
@@ -390,15 +392,69 @@ export function KanbanBoard({ client }: KanbanBoardProps) {
                     <p className="empty">还没有评论。</p>
                   ) : (
                     <ul className="comment-list">
-                      {detail.comments.map((entry) => (
-                        <li key={entry.id}>
-                          <span className="comment-author">{entry.author}</span>
-                          <span className="comment-time">
-                            {entry.at.slice(5, 16).replace('T', ' ')}
-                          </span>
-                          <p>{entry.body}</p>
-                        </li>
-                      ))}
+                      {detail.comments.map((entry) =>
+                        entry.body.length > 240 ? (
+                          <li key={entry.id}>
+                            <details className="comment-item">
+                              <summary>
+                                <span className="comment-author">
+                                  {entry.author}
+                                </span>
+                                <span className="comment-time">
+                                  {entry.at.slice(5, 16).replace('T', ' ')}
+                                </span>
+                                <span className="comment-excerpt">
+                                  {entry.body
+                                    .replace(/[#*`>\n]/g, ' ')
+                                    .slice(0, 60)}
+                                  …
+                                </span>
+                              </summary>
+                              <div className="comment-md">
+                                <Markdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    a: (props) => (
+                                      <a
+                                        {...props}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                      />
+                                    ),
+                                  }}
+                                >
+                                  {entry.body}
+                                </Markdown>
+                              </div>
+                            </details>
+                          </li>
+                        ) : (
+                          <li key={entry.id}>
+                            <span className="comment-author">
+                              {entry.author}
+                            </span>
+                            <span className="comment-time">
+                              {entry.at.slice(5, 16).replace('T', ' ')}
+                            </span>
+                            <div className="comment-md">
+                              <Markdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  a: (props) => (
+                                    <a
+                                      {...props}
+                                      target="_blank"
+                                      rel="noreferrer noopener"
+                                    />
+                                  ),
+                                }}
+                              >
+                                {entry.body}
+                              </Markdown>
+                            </div>
+                          </li>
+                        ),
+                      )}
                     </ul>
                   )}
                   <form
