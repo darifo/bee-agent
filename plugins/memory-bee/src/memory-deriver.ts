@@ -19,7 +19,7 @@ const MAX_STATEMENT_LENGTH = 280
 
 /** Overt preference markers inside a sentence (English + common Chinese). */
 const PREFERENCE_MARKERS =
-  /\b(always|never|prefer|from now on|keep using|remember that|i like|i hate|please (?:always|never))\b|总是|永远|以后请|一直|记住|喜欢|讨厌/u
+  /\b(always|never|prefer|from now on|keep using|remember that|i like|i hate|please (?:always|never))\b|总是|永远|以后请|一直|记住|喜欢|讨厌|偏好|习惯/u
 
 /** Leading correction markers: the sentence revises an earlier statement. */
 const CORRECTION_MARKERS =
@@ -99,23 +99,53 @@ export function deriveClaimCandidates(
       }
 
       const statement = capStatement(sentence)
-      const normalized = normalizeStatement(statement)
-      if (seen.has(normalized)) continue
-      seen.add(normalized)
 
       // Every correction in one turn supersedes the most recently recorded
       // active preference; none of the candidates are ingested yet, so the
       // recorded target stays the same. Superseding an already-superseded
       // claim is a harmless no-op at ingest.
       const target = isCorrection ? latestPreference : undefined
-      candidates.push({
-        kind: isCorrection ? 'correction' : 'preference',
-        statement,
-        subject: { type: 'user' },
-        provenance: message.provenance,
-        confidence: isCorrection ? 0.7 : 0.6,
-        ...(target !== undefined ? { supersedes: [target.id] } : {}),
-      })
+      const pushCandidate = (statementText: string): void => {
+        const normalizedClause = normalizeStatement(statementText)
+        if (normalizedClause === '' || seen.has(normalizedClause)) return
+        seen.add(normalizedClause)
+        candidates.push({
+          kind: isCorrection ? 'correction' : 'preference',
+          statement: statementText,
+          subject: { type: 'user' },
+          provenance: message.provenance,
+          confidence: isCorrection ? 0.7 : 0.6,
+          ...(target !== undefined ? { supersedes: [target.id] } : {}),
+        })
+      }
+
+      // One sentence can enumerate several preferences ("请记住两件事：1）
+      // 设备是 A；2）回答用 B"). Split on clause boundaries so each becomes
+      // its own claim — independently recallable and forgettable. Pure
+      // corrections keep whole-sentence semantics.
+      if (!isCorrection) {
+        const clauses = statement
+          .split(/(?<=[：:；;])\s*/)
+          .map((clause) =>
+            clause
+              .replace(/^\s*\d[）).、]\s*/, '')
+              .replace(/[；;：:]$/, '')
+              .trim(),
+          )
+          .filter(
+            (clause) =>
+              clause.length >= 4 &&
+              !/^(请?记住|please remember|例如|比如|e\.g\.).*$/u.test(clause),
+          )
+        // The lead-in ("请记住两件事：") already asserted intent, so every
+        // enumerated item is a candidate — items need not repeat a marker
+        // themselves ("1）我的主力设备是 MacBook Pro M4").
+        if (clauses.length > 1) {
+          for (const clause of clauses) pushCandidate(clause)
+          continue
+        }
+      }
+      pushCandidate(statement)
     }
   }
   return { claims: candidates, observations }

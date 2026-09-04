@@ -99,6 +99,10 @@ export class WorldModelStore {
   readonly #relations = new Map<string, WorldRelation>()
   #version = 0
   #digest = EMPTY_DIGEST
+  #skipDigestChecks = false
+  #driftNotice:
+    | { readonly detectedAtVersion: number; readonly rebasedToVersion: number }
+    | undefined
   #tail: Promise<unknown> = Promise.resolve()
 
   constructor(options: WorldModelStoreOptions) {
@@ -109,6 +113,124 @@ export class WorldModelStore {
   /** Records projected entities/relations and bumps the world version. */
   record(input: WorldProjectionInput): Promise<WorldSnapshot> {
     return this.#serialize(() => this.#recordNow(input))
+  }
+
+  /**
+   * Rebuild policy on a digest mismatch: `fail` keeps the strict replay
+   * contract; `rebase` treats the event stream as the truth, finishes the
+   * fold, and appends a corrective version bump carrying the replayed
+   * digest — a historical write defect then costs one warning instead of
+   * blocking every startup forever.
+   */
+  async rebuild(
+    options: {
+      readonly onDrift?: 'fail' | 'rebase' | undefined
+    } = {},
+  ): Promise<void> {
+    const policy = options.onDrift ?? 'fail'
+    return this.#serialize(async () => {
+      this.#entities.clear()
+      this.#relations.clear()
+      this.#version = 0
+      this.#digest = EMPTY_DIGEST
+      let driftedAt: number | undefined
+      let lastBumpDigest: string | undefined
+      // One mismatched bump may be followed by a corrective one whose
+      // digest matches the folded state (a prior rebase) — that pair is
+      // healthy. A second consecutive mismatch is a real drift.
+      let pendingBad: { version: number; expected: string } | undefined
+      for await (const event of this.#chronicle.readStream(WORLD_STREAM_ID)) {
+        if (event.eventType === 'world.version.bumped') {
+          const bump = WorldVersionSchema.parse(event.payload)
+          lastBumpDigest = bump.digest
+          const actual = this.computeDigest()
+          if (actual === bump.digest) {
+            this.#version = bump.version
+            this.#digest = bump.digest
+            pendingBad = undefined
+            continue
+          }
+          if (pendingBad === undefined) {
+            pendingBad = { version: bump.version, expected: bump.digest }
+            continue
+          }
+          if (policy === 'fail') {
+            throw new WorldVersionDriftError(
+              pendingBad.version,
+              pendingBad.expected,
+              actual,
+            )
+          }
+          // Once drifted, the stored digests are a broken reference: keep
+          // folding events (the truth) and skip further verification.
+          driftedAt = pendingBad.version
+          this.#version = Math.max(this.#version, bump.version)
+          pendingBad = undefined
+          this.#skipDigestChecks = true
+          continue
+        }
+        if (
+          this.#skipDigestChecks &&
+          event.eventType === 'world.version.bumped'
+        ) {
+          continue
+        }
+        this.#fold(event.eventType, event.payload)
+      }
+      this.#skipDigestChecks = false
+      // A trailing uncorrected bad bump: fail keeps the strict contract;
+      // rebase appends the corrective fact (idempotently — a stream that
+      // already ends on the replayed digest appends nothing).
+      if (pendingBad !== undefined) {
+        if (policy === 'fail') {
+          throw new WorldVersionDriftError(
+            pendingBad.version,
+            pendingBad.expected,
+            this.computeDigest(),
+          )
+        }
+        driftedAt = pendingBad.version
+      }
+      if (driftedAt !== undefined && lastBumpDigest !== this.computeDigest()) {
+        const corrective =
+          Math.max(this.#version, driftedAt + 1, pendingBad?.version ?? 0) + 1
+        const digest = this.computeDigest()
+        await this.#append([
+          worldVersionBumpedEvent({
+            version: corrective,
+            digest,
+            at: this.#now(),
+          }),
+        ])
+        this.#version = corrective
+        this.#digest = digest
+        this.#driftNotice = {
+          detectedAtVersion: driftedAt,
+          rebasedToVersion: corrective,
+        }
+      } else if (driftedAt !== undefined) {
+        this.#digest = this.computeDigest()
+        this.#driftNotice = {
+          detectedAtVersion: driftedAt,
+          rebasedToVersion: this.#version,
+        }
+      }
+    })
+  }
+
+  /** The digest of the current in-memory projection. */
+  computeDigest(): string {
+    return computeWorldDigest({
+      entities: this.#entities,
+      relations: this.#relations,
+    })
+  }
+
+  /** Set when a rebuild rebased over a historical digest drift. */
+  get driftNotice():
+    | { readonly detectedAtVersion: number; readonly rebasedToVersion: number }
+    | undefined {
+    return this.#driftNotice
   }
 
   async #recordNow(input: WorldProjectionInput): Promise<WorldSnapshot> {
@@ -178,19 +300,6 @@ export class WorldModelStore {
     this.#version = nextVersion
     this.#digest = nextDigest
     return this.snapshot()
-  }
-
-  /** Replays the world stream, verifying each recorded digest (restart). */
-  async rebuild(): Promise<void> {
-    return this.#serialize(async () => {
-      this.#entities.clear()
-      this.#relations.clear()
-      this.#version = 0
-      this.#digest = EMPTY_DIGEST
-      for await (const event of this.#chronicle.readStream(WORLD_STREAM_ID)) {
-        this.#fold(event.eventType, event.payload)
-      }
-    })
   }
 
   // -----------------------------------------------------------------------

@@ -56,6 +56,48 @@ function toolCallEvent(input: {
 }
 
 describe('world domain', () => {
+  it('rebases over a historical digest drift instead of failing forever', async () => {
+    const store = createStore()
+    const world = new WorldModelStore({ store })
+    await world.record({
+      entities: [{ id: 'e1', kind: 'actor', seenAt: '2026-01-01T00:00:00Z' }],
+    })
+    // Corrupt the history: a bump whose digest matches nothing the events
+    // can fold to (the write-side defect seen in production).
+    await store.append(
+      WORLD_STREAM_ID,
+      [
+        newChronicleEvent({
+          eventType: 'world.version.bumped',
+          actor: { type: 'system', id: 'test' },
+          payload: {
+            version: 99,
+            digest: `sha256:${'0'.repeat(64)}`,
+            at: '2026-01-02T00:00:00Z',
+          },
+        }),
+      ],
+      {
+        expectedSequence: (await store.getLatestSequence(WORLD_STREAM_ID)) + 1,
+      },
+    )
+
+    await expect(world.rebuild()).rejects.toBeInstanceOf(WorldVersionDriftError)
+    await expect(world.rebuild({ onDrift: 'rebase' })).resolves.toBeUndefined()
+    expect(world.driftNotice).toMatchObject({ detectedAtVersion: 99 })
+    expect(world.driftNotice!.rebasedToVersion).toBeGreaterThan(99)
+    const correctedVersion = world.snapshot().version
+    // The corrective bump persisted and rebase is idempotent: a second
+    // pass adds no new bump and lands on the same version. Strict rebuild
+    // also passes — a bad bump immediately followed by a matching
+    // corrective one is a repaired pair, not live drift.
+    await expect(world.rebuild({ onDrift: 'rebase' })).resolves.toBeUndefined()
+    expect(world.snapshot().version).toBe(correctedVersion)
+    const strict = new WorldModelStore({ store })
+    await expect(strict.rebuild()).resolves.toBeUndefined()
+    expect(strict.snapshot().version).toBe(correctedVersion)
+  })
+
   it('records projections with versioned digests', async () => {
     const store = createStore()
     const world = new WorldModelStore({

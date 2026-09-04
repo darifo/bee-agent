@@ -434,7 +434,9 @@ export async function buildBeeServer(
   let world: WorldModelStore | undefined
   if (worldProjectors.length > 0) {
     world = new WorldModelStore({ store })
-    await world.rebuild()
+    // A historical digest drift costs a warning and a corrective rebase,
+    // not a permanently unbootable host — the event stream is the truth.
+    await world.rebuild({ onDrift: 'rebase' })
     worldProjection = new WorldProjectionService({
       store,
       world,
