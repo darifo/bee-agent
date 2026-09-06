@@ -10,7 +10,7 @@ import {
 } from './events.ts'
 import type { ChronicleProposalStore } from './store.ts'
 import type { DerivedTurn, LearningLoopBudget } from './loop.ts'
-import { selectAndDerive } from './loop.ts'
+import { DEFAULT_LEARNING_BUDGET, selectAndDerive } from './loop.ts'
 import type { ImprovementProposal } from './proposal.ts'
 
 /**
@@ -257,6 +257,7 @@ export class ExperimentWorld {
     this.#proposals = options.proposals
     this.#evaluators = options.evaluators ?? [new EvidenceVerifyEvaluator()]
     this.#budget = {
+      ...DEFAULT_LEARNING_BUDGET,
       maxTrajectories: 20,
       maxProposalsPerRun: 3,
       toolUsageSkillThreshold: 3,

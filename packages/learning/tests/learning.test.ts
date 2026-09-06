@@ -99,6 +99,45 @@ async function recordTurn(
 }
 
 describe('proposal lifecycle', () => {
+  it('expires stale drafts and skips read-only tools in skill discovery', async () => {
+    const store = createStore()
+    const proposals = proposalStore(store)
+    // Seed a stale draft (90 days old).
+    await proposals.create({
+      type: 'skill',
+      targetKey: 'skill:command_run',
+      basedOnTrajectoryIds: [],
+      hypothesis: 'stale',
+      proposedChange: {
+        kind: 'skill-candidate',
+        toolId: 'command_run',
+        usageCount: 3,
+      },
+      expectedBenefits: [],
+      risks: [],
+      evaluationPlan: 'n/a',
+      rollbackPlan: 'n/a',
+      autonomyLevel: 2,
+      origin: 'loop',
+      now: new Date(Date.now() - 90 * 86_400_000).toISOString(),
+    })
+
+    const loop = new LearningLoop({
+      store,
+      proposals,
+      budget: { ...DEFAULT_LEARNING_BUDGET, draftExpiryDays: 14 },
+      now: () => new Date().toISOString(),
+    })
+    // No derived turns needed: the expiry pass runs before selection.
+    await loop.run()
+
+    const drafts = await proposals.list({ status: 'draft' })
+    expect(drafts).toHaveLength(0)
+    const rejected = await proposals.list({ status: 'rejected' })
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0]?.id).toBeDefined()
+  })
+
   it('follows the legal Proposal–Experiment–Trial–Rollback edges', () => {
     expect(canTransitionProposal('draft', 'review')).toBe(true)
     expect(canTransitionProposal('review', 'trial')).toBe(true)

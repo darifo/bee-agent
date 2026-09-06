@@ -30,6 +30,8 @@ export interface LearningLoopBudget {
   readonly toolFailureThreshold: number
   /** Checkpoints before a turn counts as "near the step cap". */
   readonly longTurnSteps: number
+  /** Draft proposals older than this auto-reject at the next run. */
+  readonly draftExpiryDays: number
 }
 
 export const DEFAULT_LEARNING_BUDGET: LearningLoopBudget = {
@@ -38,6 +40,8 @@ export const DEFAULT_LEARNING_BUDGET: LearningLoopBudget = {
   toolUsageSkillThreshold: 3,
   toolFailureThreshold: 2,
   longTurnSteps: 6,
+  /** Draft proposals older than this auto-reject at the next run. */
+  draftExpiryDays: 14,
 }
 
 /** One derived turn: the deterministic facts the pattern stage consumes. */
@@ -198,8 +202,18 @@ export function discoverPatterns(
       turnId: t.turnId,
     }))
 
+  // Read-only query tools gain nothing from being packaged as a skill:
+  // their invocation is a one-liner, and the proposal would sit in draft
+  // forever (long-run review finding #2).
+  const READ_ONLY_TOOLS = new Set([
+    'kanban_list',
+    'kanban_show',
+    'time_now',
+    'web_search',
+  ])
   for (const [toolId, { count, refs }] of usage) {
     if (count < budget.toolUsageSkillThreshold) continue
+    if (READ_ONLY_TOOLS.has(toolId)) continue
     candidates.push({
       type: 'skill',
       targetKey: `skill:${toolId}`,
@@ -287,6 +301,28 @@ export class LearningLoop {
   }
 
   async run(): Promise<LearningRunReport> {
+    // Draft expiry (long-run review finding #1): a draft nobody moved to
+    // testing within the window auto-rejects, so the backlog drains
+    // without manual review.
+    const expiryMs = this.#budget.draftExpiryDays * 86_400_000
+    const now = this.#now()
+    const expiredDrafts = (
+      await this.#proposals.list({ status: 'draft' })
+    ).filter((proposal) => {
+      const age = Date.parse(now) - Date.parse(proposal.createdAt)
+      return Number.isFinite(age) && age > expiryMs
+    })
+    for (const proposal of expiredDrafts) {
+      await this.#proposals
+        .transition(proposal.id, {
+          to: 'rejected',
+          expectedVersion: proposal.version,
+          reason: `draft 超过 ${this.#budget.draftExpiryDays} 天未进入测试，自动过期`,
+          at: now,
+        })
+        .catch(() => undefined)
+    }
+
     const turns = await selectAndDerive(this.#store, this.#budget)
     const candidates = discoverPatterns(turns, this.#budget)
 

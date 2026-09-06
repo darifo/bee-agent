@@ -132,6 +132,7 @@ export class DriftMonitor {
         toolUsageSkillThreshold: Number.MAX_SAFE_INTEGER,
         toolFailureThreshold: Number.MAX_SAFE_INTEGER,
         longTurnSteps: Number.MAX_SAFE_INTEGER,
+        draftExpiryDays: Number.MAX_SAFE_INTEGER,
       },
       { since: activation.activatedAt },
     )
