@@ -1,9 +1,12 @@
 #!/usr/bin/env node
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { createInterface } from 'node:readline'
 import type { Interface } from 'node:readline'
 import { Command } from 'commander'
 import { BeeAgentClient } from '@bee-agent/client'
 import type { BeeAgentClient as BeeAgentClientType } from '@bee-agent/client'
+import { backupDataDir } from './backup.ts'
 import { runTurnToCompletion } from './chat.ts'
 import { printError, printTurnResult } from './format.ts'
 
@@ -67,6 +70,75 @@ program
   )
 
 export function registerCommands(program: Command): void {
+  program
+    .command('backup')
+    .description('Back up the personal data directory (SQLite + checksum)')
+    .option(
+      '-o, --out <dir>',
+      'output directory',
+      join(homedir(), 'bee-backups'),
+    )
+    .option('--keep <n>', 'how many archives to keep', '7')
+    .option('--json', 'print raw JSON')
+    .action(async (options: { out: string; keep: string; json?: boolean }) => {
+      try {
+        // The host may run with a relative storage filename (cwd-local) or
+        // the platform data dir; back up whichever actually holds data.
+        const { resolveBeeDataDir } = await import('@bee-agent/bee/data-dir')
+        const { stat } = await import('node:fs/promises')
+        // Candidates: the repo's apps/bee (the usual `pnpm --filter bee
+        // start` cwd), this cwd, and the platform data dir. The default
+        // data dir can hold an empty placeholder database, so rank by
+        // database plus WAL size — a live host always has WAL data.
+        const candidates = [
+          join(process.cwd(), '../../apps/bee'),
+          join(homedir(), 'Documents/ai/codes/bee-agent/apps/bee'),
+          join(process.cwd(), 'apps/bee'),
+          process.cwd(),
+          process.cwd(),
+          resolveBeeDataDir({
+            env: process.env,
+            home: homedir(),
+            platform: process.platform,
+          }),
+        ]
+        let dataDir = candidates[0] as string
+        let largest = -1
+        for (const candidate of candidates) {
+          try {
+            const dbSize = (await stat(join(candidate, 'bee-agent.sqlite')))
+              .size
+            const walSize = await stat(join(candidate, 'bee-agent.sqlite-wal'))
+              .then((info) => info.size)
+              .catch(() => 0)
+            const weight = dbSize + walSize
+            if (dbSize > 0 && weight > largest) {
+              largest = weight
+              dataDir = candidate
+            }
+          } catch {
+            // candidate has no database
+          }
+        }
+        const result = await backupDataDir({
+          dataDir,
+          outDir: options.out,
+          keep: Number(options.keep),
+        })
+        if (options.json) {
+          console.log(JSON.stringify(result, null, 2))
+        } else {
+          console.log(`✔ 已备份 ${result.files.join(', ')}`)
+          console.log(`  归档: ${result.archive}`)
+          console.log(`  大小: ${(result.bytes / 1024).toFixed(1)} KB`)
+          console.log(`  SHA256: ${result.checksum}`)
+        }
+      } catch (error) {
+        printError(error)
+        process.exitCode = 1
+      }
+    })
+
   program
     .command('chat')
     .description('Start an interactive conversation with Bee')

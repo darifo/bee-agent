@@ -7,12 +7,13 @@
     "bee": "./dist/main.js"
   },
   "scripts": {
-    "build": "tsup src/main.ts --format esm --clean",
+    "build": "tsup src/main.ts src/backup.ts --format esm --clean",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "bee": "node --env-file-if-exists=.env dist/main.js"
   },
   "dependencies": {
+    "@bee-agent/bee": "workspace:*",
     "@bee-agent/client": "workspace:*",
     "@bee-agent/thread": "workspace:*",
     "commander": "^14.0.2"

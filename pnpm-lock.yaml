@@ -194,6 +194,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@bee-agent/bee':
+        specifier: workspace:*
+        version: link:../bee
       '@bee-agent/client':
         specifier: workspace:*
         version: link:../../packages/client

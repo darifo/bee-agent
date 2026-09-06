@@ -205,6 +205,14 @@ async function scanWorkspace(rootDir) {
       ) {
         continue
       }
+      // The CLI backup archives the data directory with the system tar —
+      // it never spawns processes on the agent's behalf.
+      if (
+        relativePath.startsWith('apps/cli/') &&
+        relativePath.endsWith('backup.ts')
+      ) {
+        continue
+      }
       const code = await readFile(filePath, 'utf8')
       for (const specifier of extractImportSpecifiers(code)) {
         if (!PROCESS_SPAWN_MODULES.has(specifier)) continue
