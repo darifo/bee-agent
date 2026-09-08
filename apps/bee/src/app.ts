@@ -20,6 +20,7 @@ import {
 import type { KanbanStore } from '@bee-agent/kanban'
 import type {
   ToolAuthorizationRule,
+  LlmToolCall,
   ToolAdapter,
   ToolExecutor,
   GoalPlanStore,
@@ -34,6 +35,7 @@ import type {
 import {
   AgentScheduler,
   TimeService,
+  SkillStore,
   UserGrantStore,
   createTimeNowTool,
 } from '@bee-agent/runtime'
@@ -42,6 +44,7 @@ import {
   DriftMonitor,
   ExperimentWorld,
   LearningLoop,
+  createSkillRunAdapters,
 } from '@bee-agent/learning'
 import type { LearningLoopBudget } from '@bee-agent/learning'
 import { BroadcastingChronicleStore } from './broadcasting-store.ts'
@@ -158,6 +161,8 @@ export interface BeeServerOptions {
   readonly time?: TimeService | undefined
   /** Durable user grants; defaults to a store over the shared Chronicle. */
   readonly grantStore?: UserGrantStore | undefined
+  /** Durable learned skills; defaults to a store over the shared Chronicle. */
+  readonly skillStore?: SkillStore | undefined
   readonly memory?: MemoryProvider | undefined
   /** Disable near-line derivation while keeping recall. */
   readonly deriveMemory?: boolean | undefined
@@ -246,6 +251,7 @@ function compositeToolExecutor(
   kanban: KanbanStore,
   adapters: readonly ToolAdapter[],
   fallback: ToolExecutor | undefined,
+  skillStore?: SkillStore | undefined,
 ): ToolExecutor {
   const executor = createKanbanToolExecutor(kanban)
   const registered = new Map<string, ToolAdapter>()
@@ -263,16 +269,63 @@ function compositeToolExecutor(
     }
     registered.set(adapter.spec.id, adapter)
   }
+  // skill_run → bound tool: rewriting at BOTH describe and execute keeps
+  // the ActionRequest's requirements (and therefore the sandbox routing,
+  // capability, and approval title) those of the bound tool itself.
+  const rewriteSkillCall = (
+    inner: LlmToolCall,
+  ): { call: LlmToolCall; error?: string } => {
+    if (inner.toolId !== 'skill_run' || skillStore === undefined) {
+      return { call: inner }
+    }
+    const input = inner.input as {
+      skillId?: string
+      input?: Record<string, unknown>
+    }
+    const skill =
+      input?.skillId !== undefined ? skillStore.get(input.skillId) : undefined
+    if (skill === undefined) {
+      return {
+        call: inner,
+        error: `Skill '${String(input?.skillId ?? '')}' 不存在或已被撤销。可用技能：${
+          [...skillStore.skills.keys()].join(', ') || '(none registered)'
+        }`,
+      }
+    }
+    return {
+      call: {
+        ...inner,
+        toolId: skill.boundToolId,
+        input: (input?.input ?? skill.typicalInput) as unknown,
+      },
+    }
+  }
+
   return {
     describe(call) {
-      if (!call.toolId.startsWith('kanban_')) {
-        const adapter = registered.get(call.toolId)
-        if (adapter !== undefined) return adapter.describe(call)
-        if (fallback !== undefined) return fallback.describe(call)
-        throw new Error(`Tool '${call.toolId}' is not registered`)
+      const rewritten = rewriteSkillCall(call)
+      if (rewritten.error !== undefined) {
+        return {
+          capability: 'tool:skill_run',
+          requirements: {
+            readPaths: [],
+            writePaths: [],
+            networkTargets: [],
+            commands: [],
+            secretEnv: {},
+          },
+          expectedEffects: [rewritten.error],
+          verification: [],
+        }
+      }
+      if (!rewritten.call.toolId.startsWith('kanban_')) {
+        const adapter = registered.get(rewritten.call.toolId)
+        if (adapter !== undefined) return adapter.describe(rewritten.call)
+        if (fallback !== undefined) return fallback.describe(rewritten.call)
+        throw new Error(`Tool '${rewritten.call.toolId}' is not registered`)
       }
       return {
-        capability: `tool:${call.toolId}`,
+        capability: `tool:${rewritten.call.toolId}`,
         requirements: {
           readPaths: [],
           writePaths: [],
@@ -287,6 +340,7 @@ function compositeToolExecutor(
     // Read-only kanban queries are parallel-safe; every other tool is
     // exclusive unless its adapter explicitly opts in.
     concurrency(call) {
+      if (call.toolId === 'skill_run') return 'exclusive'
       if (!call.toolId.startsWith('kanban_')) {
         const adapter = registered.get(call.toolId)
         return (
@@ -299,21 +353,33 @@ function compositeToolExecutor(
         ? 'parallel'
         : 'exclusive'
     },
-    async execute(call) {
-      if (!call.call.toolId.startsWith('kanban_')) {
-        const adapter = registered.get(call.call.toolId)
-        if (adapter !== undefined) return adapter.execute(call)
-        if (fallback !== undefined) return fallback.execute(call)
-        throw new Error(`Tool '${call.call.toolId}' is not registered`)
+    async execute(executionCall) {
+      // skill_run resolves to its bound tool; the rewritten requirements
+      // (from describe) already routed this action to the right sandbox.
+      const rewritten = rewriteSkillCall(executionCall.call)
+      if (rewritten.error !== undefined) {
+        return {
+          output: {},
+          content: rewritten.error,
+          isError: true,
+          verification: [],
+        }
+      }
+      executionCall = { ...executionCall, call: rewritten.call }
+      if (!executionCall.call.toolId.startsWith('kanban_')) {
+        const adapter = registered.get(executionCall.call.toolId)
+        if (adapter !== undefined) return adapter.execute(executionCall)
+        if (fallback !== undefined) return fallback.execute(executionCall)
+        throw new Error(`Tool '${executionCall.call.toolId}' is not registered`)
       }
       try {
         const result = await executor.execute({
-          toolId: call.call.toolId,
-          input: call.call.input,
+          toolId: executionCall.call.toolId,
+          input: executionCall.call.input,
           context: {
-            threadId: call.threadId,
-            turnId: call.turnId,
-            itemId: call.itemId,
+            threadId: executionCall.threadId,
+            turnId: executionCall.turnId,
+            itemId: executionCall.itemId,
           },
         })
         return {
@@ -366,6 +432,8 @@ export async function buildBeeServer(
 ): Promise<BeeServer> {
   const store = new BroadcastingChronicleStore(options.store)
   const grantStore = options.grantStore ?? new UserGrantStore(store)
+  const skillStore = options.skillStore ?? new SkillStore(store)
+  await skillStore.rebuild()
   // Accurate time is built in: every model request carries it, the time_now
   // tool exposes it to the model, and the service calibrates against HTTP
   // Date headers in the background.
@@ -375,10 +443,17 @@ export async function buildBeeServer(
     ...(options.toolAdapters ?? []),
     createTimeNowTool(time),
   ]
+  // The skill catalog tool rides along: it reads the durable skills
+  // stream live, so registrations after startup resolve without a restart.
+  const skillAdapters = createSkillRunAdapters({
+    store,
+  }) as unknown as ToolAdapter[]
+  toolAdapters.push(...skillAdapters)
   const toolExecutor = compositeToolExecutor(
     options.kanban,
     toolAdapters,
     options.toolExecutor,
+    skillStore,
   )
   const toolSpecs = [
     ...KANBAN_TOOL_DEFINITIONS.map((definition) => ({
@@ -552,6 +627,7 @@ export async function buildBeeServer(
     scheduler,
     learning,
     grantStore,
+    skillStore,
   })
 
   if (options.sessionToken !== undefined) {

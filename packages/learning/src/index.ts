@@ -87,3 +87,4 @@ export type {
   FrozenTrajectory,
   RollbackPackage,
 } from './experiment.ts'
+export * from './skill-run.ts'

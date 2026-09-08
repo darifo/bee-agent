@@ -90,6 +90,7 @@ export * from './planner.ts'
 export * from './memory-hook.ts'
 export * from './time.ts'
 export * from './grant-store.ts'
+export * from './skill-store.ts'
 export * from './delegation-supervisor.ts'
 export * from './remote-agent.ts'
 export {
@@ -157,6 +158,7 @@ export {
   ResourceRequirementsSchema,
   RoutingSandboxProvider,
   AllowlistedNetworkSandbox,
+  registerSkillChronicleEvents,
   ExecutionWorktreeProvider,
   IntersectionAuthorizationPolicy,
   StaticAuthorizationPolicy,

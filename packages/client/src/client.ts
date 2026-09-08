@@ -329,6 +329,18 @@ export interface ModelReplayDto {
   }
 }
 
+/** A registered learned skill. */
+export interface SkillDto {
+  readonly skillId: string
+  readonly name: string
+  readonly summary: string
+  readonly instructions: string
+  readonly boundToolId: string
+  readonly typicalInput: Record<string, unknown>
+  readonly origin: { readonly proposalId: string; readonly targetKey: string }
+  readonly registeredAt: string
+}
+
 /** One resolved structure generation, rollback-ready. */
 export interface StructureGenerationDto {
   readonly digest: string
@@ -466,6 +478,22 @@ export class BeeAgentClient {
     structure: Record<string, unknown>,
   ): Promise<{ kind: string; structureVersion: string }> {
     return this.#request('POST', 'structure/reconcile', { body: structure })
+  }
+
+  /** Lists registered learned skills. */
+  listSkills(): Promise<readonly SkillDto[]> {
+    return this.#request<{ skills: readonly SkillDto[] }>('GET', 'skills').then(
+      (body) => body.skills,
+    )
+  }
+
+  /** Revokes a learned skill; skill_run stops resolving it. */
+  revokeSkill(skillId: string): Promise<readonly SkillDto[]> {
+    return this.#request<{ skills: readonly SkillDto[] }>(
+      'POST',
+      `skills/${encodeURIComponent(skillId)}/revoke`,
+      { body: {} },
+    ).then((body) => body.skills)
   }
 
   /** Lists the remembered approvals. */

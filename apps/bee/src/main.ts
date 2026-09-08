@@ -45,6 +45,7 @@ import {
   AllowlistedNetworkSandbox,
   RoutingSandboxProvider,
 } from '@bee-agent/runtime'
+import { registerSkillChronicleEvents } from '@bee-agent/runtime'
 import { TimeService } from '@bee-agent/runtime'
 import { buildBeeServer, unsafeListenReason } from './app.ts'
 import { resolveBeeDataDir } from './data-dir.ts'
@@ -214,6 +215,7 @@ const sandboxProvider =
       )
 
 const registry = new ChronicleSchemaRegistry()
+registerSkillChronicleEvents(registry)
 registerStructureChronicleEvents(registry)
 registerThreadChronicleEvents(registry)
 registerRuntimeChronicleEvents(registry)

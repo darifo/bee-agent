@@ -15,6 +15,48 @@ export const diagnosticsRoutes: FastifyPluginAsync = async (app) => {
     return { grants: app.bee.grantStore.list() }
   })
 
+  app.get('/skills', async () => {
+    return { skills: app.bee.skillStore.list() }
+  })
+
+  // Admin registration (tests / manual): production skills arrive through
+  // the learning activation channel.
+  app.post('/skills', async (request) => {
+    const body = z
+      .object({
+        skillId: z.string().min(1),
+        name: z.string().min(1),
+        summary: z.string().min(1),
+        instructions: z.string().min(1),
+        boundToolId: z.string().min(1),
+        typicalInput: z.record(z.string(), z.unknown()),
+        origin: z
+          .object({ proposalId: z.string(), targetKey: z.string() })
+          .optional(),
+      })
+      .parse(request.body)
+    await app.bee.skillStore.register({
+      ...body,
+      origin: body.origin ?? {
+        proposalId: 'manual',
+        targetKey: `skill:${body.skillId}`,
+      },
+      registeredBy: 'web',
+    })
+    return { skills: app.bee.skillStore.list() }
+  })
+
+  app.post('/skills/:skillId/revoke', async (request) => {
+    const { skillId } = z
+      .object({ skillId: z.string().min(1) })
+      .parse(request.params)
+    await app.bee.skillStore.revoke(
+      decodeURIComponent(skillId),
+      'revoked from the web console',
+    )
+    return { skills: app.bee.skillStore.list() }
+  })
+
   app.post('/grants/:capability/revoke', async (request) => {
     const { capability } = z
       .object({ capability: z.string().min(1) })

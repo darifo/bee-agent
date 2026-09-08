@@ -130,6 +130,9 @@ importers:
 
   apps/bee:
     dependencies:
+      '@bee-agent/execution':
+        specifier: workspace:*
+        version: link:../../packages/execution
       '@bee-agent/kanban':
         specifier: workspace:*
         version: link:../../packages/kanban
@@ -322,6 +325,9 @@ importers:
 
   packages/learning:
     dependencies:
+      '@bee-agent/execution':
+        specifier: workspace:*
+        version: link:../execution
       '@bee-agent/kernel':
         specifier: workspace:*
         version: link:../kernel
