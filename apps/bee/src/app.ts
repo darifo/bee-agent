@@ -582,7 +582,11 @@ export async function buildBeeServer(
     const activation =
       options.memory === undefined
         ? undefined
-        : new LearningActivationService({ store, memory: options.memory })
+        : new LearningActivationService({
+            store,
+            memory: options.memory,
+            skillStore,
+          })
     await activation?.rebuild()
     learning = { proposals, loop: loopRunner, experiments, activation, drift }
     const intervalMs =

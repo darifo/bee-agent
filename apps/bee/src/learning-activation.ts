@@ -5,6 +5,7 @@ import {
   learningProposalActivatedEvent,
 } from '@bee-agent/learning'
 import type { ImprovementProposal } from '@bee-agent/learning'
+import type { SkillStore } from '@bee-agent/runtime'
 
 /**
  * Autonomy-level activation (architecture §11.4, v1 refactor plan §5.6
@@ -27,6 +28,8 @@ export interface LearningActivationOptions {
    */
   readonly maxActiveActivations?: number | undefined
   readonly now?: (() => string) | undefined
+  /** Promoted skill proposals register here as executable skills. */
+  readonly skillStore?: SkillStore | undefined
 }
 
 export class ActivationNotPermittedError extends Error {
@@ -71,12 +74,14 @@ export class LearningActivationService {
   readonly #maxActive: number
   readonly #now: () => string
   readonly #claims = new Map<string, string>() // proposalId → claimId
+  readonly #skillStore: SkillStore | undefined
 
   constructor(options: LearningActivationOptions) {
     this.#store = options.store
     this.#memory = options.memory
     this.#maxActive = options.maxActiveActivations ?? 5
     this.#now = options.now ?? (() => new Date().toISOString())
+    this.#skillStore = options.skillStore
   }
 
   /** Recovers proposalId → claimId from the learning stream. */
@@ -170,7 +175,86 @@ export class LearningActivationService {
     })
 
     this.#claims.set(proposal.id, claimId)
+
+    // Promoted skill proposals become executable skills: the typical input
+    // comes from the successful invocations in the proposal's own
+    // trajectory evidence, so skill_run starts from the proven shape.
+    if (proposal.type === 'skill' && this.#skillStore !== undefined) {
+      const change = proposal.proposedChange as { toolId?: string }
+      const toolId = change.toolId
+      if (toolId !== undefined) {
+        const { instructions, typicalInput } = await this.#skillTemplateFor(
+          proposal,
+          toolId,
+        )
+        await this.#skillStore.register({
+          skillId: `learned-${proposal.id.slice(0, 8)}`,
+          name: `${toolId} 使用模式`,
+          summary: `学习循环从 ${proposal.proposedChange && (proposal.proposedChange as { usageCount?: number }).usageCount !== undefined ? `${(proposal.proposedChange as { usageCount?: number }).usageCount} 次使用` : '近期轨迹'}中提炼的 ${toolId} 调用模式`,
+          instructions,
+          boundToolId: toolId,
+          typicalInput,
+          origin: { proposalId: proposal.id, targetKey: proposal.targetKey },
+          registeredBy: 'learning-loop',
+        })
+      }
+    }
+
     return { proposalId: proposal.id, claimId, via: 'memory-claim' }
+  }
+
+  /**
+   * Extracts the instructions and typical input for a skill from the
+   * proposal's trajectory evidence: the most recent successful invocation
+   * of the bound tool supplies the input; earlier ones vote on recurring
+   * fields. Falls back to a schemaless instruction when no input exists.
+   */
+  async #skillTemplateFor(
+    proposal: ImprovementProposal,
+    toolId: string,
+  ): Promise<{ instructions: string; typicalInput: Record<string, unknown> }> {
+    const refs = proposal.basedOnTrajectoryIds ?? []
+    const inputs: Record<string, unknown>[] = []
+    for (const ref of refs.slice(-10)) {
+      for await (const event of this.#store.readStream(
+        `thread:${ref.threadId}`,
+      )) {
+        if (event.eventType !== 'item.completed') continue
+        if ((event.turnId ?? '') !== ref.turnId) continue
+        const item = (
+          event.payload as {
+            item?: { type?: string; payload?: Record<string, unknown> }
+          }
+        ).item
+        if (item?.type !== 'tool_call') continue
+        if (item.payload?.toolId !== toolId) continue
+        if (item.payload?.input !== undefined && item.payload.input !== null) {
+          inputs.push(item.payload.input as Record<string, unknown>)
+        }
+      }
+    }
+    // The newest invocation is the best template; drop keys whose values
+    // vary across uses (call-site specific) and keep the stable ones.
+    const typicalInput: Record<string, unknown> = {}
+    const latest = inputs[inputs.length - 1]
+    if (latest !== undefined) {
+      for (const [key, value] of Object.entries(latest)) {
+        const values = new Set(
+          inputs.map((entry) => JSON.stringify(entry[key] ?? null)).slice(0, 5),
+        )
+        typicalInput[key] =
+          values.size === 1
+            ? value
+            : `（按需调整，参考值：${JSON.stringify(value).slice(0, 80)}）`
+      }
+    }
+    const instructions =
+      `使用 ${toolId} 时按本技能的典型模式调用` +
+      (refs.length > 0 ? `（来自 ${refs.length} 条历史轨迹的成功实践）` : '') +
+      (Object.keys(typicalInput).length > 0
+        ? `。典型输入字段：${Object.keys(typicalInput).join('、')}。`
+        : '')
+    return { instructions, typicalInput }
   }
 
   /** Monitor-driven retraction by proposal id; idempotent when absent. */

@@ -7,7 +7,10 @@ import {
 } from '@bee-agent/knowledge'
 import { MemoryChronicleStore } from '@bee-agent/knowledge/testing'
 import { registerThreadChronicleEvents } from '@bee-agent/thread'
-import { registerRuntimeChronicleEvents } from '@bee-agent/runtime'
+import {
+  registerRuntimeChronicleEvents,
+  registerSkillChronicleEvents as registerSkillChronicleEventsFromRuntime,
+} from '@bee-agent/runtime'
 import { createFakeLlmRuntime } from '@bee-agent/runtime/testing'
 import { registerKanbanChronicleEvents } from '@bee-agent/kanban'
 import { registerLearningChronicleEvents } from '@bee-agent/learning'
@@ -32,6 +35,8 @@ function createRegistryStore(): MemoryChronicleStore {
   registerLearningChronicleEvents(registry)
   registerMemoryChronicleEvents(registry)
   registerWorldChronicleEvents(registry)
+  // skill events flow through the runtime re-export
+  registerSkillChronicleEventsFromRuntime(registry)
   return new MemoryChronicleStore(registry)
 }
 
